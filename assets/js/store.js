@@ -1,7 +1,7 @@
 // 데이터 저장소 — LocalStore(데모 모드) / ApiStore(운영 모드: server/api.php)
 const Store = (() => {
   const C = window.MLS_CONFIG;
-  const KEY = 'mls.db.v1', SKEY = 'mls.session.v1';
+  const KEY = 'mls.db.v2', SKEY = 'mls.session.v1';
 
   // ─────────────── LocalStore ───────────────
   const Local = (() => {
@@ -46,8 +46,8 @@ const Store = (() => {
       db.users.push(await mk('admin', 'admin1234', '관리자', 'admin', { days: 60, initial: 0, cash: 0, watch: [] }));
       const teacher = await mk('teacher', 'teacher1234', 'MAX 리딩 강사', 'instructor', { days: 60 });
       db.users.push(teacher);
-      const names = [['demo', '체험회원'], ['kim01', '김민준'], ['lee02', '이서연'], ['park03', '박도윤'], ['choi04', '최지우'], ['jung05', '정하준'], ['kang06', '강수아'], ['yoon07', '윤시우']];
-      const codes = Market.list().map((q) => q.code);
+      const names = [['demo', '김민수'], ['kim01', '김민준'], ['lee02', '이서연'], ['park03', '박도윤'], ['choi04', '최지우'], ['jung05', '정하준'], ['kang06', '강수아'], ['yoon07', '윤시우']];
+      const codes = Market.list().slice(0, 60).map((q) => q.code);
       let k = 0;
       for (const [un, nm] of names) {
         const u = await mk(un, un === 'demo' ? 'demo1234' : 'pass1234', nm, 'user', { days: 10 + k * 5 });
@@ -104,7 +104,7 @@ const Store = (() => {
       db.posts[2].comments.push({ id: U.uid('m'), userId: kim.id, name: kim.name, text: '거래량 확인하는 게 제일 중요하네요', at: new Date(now - 2 * 86400000).toISOString() });
       db.notices.push(
         { id: U.uid('n'), title: '오늘 밤 9시 라이브 리딩: 미국장 개장 대응 전략', body: '리딩룸에서 실시간으로 진행합니다. 가상계좌로 함께 따라해 보세요.', pinned: true, at: new Date(now - 1800000).toISOString() },
-        { id: U.uid('n'), title: 'MAX라이프 주식 모의투자 오픈 안내', body: '가입 시 가상 예수금 1,000만원이 지급됩니다. 실제 시세 기준으로 체결되며 실제 돈은 오가지 않습니다.', pinned: false, at: new Date(now - 7 * 86400000).toISOString() },
+        { id: U.uid('n'), title: 'MAX라이프 주식 오픈 안내', body: '가입 시 가상 예수금 1,000만원이 지급됩니다. 실제 시세 기준으로 체결되며 실제 돈은 오가지 않습니다.', pinned: false, at: new Date(now - 7 * 86400000).toISOString() },
       );
       save();
     }

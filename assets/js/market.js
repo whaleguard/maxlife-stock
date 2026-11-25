@@ -10,8 +10,10 @@ const Market = (() => {
   const simTicks = {};
   let simTimer = null, pollTimer = null;
 
-  const isUS = (s) => s && (s.market === 'NASDAQ' || s.market === 'NYSE');
-  const meta = (code) => universe.stocks.find((s) => s.code === code);
+  const isUS = (s) => s && (s.market === 'NASDAQ' || s.market === 'NYSE' || s.market === 'AMEX');
+  let metaMap = {};
+  const meta = (code) => metaMap[code];
+  const setStocks = (arr) => { universe.stocks = arr; metaMap = {}; for (const s of arr) metaMap[s.code] = s; };
 
   async function fetchJSON(url) {
     const r = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Math.floor(Date.now() / 30000), { cache: 'no-store' });
@@ -21,7 +23,7 @@ const Market = (() => {
 
   async function init(opts = {}) {
     overrides = { hidden: [], base: {}, ...(opts.overrides || {}) };
-    universe = await fetchJSON(C.LOCAL_DATA + '/universe.json');
+    universe = await fetchJSON(C.LOCAL_DATA + '/universe.json'); setStocks(universe.stocks);
     await refresh();
     pollTimer = setInterval(refresh, C.QUOTE_POLL_MS);
     return api;
@@ -33,17 +35,25 @@ const Market = (() => {
     for (const base of [...C.DATA_URLS, C.LOCAL_DATA]) {
       try {
         const j = await fetchJSON(base + '/quotes.json');
-        if (j && j.items && Object.keys(j.items).length >= 5 && j.source === 'KIS') { live = j; dataBase = base; break; }
+        if (j && j.items && Object.keys(j.items).length >= 5 && j.status === 'LIVE') { live = j; dataBase = base; break; }
       } catch {}
     }
     if (live) {
       stopSim();
       const prevItems = state.items;
-      state = { status: 'LIVE', source: 'KIS', updatedAt: live.updatedAt, fx: live.fx || 1400, indices: live.indices || {}, items: {}, books: live.books || {}, ticks: {} };
+      state = { status: 'LIVE', source: live.source, updatedAt: live.updatedAt, fx: live.fx || 1400, indices: live.indices || {}, items: {}, books: live.books || {}, ticks: {} };
+      // 전 종목: 실시세 파일의 종목 목록을 그대로 사용 (기존 종목의 업종 정보는 유지)
+      if (Object.keys(live.items).length > universe.stocks.length) {
+        const old = metaMap;
+        setStocks(Object.entries(live.items).filter(([, q]) => q && q.price > 0).sort((a, b) => (b[1].marketCap || 0) - (a[1].marketCap || 0))
+          .map(([code, q]) => ({ code, name: q.name, market: q.market, sector: (old[code] && old[code].sector) || q.sector || (q.type === 'etf' ? 'ETF' : ''), sample: q.price })));
+      }
       for (const s of universe.stocks) {
         const q = live.items[s.code];
         if (!q) continue;
         state.items[s.code] = { code: s.code, sector: s.sector, ...q, name: s.name, market: s.market, currency: isUS(s) ? 'USD' : 'KRW' };
+        const it = state.items[s.code];
+        if (it.currency === 'KRW' && it.prevClose) { it.upper = U.roundTick(it.prevClose * 1.3, 'KRW', 'floor'); it.lower = U.roundTick(it.prevClose * 0.7, 'KRW', 'ceil'); }
         const t = (live.ticks || {})[s.code];
         state.ticks[s.code] = t ? t.map(([hhmmss, p, v]) => ({ t: hhmmss.slice(0, 2) + ':' + hhmmss.slice(2, 4) + ':' + hhmmss.slice(4, 6), p, v, side: 0 })) : [];
         const old = prevItems[s.code]; state.items[s.code].dir = old ? Math.sign(state.items[s.code].price - old.price) : 0;
@@ -128,7 +138,12 @@ const Market = (() => {
     const q = quote(code); if (!q) return { asks: [], bids: [] };
     const lb = state.books[code];
     if (state.status === 'LIVE' && lb && lb.asks && lb.asks[0] && lb.asks[0][0]) {
-      return { asks: lb.asks.slice(0, 10), bids: lb.bids.slice(0, 10), live: true };
+      const asks = lb.asks.slice(0, 10), bids = lb.bids.slice(0, 10);
+      const avg = Math.max(1, Math.round([...asks, ...bids].reduce((t, x) => t + x[1], 0) / (asks.length + bids.length)));
+      const r = U.rng(code + U.today());
+      while (asks.length < 10) { const a = U.stepPrice(asks[asks.length - 1][0], 'KRW', 1); asks.push([a, Math.round(avg * (0.5 + r()))]); }
+      while (bids.length < 10) { const b = U.stepPrice(bids[bids.length - 1][0], 'KRW', -1); bids.push([b, Math.round(avg * (0.5 + r()))]); }
+      return { asks, bids, live: true };
     }
     // 합성 호가 (현재가 기준, 교육용)
     const r = U.rng(code + Math.floor(Date.now() / 4000));

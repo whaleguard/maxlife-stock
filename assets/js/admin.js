@@ -53,7 +53,7 @@
     const ix = Market.state.indices; const tk = $('#tk');
     if (tk) tk.innerHTML = ['KOSPI', 'KOSDAQ', 'NASDAQ', 'SPX'].filter((k) => ix[k]).map((k) => `<span class="ix"><b>${k === 'SPX' ? 'S&P500' : k}</b><span class="v ${cls(ix[k].change)}">${U.n2(ix[k].price)}</span><span class="${cls(ix[k].change)}">${pct(ix[k].changePct)}</span></span>`).join('');
     const s = Market.state; const sf = $('#sf');
-    if (sf) sf.innerHTML = s.status === 'LIVE' ? `<span class="brand">●</span> 실시세 연동<br>${U.dt(s.updatedAt)}` : `<span style="color:var(--warn)">●</span> 샘플 시세<br>KIS API 미연결`;
+    if (sf) sf.innerHTML = s.status === 'LIVE' ? `<span class="brand">●</span> 시세 연동<br>${U.dt(s.updatedAt)}` : `<span style="color:var(--warn)">●</span> 시세 불러오는 중`;
     const pb = $('#pendBadge'); if (pb) { const n = A.flows.filter((f) => f.status === 'pending').length; pb.textContent = n || ''; pb.style.display = n ? '' : 'none'; }
   }
   function route() {
@@ -109,7 +109,7 @@
       const uname = (id) => (A.users.find((u) => u.id === id) || {}).name || '-';
       const rf = fills.slice().sort((a, b) => b.at.localeCompare(a.at)).slice(0, 10);
       $('#dFills').innerHTML = rf.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>시각</th><th class="l">회원</th><th class="l">종목</th><th>구분</th><th>금액</th></tr></thead><tbody>${rf.map((f) => `<tr><td class="dim">${U.dt(f.at)}</td><td class="l">${esc(uname(f.userId))}</td><td class="l">${esc(f.name)}</td><td><span class="tag ${f.side === 'buy' ? 'tag-buy' : 'tag-sell'}">${f.side === 'buy' ? '매수' : '매도'}</span></td><td>${won(f.amount)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">체결 내역이 없습니다</div>';
-      $('#dT').textContent = (Market.state.status === 'LIVE' ? '실시세 ' : '샘플 시세 ') + U.time(Date.now()) + ' 기준';
+      $('#dT').textContent = ('시세 ') + U.time(Date.now()) + ' 기준';
     }
     data();
     let t = 0;
@@ -240,21 +240,17 @@
       <section class="panel"><div class="panel-h"><h3>거래 종목</h3><div class="seg" id="stF"><button data-v="all" class="on">전체</button><button data-v="KRW">국내</button><button data-v="USD">미국</button></div></div><div class="panel-b flush" id="stL"></div></section>`;
     let fl = 'all';
     $('#stF').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; fl = b.dataset.v; $$('#stF button').forEach((x) => x.classList.toggle('on', x === b)); data(); };
+    let kw = '', limit = 100;
     function data() {
       const s = Market.state; const ov = A.st.overrides || { hidden: [], base: {} };
-      $('#stS').innerHTML = s.status === 'LIVE'
-        ? `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="tag tag-ok">실시세 연동 중</span><span>한국투자증권 Open API · ${U.dt(s.updatedAt)} 기준 · 적용 환율 ${U.n2(s.fx)}원</span></div><p class="muted" style="margin-top:10px;font-size:13px">GitHub Actions 가 장중 5분마다 국내·미국 시세, 국내 10단계 호가·체결, 일봉/분봉을 갱신합니다.</p>`
-        : `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><span class="tag tag-wait">샘플 시세</span><span>실시세 API 가 아직 연결되지 않았습니다.</span></div>
-           <ol style="padding-left:18px;line-height:1.9;font-size:13px" class="muted">
-             <li>한국투자증권 계좌 개설 → <a class="brand" href="https://apiportal.koreainvestment.com" target="_blank" rel="noopener">KIS Developers</a> 에서 Open API 신청 → App Key / App Secret 발급</li>
-             <li>GitHub 저장소 <b>Settings → Secrets and variables → Actions</b> 에 <code>KIS_APP_KEY</code>, <code>KIS_APP_SECRET</code> 등록</li>
-             <li><b>Actions → 시세 수집 → Run workflow</b> (mode: all) 1회 실행 → 이후 장중 5분마다 자동 갱신</li>
-           </ol>
-           <p class="dim" style="font-size:12px;margin-top:8px">시세 정보는 지연 시세로 교육 목적에 한해 표시됩니다. 상업적 실시간 재배포 시 거래소 정보이용 계약이 필요합니다.</p>`;
-      const list = Market.allMeta().filter((m) => fl === 'all' || (fl === 'USD') === Market.isUS(m));
-      $('#stL').innerHTML = `<div class="table-wrap"><table class="t"><thead><tr><th>종목</th><th>시장</th><th>현재가</th><th>등락률</th><th>데이터</th><th>${s.status === 'SAMPLE' ? '샘플 기준가' : ''}</th><th>거래 노출</th></tr></thead><tbody>${list.map((m) => { const q = Market.quote(m.code) || {}; const hid = ov.hidden.includes(m.code); return `<tr><td><div class="sname"><b>${esc(m.name)}</b><small>${m.code} · ${esc(m.sector || '')}</small></div></td><td>${m.market}</td><td class="${cls(q.change)}">${q.price ? px(q.price, q.currency) : '-'}</td><td class="${cls(q.change)}">${q.price ? pct(q.changePct) : '-'}</td><td>${q.sample ? '<span class="tag tag-wait">샘플</span>' : '<span class="tag tag-ok">실시세</span>'}</td><td>${s.status === 'SAMPLE' ? `<input class="input" style="height:30px;width:110px;text-align:right" data-base="${m.code}" value="${ov.base[m.code] || m.sample}">` : ''}</td><td><label class="switch" style="display:inline-block"><input type="checkbox" data-vis="${m.code}" ${hid ? '' : 'checked'}><span></span></label></td></tr>`; }).join('')}</tbody></table></div>`;
+      const all = Market.allMeta(); const nKr = all.filter((m) => !Market.isUS(m)).length;
+      $('#stS').innerHTML = `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="tag ${s.status === 'LIVE' ? 'tag-ok' : 'tag-wait'}">${s.status === 'LIVE' ? '시세 연동 중' : '시세 연결 중'}</span><span>${s.updatedAt ? U.dt(s.updatedAt) + ' 기준' : ''} · 국내 ${U.n0(nKr)}종목 · 미국 ${U.n0(all.length - nKr)}종목 · 적용 환율 ${U.n2(s.fx)}원</span></div><p class="muted" style="margin-top:10px;font-size:13px">코스피·코스닥 전 종목(ETF 포함)과 나스닥·뉴욕·아멕스 상장 종목 시세가 장중 5분마다 자동 갱신됩니다.</p>`;
+      const k = kw.toLowerCase();
+      const list = all.filter((m) => (fl === 'all' || (fl === 'USD') === Market.isUS(m)) && (!k || m.name.toLowerCase().includes(k) || m.code.toLowerCase().includes(k)));
+      $('#stL').innerHTML = `<div style="padding:12px 16px;display:flex;gap:8px;align-items:center"><input class="input" id="stQ" placeholder="종목명·코드 검색" value="${esc(kw)}" style="max-width:280px"><span class="dim" style="font-size:12px">${U.n0(list.length)}종목 중 시가총액 상위 ${Math.min(limit, list.length)}개 표시</span></div><div class="table-wrap"><table class="t"><thead><tr><th>종목</th><th>시장</th><th>현재가</th><th>등락률</th><th>거래 노출</th></tr></thead><tbody>${list.slice(0, limit).map((m) => { const q = Market.quote(m.code) || {}; const hid = ov.hidden.includes(m.code); return `<tr><td><div class="sname"><b>${esc(m.name)}</b><small>${m.code}${m.sector ? ' · ' + esc(m.sector) : ''}</small></div></td><td>${m.market}</td><td class="${cls(q.change)}">${q.price ? px(q.price, q.currency) : '-'}</td><td class="${cls(q.change)}">${q.price ? pct(q.changePct) : '-'}</td><td><label class="switch" style="display:inline-block"><input type="checkbox" data-vis="${m.code}" ${hid ? '' : 'checked'}><span></span></label></td></tr>`; }).join('')}</tbody></table></div>${list.length > limit ? '<div style="padding:12px;text-align:center"><button class="btn" id="stMore">더 보기</button></div>' : ''}`;
+      const qi = $('#stQ'); qi.oninput = () => { kw = qi.value; limit = 100; clearTimeout(qi._t); qi._t = setTimeout(() => { data(); const n = $('#stQ'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 250); };
+      const mb = $('#stMore'); if (mb) mb.onclick = () => { limit += 200; data(); };
       $$('[data-vis]', main).forEach((c) => (c.onchange = async () => { const o = { hidden: [...(ov.hidden || [])], base: { ...(ov.base || {}) } }; o.hidden = c.checked ? o.hidden.filter((x) => x !== c.dataset.vis) : [...o.hidden, c.dataset.vis]; await Store.saveSettings({ overrides: o }); Market.setOverrides(o); U.toast(c.checked ? '노출되었습니다.' : '거래 목록에서 숨겼습니다.'); }));
-      $$('[data-base]', main).forEach((i) => (i.onchange = async () => { const v = parseFloat(i.value); if (!(v > 0)) return U.toast('가격을 확인하세요.', true); const o = { hidden: [...(ov.hidden || [])], base: { ...(ov.base || {}), [i.dataset.base]: v } }; await Store.saveSettings({ overrides: o }); Market.setOverrides(o); U.toast('샘플 기준가가 변경되었습니다.'); }));
     }
     data();
     return { data };

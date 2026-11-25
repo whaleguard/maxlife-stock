@@ -1,13 +1,15 @@
-name: 시세 수집 (KIS Open API)
+name: 시세 수집 (국내·미국 전 종목)
 
 # 시세 데이터는 data 브랜치에 저장 → 앱이 raw.githubusercontent.com 에서 읽음
-# (main 브랜치/Pages 재빌드를 유발하지 않음)
+# data 브랜치는 매번 하나의 커밋으로 덮어써서 저장소 용량이 늘지 않음
 on:
   schedule:
+    - cron: '*/5 23 * * 0-4'     # 국내 장 시작 전 08:00~09:00 KST
     - cron: '*/5 0-7 * * 1-5'    # 국내장 09:00~16:00 KST
-    - cron: '*/5 13-21 * * 1-5'  # 미국장 22:30~06:00 KST
-    - cron: '10 7 * * 1-5'       # 국내 일봉/분봉 마감 갱신
-    - cron: '20 21 * * 1-5'      # 미국 일봉 마감 갱신
+    - cron: '*/10 13-21 * * 1-5' # 미국장 22:30~06:00 KST
+    - cron: '0 */3 * * *'        # 장외 시간 마지막 시세 유지
+    - cron: '20 7 * * 1-5'       # 국내 일봉 마감 갱신 (16:20 KST)
+    - cron: '30 21 * * 2-6'      # 미국 일봉 마감 갱신 (06:30 KST)
   workflow_dispatch:
     inputs:
       mode:
@@ -24,53 +26,46 @@ concurrency:
 jobs:
   fetch:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
           path: app
 
-      - name: data 브랜치 준비
+      - name: 이전 데이터 가져오기
         run: |
+          mkdir -p store
           cd app
           if git ls-remote --exit-code --heads origin data >/dev/null 2>&1; then
-            git fetch origin data
-            git worktree add ../store origin/data
-            cd ../store && git checkout -B data
-          else
-            git worktree add --orphan -b data ../store
-            cd ../store
-            cp -r ../app/data/. .
+            git fetch --depth 1 origin data
+            git --work-tree=../store checkout FETCH_HEAD -- .
           fi
-
-      - uses: actions/cache@v4
-        with:
-          path: store/.kis-token.json
-          key: kis-token-${{ github.run_id }}
-          restore-keys: kis-token-
+          cd ..
+          rm -f store/.gitignore
+          cp app/data/universe.json store/universe.json
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: 수집
-        env:
-          KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
-          KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
         run: |
-          mkdir -p store/data
-          cp app/data/universe.json store/universe.json
           MODE="${{ github.event.inputs.mode }}"
           if [ -z "$MODE" ]; then
-            if [ "${{ github.event.schedule }}" = "10 7 * * 1-5" ] || [ "${{ github.event.schedule }}" = "20 21 * * 1-5" ]; then MODE=candles; else MODE=quotes; fi
+            case "${{ github.event.schedule }}" in
+              "20 7 * * 1-5"|"30 21 * * 2-6") MODE=all ;;
+              *) MODE=quotes ;;
+            esac
           fi
-          node app/scripts/fetch-kis.mjs "$MODE" --data store
+          if [ ! -d store/candles ] || [ "$(ls store/candles | wc -l)" -lt 1000 ]; then MODE=all; fi
+          node app/scripts/fetch-market.mjs "$MODE" --data store
 
-      - name: 커밋
+      - name: data 브랜치 갱신 (단일 커밋으로 덮어쓰기)
         run: |
           cd store
-          echo ".kis-token.json" > .gitignore
+          git init -q -b data
           git config user.name "maxlife-bot"
           git config user.email "bot@users.noreply.github.com"
           git add -A
-          git diff --cached --quiet || git commit -m "시세 갱신 $(date -u +%FT%TZ)"
-          git push origin data
+          git commit -q -m "시세 갱신 $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data

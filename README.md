@@ -14,15 +14,16 @@
 
 데모 계정: 수강생 `demo/demo1234` · 강사 `teacher/teacher1234` · 관리자 `admin/admin1234`
 
-## 실시세 연동 (한국투자증권 Open API)
+## 시세 연동 (API 키 불필요)
 
-1. 한국투자증권 계좌 개설 → [KIS Developers](https://apiportal.koreainvestment.com) 에서 Open API 신청 → App Key / App Secret 발급
-2. GitHub 저장소 **Settings → Secrets and variables → Actions** 에 `KIS_APP_KEY`, `KIS_APP_SECRET` 등록
-3. **Actions → 시세 수집 (KIS Open API) → Run workflow** (mode: `all`) 1회 실행
+`scripts/fetch-market.mjs` 를 GitHub Actions 가 장중 5분마다 실행해 `data` 브랜치에 저장합니다.
 
-이후 장중 5분마다 국내·미국 현재가, 국내 10단계 호가·체결, 지수, 환율, 일봉/분봉이 `data` 브랜치에 갱신되고 앱이 자동으로 실시세로 전환됩니다. 연결 전에는 "샘플 시세"(교육용 시뮬레이션)로 동작합니다.
+- 국내: 코스피·코스닥 전 종목(ETF 포함) 현재가·시가·고가·저가·거래량·거래대금, 거래대금 상위 300종목 호가, 상위 150종목 분봉
+- 미국: 나스닥·뉴욕·아멕스 상장 종목 현재가·등락·거래량, 시가총액 상위 300종목 당일 시가·고가·저가
+- 지수(코스피·코스닥·나스닥·S&P500·다우), 원/달러 환율
+- 일봉 1년치: 국내 전 종목 + 미국 시가총액 상위 1,500종목 (매일 장 마감 후)
 
-> 지연 시세(최대 5분)로 교육 목적에 한해 표시합니다. 상업적 실시간 시세 재배포에는 거래소 정보이용 계약이 필요합니다.
+`data` 브랜치는 매번 단일 커밋으로 덮어써서 저장소 용량이 늘지 않습니다. 수동 실행: **Actions → 시세 수집 → Run workflow** (mode: `all`).
 
 ## 운영 모드 서버 설치 (Cafe24 / VPS, PHP 8+ · MySQL)
 

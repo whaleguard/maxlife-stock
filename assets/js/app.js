@@ -62,7 +62,7 @@
       <div class="auth-form"><div class="auth-card">
         <div class="show-m" style="margin-bottom:28px">${U.logo()}</div>
         ${mode === 'login' ? `
-          <h1>로그인</h1><p class="sub">MAX라이프 주식 모의투자 계좌에 접속합니다.</p>
+          <h1>로그인</h1><p class="sub">MAX라이프 주식 계좌에 접속합니다.</p>
           <form id="authF">
             <div class="field"><label>아이디</label><input class="input" name="username" autocomplete="username" required></div>
             <div class="field"><label>비밀번호</label><input class="input" type="password" name="pw" autocomplete="current-password" required></div>
@@ -120,7 +120,6 @@
     <div class="app">
       <header class="topbar">
         <a href="#/home">${U.logo()}</a>
-        <span class="badge-mode">모의투자</span>
         <div class="ticker" id="ticker"></div>
         <div class="top-actions">
           <div class="search">${ICON.search}<input id="q" placeholder="종목명·코드 검색" autocomplete="off"><div class="search-results hidden" id="qr"></div></div>
@@ -190,8 +189,8 @@
   }
   function statusLine(short) {
     const s = Market.state;
-    if (s.status === 'LIVE') { const kr = Market.session('KR'), us = Market.session('US'); return `<span class="brand">●</span> 실시세 연동 (KIS)<br>${U.dt(s.updatedAt)} 기준${short ? '' : ' · 최대 5분 지연'}<br>국내 ${kr.label} · 미국 ${us.label}`; }
-    return `<span style="color:var(--warn)">●</span> 샘플 시세${short ? '' : ' (실시세 미연결)'}<br>가격 변동은 교육용 시뮬레이션`;
+    if (s.status === 'LIVE') { const kr = Market.session('KR'), us = Market.session('US'); return `<span class="brand">●</span> 시세 연동<br>${U.dt(s.updatedAt)} 기준<br>국내 ${kr.label} · 미국 ${us.label}`; }
+    return `<span style="color:var(--warn)">●</span> 시세 불러오는 중`;
   }
 
   // ── 라우팅 ──
@@ -206,7 +205,7 @@
     S.page = P(main, arg) || {};
   }
   const head = (t, sub, right = '') => `<div class="page-head"><div><h1>${t}</h1>${sub ? `<p>${sub}</p>` : ''}</div>${right}</div>`;
-  const marketBanner = () => Market.state.status === 'LIVE' ? '' : `<div class="notice-bar warn"><b>샘플 시세</b><span>실시세가 아직 연결되지 않아 교육용 시뮬레이션 가격으로 동작 중입니다. 관리자가 시세 API를 연결하면 실제 시세로 자동 전환됩니다.</span></div>`;
+  const marketBanner = () => '';
   const stockRow = (q, extra = '') => `<div class="row" data-go="${q.code}"><div class="sname">${extra}<b>${esc(q.name)}</b><small>${q.code} · ${q.market}</small></div><div class="p ${cls(q.change)}"><b>${px(q.price, q.currency)}</b><small>${pct(q.changePct)}</small></div></div>`;
   const bindGo = (el) => el.addEventListener('click', (e) => { const g = e.target.closest('[data-go]'); if (g && !e.target.closest('[data-stop]')) location.hash = '#/stock/' + g.dataset.go; });
 
@@ -257,7 +256,7 @@
       Chart.line($('#hSpark'), { points: snaps, color: v.totalPnl >= 0 ? Chart.css('--up') : Chart.css('--down'), labels: false, base: v.principal, fmt: compact });
       const ix = Market.state.indices;
       $('#hIdx').innerHTML = ['KOSPI', 'KOSDAQ', 'NASDAQ', 'SPX'].filter((k) => ix[k]).map((k) => `<div class="row" style="cursor:default"><div class="sname"><b>${k === 'SPX' ? 'S&P 500' : ix[k].name || k}</b><small>${k === 'KOSPI' || k === 'KOSDAQ' ? '국내 · ' + Market.session('KR').label : '미국 · ' + Market.session('US').label}</small></div><div class="p ${cls(ix[k].change)}"><b>${U.n2(ix[k].price)}</b><small>${signed(ix[k].change, 'USD').replace('$', '')} ${pct(ix[k].changePct)}</small></div></div>`).join('');
-      $('#hTime').textContent = Market.state.status === 'LIVE' ? U.dt(Market.state.updatedAt) + ' 기준' : '샘플';
+      $('#hTime').textContent = Market.state.updatedAt ? U.dt(Market.state.updatedAt) + ' 기준' : '';
       const w = (S.user.watch || []).map(Market.quote).filter(Boolean);
       $('#hWatch').innerHTML = w.length ? w.map((q) => stockRow(q, `<button class="star on" data-star="${q.code}" data-stop title="관심 해제" style="float:left;margin:4px 6px 0 -6px">${ICON.star}</button>`)).join('') : '<div class="empty">종목 화면에서 ☆를 눌러 관심종목을 추가하세요</div>';
       let list = Market.list((q) => mk === 'ALL' || (mk === 'KR' ? q.currency === 'KRW' : q.currency === 'USD'));
@@ -315,7 +314,7 @@
     async function loadChart() {
       const r = await Market.candles(code, O.tf);
       chart.set({ data: r.data, tf: O.tf, offset: 0, lines: avgLine() });
-      $('#sCSrc').textContent = (r.live ? '실데이터' : '샘플 차트') + (r.unit ? ' · ' + r.unit : '');
+      $('#sCSrc').textContent = r.unit || '';
     }
     const avgLine = () => { const h = S.v.holdings.find((x) => x.code === code); return h ? [{ price: h.avg, label: '평균', color: '#8A94A6' }] : []; };
     $('#sTf').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; O.tf = b.dataset.v; $$('#sTf button').forEach((x) => x.classList.toggle('on', x === b)); loadChart(); };
@@ -394,7 +393,7 @@
       $('#sBook').innerHTML = asks.map(([p, v]) => `<div class="r ask ${p === q.price ? 'cur' : ''}" data-px="${p}"><span class="bar" style="width:calc((50% - 44px) * ${(v / maxv).toFixed(3)})"></span><span class="q l">${n0(v)}</span><span class="pc ${cls(p - q.prevClose)}"><span>${px(p, q.currency)}<br>${pc(p)}</span></span><span></span></div>`).join('') +
         b.bids.map(([p, v]) => `<div class="r bid ${p === q.price ? 'cur' : ''}" data-px="${p}"><span></span><span class="pc ${cls(p - q.prevClose)}"><span>${px(p, q.currency)}<br>${pc(p)}</span></span><span class="bar" style="width:calc((50% - 44px) * ${(v / maxv).toFixed(3)})"></span><span class="q r2">${n0(v)}</span></div>`).join('') +
         `<div class="sum"><span class="down">${n0(sumA)}</span><span style="text-align:center;font-size:11px">총잔량</span><span class="up">${n0(sumB)}</span></div>`;
-      $('#sBookSrc').textContent = b.live ? '실호가 · ' + U.time(Market.state.updatedAt) : '교육용 가상호가';
+      $('#sBookSrc').textContent = '호가 · ' + U.time(Market.state.updatedAt);
       const tk = Market.ticks(code);
       $('#sTicks').innerHTML = tk.slice(0, 30).map((t) => `<div class="r"><span class="dim">${t.t}</span><span class="${t.side > 0 ? 'up' : t.side < 0 ? 'down' : ''}">${px(t.p, q.currency)}</span><span>${n0(t.v)}</span></div>`).join('') || '<div class="empty">체결 내역 없음</div>';
     }
@@ -525,7 +524,7 @@
   function Cash(main) {
     let type = 'deposit';
     main.innerHTML = `${head('입출금', '가상 예수금 입금·출금을 신청합니다. 관리자 승인 후 반영됩니다.')}
-      <div class="notice-bar"><b>안내</b><span>실제 송금은 이루어지지 않습니다. 교육용 가상 예수금만 증감되며, 모든 신청은 관리자 승인 방식으로 처리됩니다.${S.st.autoApprove ? ' (현재 자동 승인 운영 중)' : ''}</span></div>
+      <div class="notice-bar"><b>안내</b><span>모든 입출금 신청은 관리자 승인 후 계좌에 반영됩니다.${S.st.autoApprove ? ' (현재 자동 승인 운영 중)' : ''}</span></div>
       <div class="grid g-main" style="margin-bottom:16px">
         <section class="panel">
           <div class="order-side" id="cType"><button class="buy on" data-v="deposit">입금 신청</button><button class="sell" data-v="withdraw">출금 신청</button></div>
@@ -557,7 +556,7 @@
     }
     function data() {
       const v = S.v; sum();
-      $('#cAcct').innerHTML = `<div class="stat"><div class="k">예수금</div><div class="v" style="font-size:28px">${won(v.cash)}</div></div><div class="divider"></div><dl class="kv"><dt>주문 대기 금액</dt><dd>${won(v.reserved)}</dd><dt>출금가능금액</dt><dd>${won(v.withdrawable)}</dd><dt>최초 지급액</dt><dd>${won(S.user.initial)}</dd><dt>누적 입금</dt><dd class="up">${won(v.deposits)}</dd><dt>누적 출금</dt><dd class="down">${won(v.withdrawals)}</dd><dt>투자원금</dt><dd>${won(v.principal)}</dd></dl><div class="divider"></div><p class="dim" style="font-size:12px;line-height:1.7">가상계좌번호 ${S.user.id.slice(-8).toUpperCase().replace(/(.{4})/, '$1-')}-01<br>MAX라이프 모의투자 · 종합계좌</p>`;
+      $('#cAcct').innerHTML = `<div class="stat"><div class="k">예수금</div><div class="v" style="font-size:28px">${won(v.cash)}</div></div><div class="divider"></div><dl class="kv"><dt>주문 대기 금액</dt><dd>${won(v.reserved)}</dd><dt>출금가능금액</dt><dd>${won(v.withdrawable)}</dd><dt>최초 지급액</dt><dd>${won(S.user.initial)}</dd><dt>누적 입금</dt><dd class="up">${won(v.deposits)}</dd><dt>누적 출금</dt><dd class="down">${won(v.withdrawals)}</dd><dt>투자원금</dt><dd>${won(v.principal)}</dd></dl><div class="divider"></div><p class="dim" style="font-size:12px;line-height:1.7">가상계좌번호 ${S.user.id.slice(-8).toUpperCase().replace(/(.{4})/, '$1-')}-01<br>MAX라이프 주식 · 종합계좌</p>`;
       const cs = S.d.cashflows.slice().sort((a, b) => b.at.localeCompare(a.at));
       const stt = { pending: ['승인 대기', 'tag-wait'], approved: ['승인 완료', 'tag-ok'], rejected: ['반려', 'tag-sell'], cancelled: ['취소', 'tag-no'] };
       $('#cList').innerHTML = cs.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>신청일시</th><th>구분</th><th>금액</th><th class="l hide-m">메모</th><th>상태</th><th class="hide-m">처리일시</th><th></th></tr></thead><tbody>${cs.map((c) => `<tr><td class="dim">${U.dt(c.at)}</td><td><span class="tag ${c.type === 'deposit' ? 'tag-buy' : 'tag-sell'}">${c.type === 'deposit' ? '입금' : '출금'}</span></td><td><b>${won(c.amount)}</b></td><td class="l hide-m muted">${esc(c.memo || '')}${c.adminMemo ? ` <span class="dim">· ${esc(c.adminMemo)}</span>` : ''}</td><td><span class="tag ${stt[c.status][1]}">${stt[c.status][0]}</span></td><td class="hide-m dim">${c.processedAt ? U.dt(c.processedAt) : '-'}</td><td>${c.status === 'pending' ? `<button class="btn btn-sm" data-cc="${c.id}">취소</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">입출금 내역이 없습니다</div>';
@@ -669,7 +668,7 @@
           <dl class="kv"><dt>국내 수수료</dt><dd>${S.st.feeKr}%</dd><dt>국내 매도 세금</dt><dd>${S.st.taxKr}%</dd><dt>미국 수수료</dt><dd>${S.st.feeUs}%</dd><dt>적용 환율</dt><dd>${U.n2(Market.fx())}원</dd><dt>장외시간 체결</dt><dd>${S.st.enforceHours ? '불가 (실제 장시간만)' : '교육용 허용'}</dd></dl>
           <div class="divider"></div>
           <p class="muted" style="font-size:13px;margin-bottom:10px">계좌를 초기화하면 보유종목·주문·거래내역이 모두 삭제되고 예수금이 ${won(S.st.initialCash)}으로 재지급됩니다.</p>
-          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-danger" id="rstBtn">모의투자 계좌 초기화</button><button class="btn" id="outBtn">로그아웃</button>${u.role !== 'user' ? '<a class="btn" href="admin.html">관리자 페이지</a>' : ''}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-danger" id="rstBtn">계좌 초기화</button><button class="btn" id="outBtn">로그아웃</button>${u.role !== 'user' ? '<a class="btn" href="admin.html">관리자 페이지</a>' : ''}</div>
         </div></section>`;
       $('#pfF').onsubmit = async (e) => { e.preventDefault(); try { await Store.updateProfile(Object.fromEntries(new FormData(e.target))); U.toast('저장되었습니다.'); } catch (er) { U.toast(er.message, true); } };
       $('#pwF').onsubmit = async (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); if (f.n !== f.n2) return U.toast('새 비밀번호가 일치하지 않습니다.', true); try { await Store.changePassword(f.o, f.n); e.target.reset(); U.toast('비밀번호가 변경되었습니다.'); } catch (er) { U.toast(er.message, true); } };

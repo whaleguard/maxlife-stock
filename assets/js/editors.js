@@ -3,7 +3,7 @@ const Editors = (() => {
   const { $, $$, esc } = U;
   function postEditor(p) {
     p = p || { kind: 'trade', side: 'buy', result: 'open', resultPct: 0, code: '005930', title: '', body: '', video: '', image: '' };
-    const opts = Market.list().map((q) => `<option value="${q.code}" ${q.code === p.code ? 'selected' : ''}>${esc(q.name)} (${q.code})</option>`).join('');
+    const opts = Market.list().filter((q, i) => i < 400 || q.code === p.code).map((q) => `<option value="${q.code}" ${q.code === p.code ? 'selected' : ''}>${esc(q.name)} (${q.code})</option>`).join('');
     U.modal({
       title: p.id ? '리딩 수정' : '리딩 작성', size: 'lg', body: `
       <form id="pf">
