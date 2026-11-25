@@ -397,9 +397,9 @@ begin
   else null;
   end case;
 
-  -- 강사·관리자
+  -- MAX 리딩·관리자
   if p_action in ('savePost', 'deletePost', 'saveNotice', 'deleteNotice') then
-    if me.role not in ('admin', 'instructor') then perform mls_fail('강사/관리자 권한이 필요합니다.'); end if;
+    if me.role not in ('admin', 'instructor') then perform mls_fail('MAX 리딩·관리자 권한이 필요합니다.'); end if;
     if p_action = 'savePost' then
       if left(trim(coalesce(b->>'title', '')), 200) = '' then perform mls_fail('제목을 입력해 주세요.'); end if;
       if coalesce(b->>'id', '') <> '' then
@@ -520,7 +520,7 @@ insert into mls_users (id, username, pw, name, role, status, cash, initial, watc
   on conflict (username) do nothing;
 insert into mls_users (id, username, pw, name, role, status, cash, initial, watch)
   values ('u_demo', 'demo', extensions.crypt('demo1234', extensions.gen_salt('bf')), '김민수', 'user', 'active', 10000000, 10000000, '["005930","000660","NVDA","AAPL","035420"]'),
-         ('u_teacher', 'teacher', extensions.crypt('teacher1234', extensions.gen_salt('bf')), 'MAX 리딩 강사', 'instructor', 'active', 10000000, 10000000, '["005930","000660","NVDA","AAPL"]')
+         ('u_teacher', 'teacher', extensions.crypt('teacher1234', extensions.gen_salt('bf')), 'MAX 리딩', 'instructor', 'active', 10000000, 10000000, '["005930","000660","NVDA","AAPL"]')
   on conflict (username) do nothing;
 insert into mls_notices (id, title, body, pinned) values ('n_open', 'MAX라이프 주식 오픈 안내', '가입 시 예수금 1,000만 원이 지급됩니다. 국내·미국 전 종목 실제 시세 기준으로 체결됩니다.', true) on conflict (id) do nothing;
 insert into mls_kv (k, v) values ('push_secret', jsonb_build_object('secret', encode(extensions.gen_random_bytes(24), 'hex'))) on conflict (k) do nothing;
