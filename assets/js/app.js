@@ -87,6 +87,7 @@
     S.v = Engine.valuate(S.d, S.st);
     [S.posts, S.notices] = await Promise.all([Store.posts(), Store.notices()]);
   }
+  const seenFill = new Set();
   let lastMatch = 0, snapDone = false, lastSync = Date.now(), lastWarn = 0;
   async function onMarket() {
     if (!S.d) return;
@@ -98,7 +99,7 @@
       lastMatch = Date.now();
       const fills = await Store.matchAll();
       const mine = fills.filter((f) => f.userId === S.user.id);
-      for (const f of mine) U.toast(`[체결] ${f.name} ${f.side === 'buy' ? '매수' : '매도'} ${n0(f.qty)}주 @ ${px(f.price, f.currency)}`);
+      for (const f of mine.filter((x) => !seenFill.has(x.id) && seenFill.add(x.id))) U.toast(`[체결] ${f.name} ${f.side === 'buy' ? '매수' : '매도'} ${n0(f.qty)}주 @ ${px(f.price, f.currency)}`);
       if (mine.length) { await reload(); S.page && S.page.data && S.page.data(); }
     }
     if (Store.mode === 'server' && Date.now() - lastSync > 12000) {
@@ -106,7 +107,7 @@
       const before = { fills: S.d.fills.length, buff: (S.d.buffs || []).map((b) => b.status).join() , cash: (S.d.cashflows || []).map((c) => c.status).join(), inq: (S.d.inquiries || []).filter((q) => q.answeredAt).map((q) => q.id + q.answeredAt).join() };
       await reload();
       const nf = S.d.fills.length - before.fills;
-      if (nf > 0) for (const f of S.d.fills.slice().sort((a, b) => b.at.localeCompare(a.at)).slice(0, nf)) Voice.say(`${f.name} ${n0(f.qty)}주 ${f.side === 'buy' ? '매수' : '매도'} 체결되었습니다.`), U.toast(`[체결] ${f.name} ${f.side === 'buy' ? '매수' : '매도'} ${n0(f.qty)}주 @ ${px(f.price, f.currency)}`);
+      if (nf > 0) for (const f of S.d.fills.slice().sort((a, b) => b.at.localeCompare(a.at)).slice(0, nf).filter((x) => !seenFill.has(x.id) && seenFill.add(x.id))) Voice.say(`${f.name} ${n0(f.qty)}주 ${f.side === 'buy' ? '매수' : '매도'} 체결되었습니다.`), U.toast(`[체결] ${f.name} ${f.side === 'buy' ? '매수' : '매도'} ${n0(f.qty)}주 @ ${px(f.price, f.currency)}`);
       const nb = (S.d.buffs || []).map((b) => b.status).join();
       if (nb !== before.buff) { const b = (S.d.buffs || [])[0]; if (b) Voice.say(b.status === 'active' ? 'MAX 버프가 승인되었습니다.' : b.status === 'liquidated' ? '담보비율 부족으로 자동 청산되었습니다.' : b.status === 'rejected' ? 'MAX 버프 신청이 반려되었습니다.' : ''); if (b) U.toast(b.status === 'active' ? `MAX 버프 ${b.mult}배가 승인되어 ${won(b.amount)}이 지급되었습니다.` : b.status === 'liquidated' ? 'MAX 버프 담보비율이 기준 아래로 내려가 자동 청산되었습니다.' : b.status === 'rejected' ? 'MAX 버프 신청이 반려되었습니다.' : 'MAX 버프 상태가 변경되었습니다.', b.status === 'liquidated' || b.status === 'rejected'); }
       const nc = (S.d.cashflows || []).map((c) => c.status).join() !== before.cash; if (nc) { const c = (S.d.cashflows || []).filter((x) => x.processedAt).sort((a, b) => b.processedAt.localeCompare(a.processedAt))[0]; const m = c ? `${c.type === 'deposit' ? '입금' : '출금'} 신청이 ${c.status === 'approved' ? '승인' : '반려'}되었습니다.` : '입출금 신청이 처리되었습니다.'; U.toast(m); Voice.say(m); }
@@ -549,7 +550,7 @@
       try {
         const r = await Store.placeOrder(input);
         const sd = O.side === 'buy' ? '매수' : '매도';
-        if (r.fill) { chime(); Voice.say(`${q.name} ${n0(r.fill.qty)}주 ${sd} 체결되었습니다.`); }
+        if (r.fill) { seenFill.add(r.fill.id); chime(); Voice.say(`${q.name} ${n0(r.fill.qty)}주 ${sd} 체결되었습니다.`); }
         else Voice.say(O.type === 'stop' ? `감시 ${sd} 주문이 등록되었습니다.` : `${sd} 주문이 접수되었습니다.`);
         if (r.fill) U.toast(`체결 완료 · ${q.name} ${n0(r.fill.qty)}주 @ ${px(r.fill.price, ccy)}`);
         else if (O.type === 'ext') U.toast(`시간외 주문 접수 · ${px(input.price, ccy)} — 현재가에 닿으면 체결, 세션 종료 시 자동 취소`);
