@@ -59,7 +59,13 @@ const Engine = (() => {
     if (!Number.isInteger(o.qty) || o.qty <= 0) return '주문 수량을 확인해 주세요.';
     if (o.qty > 1000000) return '1회 최대 주문 수량을 초과했습니다.';
     const ses = Market.session(q.market);
-    if (st.enforceHours && !ses.open && o.type === 'market') return `장 운영시간(${ses.hours})이 아닙니다. 지정가 예약주문을 이용하세요.`;
+    if (st.enforceHours && !ses.open && o.type === 'market') return `지금은 ${ses.label} 시간이라 시장가 주문을 할 수 없습니다. ${ses.ext ? '시간외 주문 또는 ' : ''}지정가 예약주문을 이용하세요.`;
+    if (o.type === 'ext') {
+      if (!ses.ext) return q.currency === 'KRW' ? '지금은 시간외 거래 시간이 아닙니다. (장전 08:30~08:40 · 장후 15:40~16:00 · 단일가 16:00~18:00)' : '지금은 프리마켓·애프터마켓 시간이 아닙니다.';
+      if (!(o.price > 0)) return '주문 가격을 입력해 주세요.';
+      if ((ses.code === 'pre_close' || ses.code === 'post_close') && o.price !== q.price) return `시간외 종가 주문은 종가(${U.n0(q.price)}원)로만 가능합니다.`;
+      if (ses.code === 'single' && (o.price > q.price * 1.1 || o.price < q.price * 0.9)) return '시간외 단일가는 종가 대비 ±10% 이내에서만 주문할 수 있습니다.';
+    }
     if (o.type === 'stop') {
       if (!(o.triggerPrice > 0)) return '감시 가격을 입력해 주세요.';
       if (!['ge', 'le'].includes(o.triggerCond)) return '감시 조건을 선택해 주세요.';
@@ -121,7 +127,7 @@ const Engine = (() => {
   function place(d, st, input) {
     const err = validate(d, st, input); if (err) return { error: err };
     const q = Market.quote(input.code);
-    const order = { id: U.uid('o'), userId: d.user.id, code: input.code, name: q.name, side: input.side, type: input.type, triggerPrice: input.triggerPrice, triggerCond: input.triggerCond, price: input.type === 'limit' ? input.price : 0, qty: input.qty, filled: 0, status: 'pending', createdAt: new Date().toISOString(), currency: q.currency };
+    const order = { id: U.uid('o'), userId: d.user.id, code: input.code, name: q.name, side: input.side, type: input.type, triggerPrice: input.triggerPrice, triggerCond: input.triggerCond, price: input.type === 'limit' || input.type === 'ext' ? input.price : 0, qty: input.qty, filled: 0, status: 'pending', createdAt: new Date().toISOString(), currency: q.currency };
     d.orders = d.orders || []; d.orders.push(order);
     const fill = tryFill(d, st, order);
     if (input.type === 'market' && !fill) { order.status = 'rejected'; order.reason = '체결 불가'; return { error: '시장가 주문이 체결되지 않았습니다.', order }; }
@@ -132,6 +138,11 @@ const Engine = (() => {
     st = { ...DEF, ...(st || {}) };
     const q = Market.quote(order.code); if (!q) return null;
     const ses = Market.session(q.market);
+    if (order.type === 'ext') {
+      if (!ses.ext) { order.status = 'cancelled'; order.reason = '시간외 거래 시간 종료로 자동 취소'; return null; }
+      if ((order.side === 'buy' && order.price >= q.price) || (order.side === 'sell' && order.price <= q.price)) return execute(d, st, order, q.price);
+      return null;
+    }
     if (st.enforceHours && !ses.open) return null;
     const ask = Market.bestAsk(order.code), bid = Market.bestBid(order.code);
     let px = null;

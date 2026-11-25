@@ -447,3 +447,26 @@ td.ck input, th.ck input { width: 16px; height: 16px; accent-color: var(--brand)
 .sw input:checked + span::after { transform: translateX(18px); }
 .amt-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; }
 .amt-row .input { flex: 1; height: 34px; text-align: right; font-size: 13px; }
+/* 장 세션 */
+.ses-box { margin: -4px 0 14px; padding: 9px 12px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.ses-box b { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.ses-box b i { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
+.ses-box.on b i { background: var(--ok, #3ccf91); box-shadow: 0 0 0 3px rgba(60,207,145,.2); animation: nbPulse 1.6s infinite; }
+.ses-box.ext b i { background: var(--warn); }
+.ses-box span { color: var(--text-2); }
+.ses-box p { flex-basis: 100%; margin: 2px 0 0; color: var(--text-2); line-height: 1.55; }
+#oType button { padding: 0 6px; }
+.ses-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.ses-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.ses-card .sc-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.ses-card .sc-h b { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; }
+.ses-card .sc-h b i { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
+.ses-card.on .sc-h b i { background: #3ccf91; animation: nbPulse 1.6s infinite; }
+.ses-card.ext .sc-h b i { background: var(--warn); }
+.ses-card .sc-h span { color: var(--text-2); }
+.ses-card .sc-t { display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; }
+.ses-card .sc-t span { flex: 1 0 auto; padding: 6px 8px; border-radius: 6px; background: var(--surface-2); font-size: 11px; color: var(--text-3); text-align: center; white-space: nowrap; }
+.ses-card .sc-t span em { display: block; font-style: normal; font-weight: 600; color: var(--text-2); font-size: 12px; }
+.ses-card .sc-t span.cur { background: var(--brand-soft); color: var(--brand); outline: 1px solid var(--brand); }
+.ses-card .sc-t span.cur em { color: var(--brand); }
+@media (max-width: 760px) { .ses-strip { grid-template-columns: 1fr; } }

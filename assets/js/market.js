@@ -279,17 +279,32 @@ const Market = (() => {
     const sun = (m, nth) => { const x = new Date(y, m, 1); const add = (7 - x.getDay()) % 7; return new Date(y, m, 1 + add + (nth - 1) * 7); };
     return d >= sun(2, 2) && d < sun(10, 1);
   }
+  // 세션: 국내(KST) 장전 시간외 종가 08:30~08:40 · 동시호가 08:40~09:00 · 정규장 09:00~15:20 · 마감 동시호가 15:20~15:30
+  //       장후 시간외 종가 15:40~16:00 · 시간외 단일가 16:00~18:00 / 미국(뉴욕) 프리 04:00~09:30 · 정규 09:30~16:00 · 애프터 16:00~20:00
+  const SES_KR = [[510, 520, 'pre_close', '장전 시간외 종가'], [520, 540, 'pre_auction', '장 시작 동시호가'], [540, 920, 'regular', '정규장'], [920, 930, 'close_auction', '장 마감 동시호가'], [930, 940, 'post_wait', '장 마감'], [940, 960, 'post_close', '장후 시간외 종가'], [960, 1080, 'single', '시간외 단일가']];
+  const SES_US = [[240, 570, 'pre', '프리마켓'], [570, 960, 'regular', '정규장'], [960, 1200, 'after', '애프터마켓']];
+  const EXT = ['pre_close', 'post_close', 'single', 'pre', 'after'];
+  let holidays = [];
+  function nyNow() { const k = kst(); const off = usDST(k) ? 13 : 14; return new Date(k.getTime() - off * 3600000); }
+  const hhmm = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
   function session(market) {
-    const k = kst(); const day = k.getDay(); const hm = k.getHours() * 60 + k.getMinutes();
-    if (market === 'KOSPI' || market === 'KOSDAQ' || market === 'KR') {
-      const open = day >= 1 && day <= 5 && hm >= 540 && hm < 930;
-      return { open, label: open ? '장중' : hm < 540 && day >= 1 && day <= 5 ? '장 시작 전' : '장 마감', hours: '09:00~15:30' };
-    }
-    const dst = usDST(k); const o = dst ? 22 * 60 + 30 : 23 * 60 + 30; const c = dst ? 5 * 60 : 6 * 60;
-    const open = (hm >= o && day >= 1 && day <= 5) || (hm < c && day >= 2 && day <= 6);
-    return { open, label: open ? '장중' : '장 마감', hours: dst ? '22:30~05:00' : '23:30~06:00' };
+    const kr = market === 'KOSPI' || market === 'KOSDAQ' || market === 'KONEX' || market === 'KR';
+    const t = kr ? kst() : nyNow(); const day = t.getDay(); const hm = t.getHours() * 60 + t.getMinutes();
+    const ymd = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    const T = kr ? SES_KR : SES_US; const work = day >= 1 && day <= 5 && !(kr && holidays.includes(ymd));
+    const cur = work ? T.find(([a, b]) => hm >= a && hm < b) : null;
+    const code = cur ? cur[2] : 'closed'; const label = cur ? cur[3] : (work && hm < T[0][0] ? '장 시작 전' : '장 마감');
+    // 다음 이벤트까지 남은 시간
+    let left = null, nextLabel = '';
+    if (cur) { left = cur[1] - hm; const nx = T.find(([a]) => a === cur[1]); nextLabel = nx ? nx[3] : '장 마감'; }
+    else if (work && hm < T[0][0]) { left = T[0][0] - hm; nextLabel = T[0][3]; }
+    const toK = (m) => (kr ? hhmm(m) : hhmm(m + (usDST(kst()) ? 13 * 60 : 14 * 60)));
+    const hours = kr ? '09:00~15:30' : `${toK(570)}~${toK(960)}`;
+    return { code, label, open: code === 'regular', ext: EXT.includes(code), left, nextLabel, hours, kr,
+      extHours: kr ? '장전 08:30~08:40 · 장후 15:40~16:00 · 단일가 16:00~18:00' : `프리 ${toK(240)}~${toK(570)} · 애프터 ${toK(960)}~${toK(1200)} (한국시간)` };
   }
+  function setHolidays(h) { holidays = Array.isArray(h) ? h : []; }
 
-  const api = { init, refresh, on: ev.on, info, indexCandles, quote, list, allMeta, meta, book, bestAsk, bestBid, ticks, candles, fx, toKrw, session, setOverrides, isUS, get state() { return state; }, get universe() { return universe; } };
+  const api = { init, refresh, on: ev.on, info, indexCandles, quote, list, allMeta, meta, book, bestAsk, bestBid, ticks, candles, fx, toKrw, session, setHolidays, setOverrides, isUS, get state() { return state; }, get universe() { return universe; } };
   return api;
 })();
