@@ -3,6 +3,8 @@
 // 실행: node scripts/fetch-market.mjs <quotes|candles|all> --data <dir>
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
+const AICore = createRequire(import.meta.url)('../assets/js/ai-core.js');
 
 const di = process.argv.indexOf('--data');
 const DATA = di > 0 ? path.resolve(process.argv[di + 1]) : path.resolve('data');
@@ -246,10 +248,33 @@ async function candles() {
   await infos(q, 500);
 }
 
+// ── MAX AI 추천종목: 후보 종목 전체를 분석 엔진으로 점수화 → data/ai/picks.json ──
+function aiPicks() {
+  const q = readJSON(path.join(DATA, 'quotes.json'), { items: {} }); const items = Object.entries(q.items);
+  const kr = items.filter(([, v]) => v.currency === 'KRW' && v.type !== 'etf' && v.price >= 1000 && !v.halted).sort((a, b) => (b[1].value || 0) - (a[1].value || 0)).slice(0, 700);
+  const us = items.filter(([, v]) => v.currency === 'USD' && v.price >= 3).sort((a, b) => (b[1].marketCap || 0) - (a[1].marketCap || 0)).slice(0, 500);
+  const run = (L) => L.map(([code, v]) => {
+    const c = readJSON(path.join(DATA, 'candles', code + '.json'), null); if (!c || !c.d || c.d.length < 60) return null;
+    const info = readJSON(path.join(DATA, 'info', code + '.json'), null);
+    const r = AICore.analyze({ bars: c.d.map(([t, o, h, l, cc, vv]) => ({ t, o, h, l, c: cc, v: vv })), price: v.price, code, name: v.name, currency: v.currency, info });
+    if (!r.ok) return null;
+    return { code, name: v.name, market: v.market, currency: v.currency, price: v.price, changePct: v.changePct, score: r.score, opinion: r.opinion, scores: r.scores, rsi: r.ind.rsi ? +r.ind.rsi.toFixed(1) : null, r20: r.ind.r20 != null ? +r.ind.r20.toFixed(2) : null, volR: +r.ind.volR.toFixed(2),
+      support: +r.levels.support.toFixed(2), resist: +r.levels.resist.toFixed(2), stop: +r.levels.stop.toFixed(2), rr: +r.levels.rr.toFixed(2), why: r.factors.filter((f) => f[0] === '+').slice(0, 3).map((f) => f[1]), risk: r.factors.filter((f) => f[0] === '-').slice(0, 2).map((f) => f[1]) };
+  }).filter(Boolean);
+  const K = run(kr), U = run(us);
+  const top = (L, n) => L.filter((x) => x.rr >= 1 && x.score >= 50).sort((a, b) => b.score - a.score || b.rr - a.rr).slice(0, n);
+  const theme = (L) => ({ breakout: L.filter((x) => x.why.some((w) => /돌파|신고가/.test(w))).sort((a, b) => b.score - a.score).slice(0, 10), rebound: L.filter((x) => x.rsi != null && x.rsi < 35 && x.scores.value >= 6).sort((a, b) => b.scores.value + b.scores.supply - (a.scores.value + a.scores.supply)).slice(0, 10), supply: L.filter((x) => x.scores.supply >= 12).sort((a, b) => b.score - a.score).slice(0, 10) });
+  const out = { updatedAt: new Date().toISOString(), analyzed: { kr: K.length, us: U.length }, kr: top(K, 30), us: top(U, 30), krTheme: theme(K), usTheme: theme(U), dist: { kr: hist(K), us: hist(U) } };
+  fs.mkdirSync(path.join(DATA, 'ai'), { recursive: true }); fs.writeFileSync(path.join(DATA, 'ai', 'picks.json'), JSON.stringify(out));
+  console.log(`ai picks: kr ${K.length} → ${out.kr.length}, us ${U.length} → ${out.us.length}`);
+  function hist(L) { const h = [0, 0, 0, 0, 0]; for (const x of L) h[x.score >= 78 ? 0 : x.score >= 63 ? 1 : x.score >= 45 ? 2 : x.score >= 32 ? 3 : 4]++; return h; }
+}
+
 (async () => {
   if (MODE === 'quotes' || MODE === 'all') await quotes();
   if (MODE === 'candles' || MODE === 'all') await candles();
   if (MODE === 'index') { fs.mkdirSync(path.join(DATA, 'index'), { recursive: true }); for (const k of ['KOSPI', 'KOSDAQ', 'NASDAQ', 'SPX', 'DJI']) { try { const d = await indexDaily(k); if (d.length > 5) fs.writeFileSync(path.join(DATA, 'index', k + '.json'), JSON.stringify({ d, updatedAt: new Date().toISOString() })); } catch (e) { errors.push('index ' + k + ' ' + e.message); } } }
   if (MODE === 'info') await infos(readJSON(path.join(DATA, 'quotes.json'), { items: {} }), 500);
+  if (MODE === 'all' || MODE === 'info' || MODE === 'ai') { try { aiPicks(); } catch (e) { console.log('ai picks error', e.message); } }
   if (errors.length) console.log('errors(sample):\n' + errors.slice(0, 15).join('\n'));
 })().catch((e) => { console.error(e); process.exit(1); });

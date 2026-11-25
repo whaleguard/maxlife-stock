@@ -258,6 +258,13 @@ const Market = (() => {
 
   // ── 종목 정보 · 투자자 · 뉴스 (국내 거래대금 상위 500) / 지수 일봉 ──
   const infoCache = {};
+  let picksCache = null;
+  async function aiPicks() {
+    if (picksCache && Date.now() - picksCache.at < 10 * 60000) return picksCache.data;
+    let data = null;
+    for (const base of [dataBase, ...C.DATA_URLS, C.LOCAL_DATA].filter(Boolean)) { try { data = await fetchJSON(base + '/ai/picks.json'); break; } catch {} }
+    picksCache = { at: Date.now(), data }; return data;
+  }
   async function info(code) {
     if (infoCache[code] && Date.now() - infoCache[code].at < 10 * 60000) return infoCache[code].data;
     let data = null;
@@ -305,6 +312,6 @@ const Market = (() => {
   }
   function setHolidays(h) { holidays = Array.isArray(h) ? h : []; }
 
-  const api = { init, refresh, on: ev.on, info, indexCandles, quote, list, allMeta, meta, book, bestAsk, bestBid, ticks, candles, fx, toKrw, session, setHolidays, setOverrides, isUS, get state() { return state; }, get universe() { return universe; } };
+  const api = { init, refresh, on: ev.on, info, aiPicks, indexCandles, quote, list, allMeta, meta, book, bestAsk, bestBid, ticks, candles, fx, toKrw, session, setHolidays, setOverrides, isUS, get state() { return state; }, get universe() { return universe; } };
   return api;
 })();

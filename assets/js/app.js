@@ -53,7 +53,7 @@
     },
     render() {
       const L = this.list(); const sn = this.seen(); const un = L.filter((e) => e.at > sn).length;
-      const bn = $('#bellN'); if (bn) { bn.hidden = !un; bn.textContent = un > 9 ? '9+' : un; }
+      const bn = $('#bellN'); if (bn) { bn.hidden = !un; bn.textContent = un > 9 ? '9+' : un; } try { window.mlsApp && window.mlsApp.badge(un); } catch {}
       const pop = $('#notifPop'); if (pop && !pop.classList.contains('hidden')) pop.innerHTML = `<div class="np-h"><b>알림</b><a href="#/help">고객센터</a></div>${L.map((e) => `<a class="np-i ${e.at > sn ? 'new' : ''}" href="${e.go}"><span class="tag ${e.bad ? 'tag-sell' : 'tag-no'}">${e.t}</span><span class="np-m">${esc(e.m)}</span><small>${U.ago(e.at)}</small></a>`).join('') || '<div class="empty">알림이 없습니다</div>'}`;
     },
   };
@@ -107,12 +107,13 @@
       const before = { fills: S.d.fills.length, buff: (S.d.buffs || []).map((b) => b.status).join() , cash: (S.d.cashflows || []).map((c) => c.status).join(), inq: (S.d.inquiries || []).filter((q) => q.answeredAt).map((q) => q.id + q.answeredAt).join() };
       await reload();
       const nf = S.d.fills.length - before.fills;
-      if (nf > 0) for (const f of S.d.fills.slice().sort((a, b) => b.at.localeCompare(a.at)).slice(0, nf).filter((x) => !seenFill.has(x.id) && seenFill.add(x.id))) Voice.say(`${f.name} ${n0(f.qty)}주 ${f.side === 'buy' ? '매수' : '매도'} 체결되었습니다.`), U.toast(`[체결] ${f.name} ${f.side === 'buy' ? '매수' : '매도'} ${n0(f.qty)}주 @ ${px(f.price, f.currency)}`);
+      if (nf > 0) for (const f of S.d.fills.slice().sort((a, b) => b.at.localeCompare(a.at)).slice(0, nf).filter((x) => !seenFill.has(x.id) && seenFill.add(x.id))) Voice.say(`${f.name} ${n0(f.qty)}주 ${f.side === 'buy' ? '매수' : '매도'} 체결되었습니다.`), appNotify('체결', `${f.name} ${f.side === 'buy' ? '매수' : '매도'} ${n0(f.qty)}주 @ ${px(f.price, f.currency)}`), U.toast(`[체결] ${f.name} ${f.side === 'buy' ? '매수' : '매도'} ${n0(f.qty)}주 @ ${px(f.price, f.currency)}`);
       const nb = (S.d.buffs || []).map((b) => b.status).join();
       if (nb !== before.buff) { const b = (S.d.buffs || [])[0]; if (b) Voice.say(b.status === 'active' ? 'MAX 버프가 승인되었습니다.' : b.status === 'liquidated' ? '담보비율 부족으로 자동 청산되었습니다.' : b.status === 'rejected' ? 'MAX 버프 신청이 반려되었습니다.' : ''); if (b) U.toast(b.status === 'active' ? `MAX 버프 ${b.mult}배가 승인되어 ${won(b.amount)}이 지급되었습니다.` : b.status === 'liquidated' ? 'MAX 버프 담보비율이 기준 아래로 내려가 자동 청산되었습니다.' : b.status === 'rejected' ? 'MAX 버프 신청이 반려되었습니다.' : 'MAX 버프 상태가 변경되었습니다.', b.status === 'liquidated' || b.status === 'rejected'); }
-      const nc = (S.d.cashflows || []).map((c) => c.status).join() !== before.cash; if (nc) { const c = (S.d.cashflows || []).filter((x) => x.processedAt).sort((a, b) => b.processedAt.localeCompare(a.processedAt))[0]; const m = c ? `${c.type === 'deposit' ? '입금' : '출금'} 신청이 ${c.status === 'approved' ? '승인' : '반려'}되었습니다.` : '입출금 신청이 처리되었습니다.'; U.toast(m); Voice.say(m); }
+      const nc = (S.d.cashflows || []).map((c) => c.status).join() !== before.cash; if (nc) { const c = (S.d.cashflows || []).filter((x) => x.processedAt).sort((a, b) => b.processedAt.localeCompare(a.processedAt))[0]; const m = c ? `${c.type === 'deposit' ? '입금' : '출금'} 신청이 ${c.status === 'approved' ? '승인' : '반려'}되었습니다.` : '입출금 신청이 처리되었습니다.'; U.toast(m); Voice.say(m); appNotify('입출금', m); }
       const ni = (S.d.inquiries || []).filter((q) => q.answeredAt).map((q) => q.id + q.answeredAt).join() !== before.inq;
-      if (ni) { const q = (S.d.inquiries || []).filter((x) => x.answeredAt).sort((a, b) => b.answeredAt.localeCompare(a.answeredAt))[0]; if (q) { U.toast(q.fromAdmin ? `[쪽지] ${q.title}` : `[문의 답변] ${q.title}`); Voice.say(q.fromAdmin ? '새 쪽지가 도착했습니다.' : '문의에 답변이 등록되었습니다.'); } }
+      if (ni) { const q = (S.d.inquiries || []).filter((x) => x.answeredAt).sort((a, b) => b.answeredAt.localeCompare(a.answeredAt))[0]; if (q) { U.toast(q.fromAdmin ? `[쪽지] ${q.title}` : `[문의 답변] ${q.title}`); Voice.say(q.fromAdmin ? '새 쪽지가 도착했습니다.' : '문의에 답변이 등록되었습니다.'); appNotify(q.fromAdmin ? '쪽지' : '문의 답변', q.title); } }
+      { const ps = AI.st && AI.st.planName; const ns = await AI.status(true); if (ps && ns && ns.planName !== ps && ns.source !== 'free') { const m = `MAX AI ${ns.planName} 구독이 시작되었습니다.`; U.toast(m); Voice.say(m); appNotify('AI 구독', m); chime(); } }
       if (nf > 0 || nb !== before.buff || nc || ni) chime();
       S.v = Engine.valuate(S.d, S.st);
       if (nf > 0 || nb !== before.buff || nc || ni) { S.page && S.page.data && S.page.data(); }
@@ -136,7 +137,7 @@
       const n = (d.cash || []).length + (d.buffs || []).length + (d.inquiries || []).length;
       const ab = $('#admLink'); if (ab) { ab.querySelector('.nbdg').hidden = !n; ab.querySelector('.nbdg').textContent = n; }
       if (!ev.length) return;
-      chime(true); Voice.say(ev.length > 1 ? `관리자 알림 ${ev.length}건. ${ev[0][0]}.` : `관리자 알림. ${ev[0][0]}이 들어왔습니다.`);
+      appNotify('[관리자] ' + ev[0][0], ev[0][1]); chime(true); Voice.say(ev.length > 1 ? `관리자 알림 ${ev.length}건. ${ev[0][0]}.` : `관리자 알림. ${ev[0][0]}이 들어왔습니다.`);
       for (const [t, m, go] of ev.slice(0, 3)) {
         let w = $('#aToasts'); if (!w) { w = document.createElement('div'); w.id = 'aToasts'; w.className = 'adm-toasts'; document.body.appendChild(w); }
         const e = document.createElement('a'); e.className = 'adm-toast'; e.href = 'admin.html#/' + go; e.innerHTML = `<span class="ic">${ICON.bell}</span><div><b>[관리자] ${esc(t)}</b><p>${esc(m)}</p></div>`;
@@ -145,6 +146,7 @@
     },
     start() { this.tick(); setInterval(() => this.tick(), 10000); },
   };
+  const appNotify = (t, b) => { try { if (window.mlsApp) window.mlsApp.notify(t, b); else if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification(t, { body: b }); } catch {} };
   // 음성 안내 (주문 접수·체결·입출금·버프·문의 답변)
   const Voice = {
     on() { try { return localStorage.getItem('mls.voice') !== '0'; } catch { return true; } },
@@ -168,6 +170,87 @@
     } catch {}
   }
   document.addEventListener('pointerdown', () => { try { const C = window.AudioContext || window.webkitAudioContext; if (C && !chime.ac) chime.ac = new C(); chime.ac && chime.ac.state === 'suspended' && chime.ac.resume(); } catch {} }, { once: false, passive: true });
+
+  // 계좌번호: 회원 ID로 고정 생성 (예: 7012-3456-78)
+  function acctNo(id) { let h = 2166136261; for (const ch of String(id)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } const d = String(h).padStart(10, '0').slice(-8); return `70${d.slice(0, 2)}-${d.slice(2, 6)}-${d.slice(6, 8)}`; }
+
+  // ═════════ 단축키 ═════════
+  const IS_APP = /MAXLifeHTS/i.test(navigator.userAgent);
+  const KEYS = [
+    ['공통', [
+      ['F1 / ?', '단축키 안내'], ['Ctrl + K / /', '종목 검색'], ['Esc', '창·팝업 닫기, 입력 취소'],
+      ['Alt + 1', '홈'], ['Alt + 2', '시세·순위'], ['Alt + 3', '조건검색'], ['Alt + 4', '관심종목'], ['Alt + 5', '종목·주문'],
+      ['Alt + 6', '잔고'], ['Alt + 7', '거래내역'], ['Alt + 8', '입출금'], ['Alt + 9', 'MAX 버프'], ['Alt + 0', '마이페이지'],
+      ['Alt + A', 'MAX AI 분석'], ['Alt + N', '알림센터'], ['Alt + V', '음성 안내 켜기/끄기'], ['Alt + L', '다크·화이트 전환'], ['Alt + X', '미체결 전체 취소'],
+    ]],
+    ['주문 화면', [
+      ['F2', '매수 (수량 입력으로 이동)'], ['F3', '매도 (수량 입력으로 이동)'], ['F4', '지정가'], ['F6', '시장가'], ['F7', '감시주문'], ['F8', '시간외'],
+      ['Ctrl + Enter', '주문 실행'], ['Alt + ↑ / ↓', '가격 한 호가 올림·내림'], ['Shift + ↑ / ↓', '수량 1주 늘림·줄임'],
+      ['Alt + Q / W / E / R', '수량 10% · 25% · 50% · 최대'], ['Alt + S', '관심종목 추가·해제'],
+    ]],
+    ['차트 · 하단 탭', [
+      ['Shift + 1 / 2 / 3 / 4', '분봉 · 일봉 · 주봉 · 월봉'], ['Shift + A', 'AI 분석 탭'], ['Shift + O', '미체결'], ['Shift + P', '보유현황'], ['Shift + F', '체결내역'], ['Shift + I', '종목정보'],
+    ]],
+    ...(IS_APP ? [['PC 프로그램 전용', [['Ctrl + N', '새 창 (차트·주문을 여러 창으로)'], ['Ctrl + R / F5', '새로고침'], ['Ctrl + 0 / + / −', '화면 크기 원래대로·확대·축소'], ['F11', '전체 화면'], ['Ctrl + W', '창 닫기 (프로그램은 트레이에 남음)']]]] : []),
+  ];
+  function keyGuide() {
+    U.modal({ title: '단축키 안내', size: 'lg', body: `<p class="muted" style="margin-top:0">${IS_APP ? 'PC 프로그램' : '웹'}에서 바로 쓸 수 있습니다. 입력칸에 커서가 있을 때는 F키·Ctrl·Alt 조합만 동작합니다.</p><div class="key-grid">${KEYS.map(([g, L]) => `<section><h4>${g}</h4>${L.map(([k, d]) => `<div class="key-row"><span>${k.split(' / ').map((x) => x.split(' + ').map((y) => `<kbd>${y}</kbd>`).join('+')).join(' <i>또는</i> ')}</span><b>${d}</b></div>`).join('')}</section>`).join('')}</div>${IS_APP ? '' : '<div class="key-app"><b>PC 프로그램</b>을 설치하면 창 여러 개 띄우기, 트레이 알림, 자동 업데이트를 쓸 수 있습니다. <a class="btn btn-sm btn-brand" href="#/download">PC 프로그램 받기</a></div>'}` });
+  }
+  const NAVKEY = { 1: '#/home', 2: '#/market', 3: '#/screen', 4: '#/watch', 5: null, 6: '#/balance', 7: '#/history', 8: '#/cash', 9: '#/buff', 0: '#/my' };
+  document.addEventListener('keydown', async (e) => {
+    if (!S.user || !$('#main')) return;
+    const t = e.target; const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+    const K = S.page && S.page.keys; const k = e.key; const modal = $('.modal-bg');
+    const stop = () => { e.preventDefault(); e.stopPropagation(); };
+    if (k === 'F1' || (!typing && k === '?')) { stop(); if (!modal) keyGuide(); return; }
+    if ((e.ctrlKey || e.metaKey) && (k === 'k' || k === 'K')) { stop(); $('#q') && $('#q').focus(); return; }
+    if (!typing && k === '/') { stop(); $('#q') && $('#q').focus(); return; }
+    if (k === 'Escape') { const np = $('#notifPop'); if (np && !np.classList.contains('hidden')) np.classList.add('hidden'); if (typing && t.id === 'q') { t.value = ''; t.blur(); $('#qr') && $('#qr').classList.add('hidden'); } return; }
+    if (modal) return;
+    if (e.altKey && !e.ctrlKey && /^Digit\d$/.test(e.code)) { stop(); const n = e.code.slice(5); location.hash = NAVKEY[n] || '#/stock/' + ((K && K.code) || (S.user.watch || [])[0] || '005930'); return; }
+    if (e.altKey && !e.ctrlKey) {
+      const c = e.code;
+      if (c === 'KeyN') { stop(); $('#bellBtn') && $('#bellBtn').click(); return; }
+      if (c === 'KeyA') { stop(); location.hash = K && K.code ? '#/ai/analyze/' + K.code : '#/ai'; return; }
+      if (c === 'KeyV') { stop(); $('#voiceBtn') && $('#voiceBtn').click(); return; }
+      if (c === 'KeyL') { stop(); $('#themeBtn') && $('#themeBtn').click(); return; }
+      if (c === 'KeyX') { stop(); const os = (S.d.orders || []).filter((o) => o.status === 'pending'); if (!os.length) return U.toast('미체결 주문이 없습니다.'); if (await U.confirmBox('미체결 전체 취소', `미체결 주문 ${os.length}건을 모두 취소할까요?`, '전체 취소', 'btn-danger')) { let n = 0; for (const o of os) { try { await Store.cancelOrder(o.id); n++; } catch {} } U.toast(`${n}건 취소되었습니다.`); Voice.say(`미체결 주문 ${n}건이 취소되었습니다.`); } return; }
+      if (K) {
+        if (c === 'ArrowUp') { stop(); K.price(1); return; } if (c === 'ArrowDown') { stop(); K.price(-1); return; }
+        const P = { KeyQ: 0.1, KeyW: 0.25, KeyE: 0.5, KeyR: 1 }; if (P[c]) { stop(); K.pct(P[c]); return; }
+        if (c === 'KeyS') { stop(); K.star(); return; }
+      }
+    }
+    if (!K) return;
+    const F = { F2: () => K.side('buy'), F3: () => K.side('sell'), F4: () => K.type('limit'), F6: () => K.type('market'), F7: () => K.type('stop'), F8: () => K.type('ext') };
+    if (F[k]) { stop(); F[k](); return; }
+    if ((e.ctrlKey || e.metaKey) && k === 'Enter') { stop(); K.submit(); return; }
+    if (e.shiftKey && !e.altKey && !e.ctrlKey) {
+      if (k === 'ArrowUp') { stop(); K.qty(1); return; } if (k === 'ArrowDown') { stop(); K.qty(-1); return; }
+      if (typing) return;
+      const TF = { Digit1: 'm', Digit2: 'D', Digit3: 'W', Digit4: 'M' }; if (TF[e.code]) { stop(); K.tf(TF[e.code]); return; }
+      const TB = { KeyA: 'ai', KeyO: 'open', KeyP: 'pos', KeyF: 'fills', KeyI: 'info' }; if (TB[e.code]) { stop(); K.tab(TB[e.code]); return; }
+    }
+  }, true);
+  if (IS_APP) document.documentElement.classList.add('is-app');
+
+  // ═════════ PC 프로그램 다운로드 ═════════
+  const REL = 'https://github.com/whaleguard/maxlife-stock/releases/latest/download/';
+  function Download(main) {
+    const ua = navigator.userAgent; const mac = /Mac/i.test(ua) && !/iPhone|iPad/i.test(ua);
+    main.innerHTML = `${head('PC 프로그램', '웹 버전과 똑같은 계좌·주문·잔고를 PC 설치 프로그램으로 씁니다. 한쪽에서 주문하면 다른 쪽에도 바로 반영됩니다.')}
+      ${IS_APP ? `<section class="panel" style="margin-bottom:16px"><div class="panel-b"><b>지금 PC 프로그램으로 실행 중입니다.</b> <span class="muted">새 버전이 나오면 자동으로 업데이트됩니다.</span></div></section>` : ''}
+      <div class="grid g-2 stack" style="margin-bottom:16px">
+        <section class="panel dl-card ${!mac ? 'pri' : ''}"><div class="panel-b"><div class="dl-os">Windows</div><p class="muted">Windows 10 · 11 (64비트)</p><a class="btn btn-brand btn-block btn-lg" href="${REL}MAXLife-Stock-Setup.exe">${ICON.download || ''} Windows용 내려받기 (.exe)</a><a class="dim dl-alt" href="${REL}MAXLife-Stock-Portable.exe">설치 없이 실행하는 휴대용 버전</a></div></section>
+        <section class="panel dl-card ${mac ? 'pri' : ''}"><div class="panel-b"><div class="dl-os">macOS</div><p class="muted">macOS 11 이상 · Apple Silicon(M1~M4) · Intel</p><a class="btn btn-block btn-lg ${mac ? 'btn-brand' : ''}" href="${REL}MAXLife-Stock-mac-arm64.dmg">Apple Silicon용 (.dmg)</a><a class="dim dl-alt" href="${REL}MAXLife-Stock-mac-x64.dmg">Intel Mac용</a><p class="dim" style="font-size:12px;margin:10px 0 0">처음 실행할 때 "확인되지 않은 개발자" 안내가 뜨면 앱을 우클릭 → 열기를 누르세요.</p></div></section>
+      </div>
+      <div class="grid g-2 stack">
+        <section class="panel"><div class="panel-h"><h3>웹 버전 vs PC 프로그램</h3></div><div class="table-wrap"><table class="t"><thead><tr><th class="l">기능</th><th>웹</th><th>PC 프로그램</th></tr></thead><tbody>${[['국내·미국 전 종목 실시세 매매', 1, 1], ['계좌·잔고·주문 실시간 연동', 1, 1], ['단축키 (F2 매수 · F3 매도 등)', 1, 1], ['체결·알림 음성 안내', 1, 1], ['창 여러 개 (차트·주문 분리, 모니터 여러 대)', 0, 1], ['트레이 상주 · 윈도우 알림', 0, 1], ['자동 로그인 · 자동 업데이트', '△', 1], ['설치 없이 휴대폰·태블릿 사용', 1, 0]].map(([n, a, b]) => `<tr><td class="l">${n}</td><td>${a === 1 ? '<span class="brand">●</span>' : a || '-'}</td><td>${b === 1 ? '<span class="brand">●</span>' : b || '-'}</td></tr>`).join('')}</tbody></table></div></section>
+        <section class="panel"><div class="panel-h"><h3>설치 방법</h3><button class="btn btn-sm" id="dlKeys">단축키 안내</button></div><div class="panel-b"><ol class="dl-steps"><li>위에서 내 PC에 맞는 파일을 내려받습니다.</li><li>내려받은 파일을 실행하면 설치가 끝나고 바탕화면에 <b>MAX라이프 주식</b> 아이콘이 생깁니다.</li><li>웹과 같은 아이디·비밀번호로 로그인합니다.</li><li>메뉴 <b>창 → 새 창</b>(Ctrl+N)으로 차트·주문 창을 여러 개 띄워 배치할 수 있습니다.</li><li>창을 닫아도 트레이(작업 표시줄 오른쪽 아래)에 남아 체결 알림을 받습니다.</li></ol><p class="dim" style="font-size:12px">Windows에서 "PC 보호" 안내가 뜨면 <b>추가 정보 → 실행</b>을 누르세요.</p></div></section>
+      </div>`;
+    $('#dlKeys').onclick = keyGuide;
+    return {};
+  }
 
   // ── 인증 ──
   function renderAuth(mode = 'login') {
@@ -235,7 +318,7 @@
   // ── 셸 ──
   const NAV = [
     ['home', '홈', ICON.home], ['market', '시세·순위', ICON.grid], ['screen', '조건검색', ICON.search], ['watch', '관심종목', ICON.star], ['stock/005930', '종목·주문', ICON.chart], ['balance', '잔고', ICON.wallet], ['history', '거래내역', ICON.list],
-    ['cash', '입출금', ICON.bank], ['lead', 'MAX 리딩', ICON.lead], ['buff', 'MAX 버프', ICON.shield], ['rank', '투자 수익 랭킹', ICON.trophy], ['help', '고객센터', ICON.doc], ['my', '마이페이지', ICON.user],
+    ['cash', '입출금', ICON.bank], ['lead', 'MAX 리딩', ICON.lead], ['buff', 'MAX 버프', ICON.shield], ['ai', 'MAX AI 분석', ICON.spark], ['rank', '투자 수익 랭킹', ICON.trophy], ['help', '고객센터', ICON.doc], ['my', '마이페이지', ICON.user],
   ];
   function renderShell() {
     const staff = S.user.role === 'admin' || S.user.role === 'instructor';
@@ -246,7 +329,7 @@
         <div class="ticker" id="ticker"></div>
         <div class="top-actions">
           <div class="search">${ICON.search}<input id="q" placeholder="종목명·코드 검색" autocomplete="off"><div class="search-results hidden" id="qr"></div></div>
-          <button class="icon-btn" id="voiceBtn" title="음성 안내"></button><button class="icon-btn bell" id="bellBtn" title="알림">${ICON.bell}<span class="bdg" id="bellN" hidden></span></button><div class="notif-pop hidden" id="notifPop"></div>
+          <button class="icon-btn hide-m" id="keysBtn" title="단축키 안내 (F1)"><kbd style="font-size:11px">F1</kbd></button><button class="icon-btn" id="voiceBtn" title="음성 안내"></button><button class="icon-btn bell" id="bellBtn" title="알림">${ICON.bell}<span class="bdg" id="bellN" hidden></span></button><div class="notif-pop hidden" id="notifPop"></div>
           <button class="icon-btn" id="themeBtn" title="다크·화이트 전환">${theme.get() === 'dark' ? ICON.sun : ICON.moon}</button>
           <button class="user-chip" id="userBtn"><span class="avatar">${esc(S.user.name.slice(0, 1))}</span><span class="nm">${esc(S.user.name)}</span></button>
         </div>
@@ -259,6 +342,7 @@
           ${NAV.slice(8).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
           ${staff ? `<div class="sep"></div><a href="admin.html" id="admLink">${ICON.shield}<span>${S.user.role === 'admin' ? '관리자' : 'MAX 리딩 관리'}</span><span class="nbdg" hidden></span></a>` : ''}
         </nav>
+        ${IS_APP ? '' : `<a class="side-dl" href="#/download">${ICON.monitor || ICON.chart}<span><b>PC 프로그램</b><small>Windows · Mac 내려받기</small></span></a>`}
         <div class="side-foot" id="sideFoot"></div>
       </aside>
       <main class="main" id="main"></main>
@@ -272,6 +356,7 @@
     </div>`;
     $('#themeBtn').onclick = () => { theme.set(theme.get() === 'dark' ? 'light' : 'dark'); $('#themeBtn').innerHTML = theme.get() === 'dark' ? ICON.sun : ICON.moon; S.page && S.page.redraw && S.page.redraw(); };
     $('#userBtn').onclick = userMenu;
+    $('#keysBtn').onclick = keyGuide;
     bindSearch($('#q'), $('#qr'), (code) => (location.hash = '#/stock/' + code));
     renderTicker();
   }
@@ -338,12 +423,12 @@
   function route() {
     const h = location.hash.replace(/^#\/?/, '') || 'home';
     const [name, arg] = h.split('/');
-    const pages = { home: Home, help: Help, market: MarketPage, screen: Screen, buff: Buff, watch: Watch, stock: Stock, balance: Balance, history: History, cash: Cash, lead: Lead, rank: Rank, my: My, menu: Menu };
+    const pages = { home: Home, help: Help, download: Download, ai: AiPage, market: MarketPage, screen: Screen, buff: Buff, watch: Watch, stock: Stock, balance: Balance, history: History, cash: Cash, lead: Lead, rank: Rank, my: My, menu: Menu };
     const P = pages[name] || Home;
     S.page && S.page.destroy && S.page.destroy();
     $$('.nav a, .tabbar a').forEach((a) => a.classList.toggle('active', a.dataset.r === name));
     const main = $('#main'); main.innerHTML = ''; window.scrollTo(0, 0);
-    S.page = P(main, arg) || {};
+    S.page = P(main, arg, h.split('/')[2]) || {};
   }
   const head = (t, sub, right = '') => `<div class="page-head"><div><h1>${t}</h1>${sub ? `<p>${sub}</p>` : ''}</div>${right}</div>`;
   const marketBanner = () => sesStrip();
@@ -431,7 +516,7 @@
             <div class="chart-box"><div class="chart-tip" id="sTip"></div><canvas id="sChart"></canvas></div>
           </section>
           <section class="panel" style="margin-top:16px">
-            <div class="tabs" id="sTabs"><button data-v="open" class="on">미체결</button><button data-v="pos">보유현황</button><button data-v="fills">체결내역</button><button data-v="daily">일별시세</button><button data-v="info">종목정보</button><button data-v="deal">투자자</button><button data-v="news">뉴스·리포트</button><button data-v="alert">가격알림</button></div>
+            <div class="tabs" id="sTabs"><button data-v="open" class="on">미체결</button><button data-v="pos">보유현황</button><button data-v="fills">체결내역</button><button data-v="daily">일별시세</button><button data-v="info">종목정보</button><button data-v="deal">투자자</button><button data-v="news">뉴스·리포트</button><button data-v="ai" class="ai-tab">AI 분석</button><button data-v="alert">가격알림</button></div>
             <div id="sBottom"></div>
           </section>
         </div>
@@ -599,6 +684,9 @@
           const d = r.data.slice(-40).reverse();
           el.innerHTML = d.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>일자</th><th>종가</th><th>전일비</th><th>등락률</th><th>시가</th><th>고가</th><th>저가</th><th>거래량</th></tr></thead><tbody>${d.map((k, i) => { const pv = d[i + 1]; const today = i === 0 && U.date(k.t) === U.date(Date.now()) && q.prevClose; const ch = today ? q.change : pv ? k.c - pv.c : 0; const cp = today ? q.changePct : pv ? (ch / pv.c) * 100 : 0; return `<tr><td class="dim">${U.date(k.t)}</td><td class="${cls(ch)}"><b>${pxu(k.c, q.currency)}</b></td><td class="${cls(ch)}">${pv || today ? (ch > 0 ? '▲' : ch < 0 ? '▼' : '') + ' ' + pxu(Math.abs(ch), q.currency) : '-'}</td><td class="${cls(ch)}">${pv || today ? pct(cp) : '-'}</td><td>${pxu(k.o, q.currency)}</td><td class="up">${pxu(k.h, q.currency)}</td><td class="down">${pxu(k.l, q.currency)}</td><td>${n0(k.v)}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">일별 시세가 없습니다.</div>';
         });
+      } else if (bottomTab === 'ai') {
+        el.innerHTML = '<div class="empty">AI가 차트·수급·뉴스를 분석하는 중…</div>';
+        AI.run(code).then((R) => { if (bottomTab !== 'ai') return; el.innerHTML = `<div style="padding:16px 20px">${AI.report(R, true)}</div>`; AI.bind(el); }).catch((e) => { if (bottomTab === 'ai') el.innerHTML = AI.gate(e.message); });
       } else if (bottomTab === 'deal' || bottomTab === 'news') {
         el.innerHTML = '<div class="empty">불러오는 중…</div>';
         if (q.currency !== 'KRW') { el.innerHTML = `<div class="empty">${bottomTab === 'deal' ? '투자자별 매매동향은 국내 종목에 제공됩니다.' : '뉴스·리포트는 국내 거래대금 상위 500종목에 제공됩니다.'}</div>`; return; }
@@ -638,7 +726,19 @@
     function data() { renderBottom(); updSum(); chart.set({ lines: avgLine() }); renderHead(); }
     syncForm(); tick(); renderBottom(); loadChart();
     const ci = setInterval(() => { if (Market.state.status === 'SAMPLE') chart.draw(); }, 2000);
-    return { tick, data, redraw: () => { chart.draw(); }, destroy: () => { clearInterval(ci); chart.destroy(); } };
+    const keys = {
+      code,
+      side: (sd) => { O.side = sd; if (autoPx) O.price = bestFor(O.side); syncForm(); $('#oQty').focus(); $('#oQty').select(); },
+      type: (t) => { const b = $(`#oType [data-v="${t}"]`); if (b) b.click(); },
+      submit: () => submit(),
+      price: (n) => { if (O.type === 'market') return; autoPx = false; O.price = U.stepPrice(O.price || Market.quote(code).price, ccy, n); syncForm(); },
+      qty: (n) => { O.qty = Math.max(1, (O.qty || 0) + n); syncForm(); },
+      pct: (r) => { O.qty = Math.max(1, Math.floor(maxQty() * r)); syncForm(); },
+      tf: (v) => { const b = $(`#sTf [data-v="${v}"]`); if (b) b.click(); },
+      tab: (v) => { const b = $(`#sTabs [data-v="${v}"]`); if (b) b.click(); },
+      star: () => { const b = $('#sStar'); if (b) b.click(); },
+    };
+    return { tick, data, keys, redraw: () => { chart.draw(); }, destroy: () => { clearInterval(ci); chart.destroy(); } };
   }
   function amendModal(o) {
     if (!o) return;
@@ -877,7 +977,8 @@
     }
     function data() {
       const v = S.v; meths(); sum();
-      $('#cAcct').innerHTML = `<div class="stat"><div class="k">예수금</div><div class="v" style="font-size:28px">${won(v.cash)}</div></div><div class="divider"></div><dl class="kv"><dt>주문 대기 금액</dt><dd>${won(v.reserved)}</dd><dt>출금가능금액</dt><dd>${won(v.withdrawable)}</dd><dt>최초 지급액</dt><dd>${won(S.user.initial)}</dd><dt>누적 입금</dt><dd class="up">${won(v.deposits)}</dd><dt>누적 출금</dt><dd class="down">${won(v.withdrawals)}</dd><dt>투자원금</dt><dd>${won(v.principal)}</dd></dl><div class="divider"></div><p class="dim" style="font-size:12px;line-height:1.7">계좌번호 ${S.user.id.slice(-8).toUpperCase().replace(/(.{4})/, '$1-')}-01<br>MAX라이프 주식 · 종합계좌</p>`;
+      $('#cAcct').innerHTML = `<div class="acct-head"><div><small>MAX라이프 주식 · 종합계좌</small><b>${acctNo(S.user.id)}</b><span>${esc(S.user.name)} 님</span></div><button class="btn btn-sm" id="cCopy">계좌번호 복사</button></div><div class="stat" style="margin-top:14px"><div class="k">예수금</div><div class="v" style="font-size:28px">${won(v.cash)}</div></div><div class="divider"></div><dl class="kv"><dt>출금가능금액</dt><dd><b>${won(v.withdrawable)}</b></dd><dt>주문 대기 금액</dt><dd>${won(v.reserved)}</dd><dt>투자원금</dt><dd>${won(v.principal)}</dd>${S.user.initial ? `<dt>최초 지급액</dt><dd>${won(S.user.initial)}</dd>` : ''}<dt>누적 입금</dt><dd class="up">${won(v.deposits)}</dd><dt>누적 출금</dt><dd class="down">${won(v.withdrawals)}</dd></dl>`;
+      { const cc = $('#cCopy'); if (cc) cc.onclick = () => { try { navigator.clipboard.writeText(acctNo(S.user.id).replace(/-/g, '')); U.toast('계좌번호를 복사했습니다.'); } catch { U.toast(acctNo(S.user.id)); } }; }
       const cs = S.d.cashflows.slice().sort((a, b) => b.at.localeCompare(a.at));
       const stt = { pending: ['승인 대기', 'tag-wait'], approved: ['승인 완료', 'tag-ok'], rejected: ['반려', 'tag-sell'], cancelled: ['취소', 'tag-no'] };
       $('#cList').innerHTML = cs.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>신청일시</th><th>구분</th><th>수단</th><th>금액</th><th class="l hide-m">메모</th><th>상태</th><th class="hide-m">처리일시</th><th></th></tr></thead><tbody>${cs.map((c) => `<tr><td class="dim">${U.dt(c.at)}</td><td><span class="tag ${c.type === 'deposit' ? 'tag-buy' : 'tag-sell'}">${c.type === 'deposit' ? '입금' : '출금'}</span></td><td>${PAYN(c.method)}</td><td><b>${won(c.amount)}</b></td><td class="l hide-m muted">${esc(c.memo || '')}${c.adminMemo ? ` <span class="dim">· ${esc(c.adminMemo)}</span>` : ''}</td><td><span class="tag ${stt[c.status][1]}">${stt[c.status][0]}</span></td><td class="hide-m dim">${c.processedAt ? U.dt(c.processedAt) : '-'}</td><td>${c.status === 'pending' ? `<button class="btn btn-sm" data-cc="${c.id}">취소</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">입출금 내역이 없습니다</div>';
@@ -1094,6 +1195,107 @@
     const card = (t, ss, rows) => `<div class="ses-card ${ss.open ? 'on' : ss.ext ? 'ext' : 'off'}"><div class="sc-h"><b><i></i>${t} · ${ss.label}</b>${ss.left != null ? `<span>${ss.nextLabel}까지 ${ss.left >= 60 ? Math.floor(ss.left / 60) + '시간 ' : ''}${ss.left % 60}분</span>` : ''}</div><div class="sc-t">${rows.map(([c, n, h]) => `<span class="${ss.code === c ? 'cur' : ''}"><em>${n}</em>${h}</span>`).join('')}</div></div>`;
     const dst = us.extHours.match(/\d\d:\d\d/g) || [];
     return `<div class="ses-strip">${card('국내', kr, [['pre_close', '장전 시간외', '08:30'], ['pre_auction', '동시호가', '08:40'], ['regular', '정규장', '09:00'], ['close_auction', '마감 동시호가', '15:20'], ['post_close', '장후 시간외', '15:40'], ['single', '시간외 단일가', '16:00~18:00']])}${card('미국', us, [['pre', '프리마켓', dst[0] || ''], ['regular', '정규장', us.hours.split('~')[0]], ['after', '애프터마켓', (dst[2] || '') + (dst[3] ? '~' + dst[3] : '')]])}</div>`;
+  }
+
+  // ═════════ MAX AI 분석 ═════════
+  const AI = {
+    st: null,
+    async status(force) { if (!this.st || force) { try { this.st = await Store.aiStatus(); } catch { this.st = null; } } return this.st; },
+    async run(code) {
+      const q = Market.quote(code); if (!q) throw new Error('종목을 찾을 수 없습니다.');
+      this.st = await Store.aiUse(code); // 이용 한도 확인·차감 (오늘 본 종목은 차감 안 함)
+      const [c, info] = await Promise.all([Market.candles(code, 'D'), q.currency === 'KRW' ? Market.info(code) : Promise.resolve(null)]);
+      return AICore.analyze({ bars: c.data, price: q.price, code, name: q.name, currency: q.currency, info });
+    },
+    gate(msg) {
+      return `<div class="ai-gate"><div class="ai-ic">${ICON.spark}</div><b>${esc(msg || 'AI 분석을 이용할 수 없습니다.')}</b><p class="muted">AI 월정액을 구독하면 매일 더 많은 종목을 분석하고, 매일 갱신되는 AI 추천종목 전체를 볼 수 있습니다.${S.user.cardTier ? '' : ' MAX DAY LIFE 카드 회원은 베이직 혜택이 무료입니다.'}</p><a class="btn btn-brand" href="#/ai/sub">AI 월정액 보기</a></div>`;
+    },
+    px(x, ccy) { return ccy === 'USD' ? '$' + (+x).toFixed(2) : n0(U.roundTick(x, 'KRW')) + '원'; },
+    report(R, compact) {
+      if (!R || !R.ok) return `<div class="empty">${esc((R && R.reason) || '분석할 수 없습니다.')}</div>`;
+      const K = { trend: '추세', momentum: '모멘텀', supply: '수급', volume: '거래량', position: '가격 위치', value: '재무·가치', news: '뉴스·공시' };
+      const deg = Math.round((R.score / 100) * 180);
+      const L = R.levels, I = R.ind, c = R.currency;
+      return `<div class="ai-rep">
+        <div class="ai-top"><div class="ai-gauge" style="--d:${deg}deg"><div class="g-arc"></div><div class="g-v"><b>${R.score}</b><small>/100</small></div></div>
+          <div class="ai-op"><span class="ai-badge ${R.tone}">${R.opinion}</span><h3>${esc(R.name)} <small class="dim">${R.code}</small></h3><p>${esc(R.summary)}</p></div></div>
+        <div class="ai-bars">${Object.keys(K).map((k) => `<div class="ai-bar"><span>${K[k]}</span><div><i style="width:${(R.scores[k] / R.max[k]) * 100}%"></i></div><b>${R.scores[k]}<small>/${R.max[k]}</small></b></div>`).join('')}</div>
+        <div class="ai-lv">${[['손절 기준', L.stop, 'down'], ['1차 지지', L.support, ''], ['현재가', R.price, 'cur'], ['1차 저항', L.resist, ''], ['2차 목표', L.target2, 'up']].map(([n, v, k]) => `<div class="${k}"><small>${n}</small><b>${this.px(v, c)}</b></div>`).join('')}</div>
+        <p class="dim" style="font-size:12px;margin:6px 0 14px">손익비(1차 저항까지 기대수익 ÷ 손절 시 손실) ${L.rr.toFixed(2)} · ${L.rr >= 2 ? '유리한 구간' : L.rr >= 1 ? '보통' : '불리한 구간 — 눌림 확인 후 접근'}</p>
+        <div class="grid g-2 stack" style="gap:14px">
+          <div><h4 class="ai-h">판단 근거</h4><ul class="ai-f">${R.factors.map(([t, x]) => `<li class="${t === '+' ? 'p' : 'n'}"><i>${t === '+' ? '▲' : '▼'}</i>${esc(x)}</li>`).join('') || '<li>특이 신호 없음</li>'}</ul></div>
+          <div><h4 class="ai-h">주요 지표</h4><dl class="kv ai-kv"><dt>RSI(14)</dt><dd>${I.rsi != null ? I.rsi.toFixed(1) : '-'}</dd><dt>MACD 히스토그램</dt><dd class="${cls(I.hist || 0)}">${I.hist != null ? (I.hist > 0 ? '+' : '') + (c === 'USD' ? I.hist.toFixed(2) : n0(I.hist)) : '-'}</dd><dt>이평선 5/20/60</dt><dd>${[I.ma5, I.ma20, I.ma60].map((x) => (x ? this.px(x, c) : '-')).join(' · ')}</dd><dt>변동성(ATR)</dt><dd>${I.atrPct.toFixed(1)}%</dd><dt>거래량(5일/20일)</dt><dd>${I.volR.toFixed(2)}배</dd><dt>52주 위치</dt><dd>${(I.pos52 * 100).toFixed(0)}% (${this.px(I.lo52, c)} ~ ${this.px(I.hi52, c)})</dd><dt>수익률 5·20·60일</dt><dd>${[I.r5, I.r20, I.r60].map((x) => (x == null ? '-' : `<span class="${cls(x)}">${pct(x)}</span>`)).join(' · ')}</dd>${I.per != null ? `<dt>PER · 추정PER · PBR</dt><dd>${I.per ?? '-'} · ${I.cper ?? '-'} · ${I.pbr ?? '-'}</dd>` : ''}</dl></div>
+        </div>
+        ${R.news && R.news.length ? `<h4 class="ai-h" style="margin-top:14px">뉴스·리포트 감성</h4><ul class="ai-f">${R.news.map((n) => `<li class="${n.s >= 0 ? 'p' : 'n'}"><i>${n.s >= 0 ? '＋' : '－'}</i>${esc(n.t)}</li>`).join('')}</ul>` : ''}
+        <div class="ai-foot">${compact ? `<a class="btn btn-sm" href="#/ai/analyze/${R.code}">전체 화면으로 보기</a>` : `<a class="btn btn-sm btn-brand" href="#/stock/${R.code}">주문 화면으로</a>`}<span class="dim">${U.dt(R.at)} 분석 · 차트(일봉)·이동평균·RSI·MACD·볼린저·거래량·외국인/기관 수급·PER/PBR·뉴스/리포트 제목을 종합한 알고리즘 결과이며, 투자 권유가 아닙니다. 최종 판단과 책임은 투자자 본인에게 있습니다.</span></div>
+      </div>`;
+    },
+    bind() {},
+  };
+  function AiPage(main, sub, arg) {
+    let tab = ['picks', 'analyze', 'holdings', 'sub'].includes(sub) ? sub : 'picks'; let mk = 'kr';
+    main.innerHTML = `${head('MAX AI 분석', '차트·그래프·수급·재무·뉴스와 공시를 AI 알고리즘으로 분석해 종목 점수와 매매 구간을 알려드립니다.', '<span id="aiSt"></span>')}
+      <div class="tabs" id="aiTab" style="margin-bottom:16px">${[['picks', '오늘의 AI 추천종목'], ['analyze', '종목 분석'], ['holdings', '내 보유종목 진단'], ['sub', 'AI 월정액']].map(([k, n]) => `<button data-v="${k}" class="${k === tab ? 'on' : ''}">${n}</button>`).join('')}</div>
+      <div id="aiBody"></div>`;
+    $('#aiTab').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; tab = b.dataset.v; history.replaceState(null, '', '#/ai/' + tab); $$('#aiTab button').forEach((x) => x.classList.toggle('on', x === b)); draw(); };
+    const stLine = async (force) => { const st = await AI.status(force); const el = $('#aiSt'); if (!el || !st) return; el.innerHTML = `<span class="tag ${st.source === 'free' ? 'tag-no' : 'tag-brand'}">${esc(st.planName)}</span> <span class="dim" style="font-size:12px">오늘 ${st.used}회 사용${st.unlimited ? ' · 무제한' : ` / ${st.limit}회`}${st.endsAt ? ` · ${U.date(st.endsAt)}까지` : ''}</span>`; };
+    async function draw() {
+      const el = $('#aiBody'); await stLine();
+      if (tab === 'picks') {
+        el.innerHTML = '<div class="empty">AI 추천종목을 불러오는 중…</div>';
+        const P = await Market.aiPicks(); const st = AI.st || {};
+        if (!P) { el.innerHTML = '<div class="empty">추천종목을 준비 중입니다. 장 마감 후 매일 갱신됩니다.</div>'; return; }
+        const L = P[mk] || []; const T = P[mk + 'Theme'] || {}; const lock = !st.picks; const show = lock ? 3 : L.length;
+        const row = (x, i) => { const q = Market.quote(x.code) || x; const p = q.price || x.price; return `<a class="ai-pick ${i >= show ? 'locked' : ''}" href="${i >= show ? '#/ai/sub' : '#/ai/analyze/' + x.code}"><span class="rk">${i + 1}</span><div class="sname"><b>${esc(x.name)}</b><small>${x.code} · ${x.market}</small></div><div class="sc"><b>${x.score}</b><small>${x.opinion}</small></div><div class="pp"><b class="${cls(q.changePct ?? x.changePct)}">${AI.px(p, x.currency)}</b><small class="${cls(q.changePct ?? x.changePct)}">${pct(q.changePct ?? x.changePct)}</small></div><div class="why">${x.why.map((w) => `<span>${esc(w.split(' — ')[0])}</span>`).join('')}</div><div class="lv"><small>지지 ${AI.px(x.support, x.currency)} · 저항 ${AI.px(x.resist, x.currency)} · 손익비 ${x.rr}</small></div></a>`; };
+        const themeBox = (k, n, d) => { const A2 = T[k] || []; return `<section class="panel"><div class="panel-h"><h3>${n}</h3><span class="dim" style="font-size:12px">${d}</span></div><div class="panel-b flush">${A2.slice(0, lock ? 2 : 8).map((x) => `<a class="row ai-mini" href="#/ai/analyze/${x.code}"><div class="sname"><b>${esc(x.name)}</b><small>${x.code}</small></div><span class="tag tag-brand">${x.score}</span></a>`).join('') || '<div class="empty">해당 종목 없음</div>'}${lock && A2.length > 2 ? `<a class="row ai-mini locked" href="#/ai/sub"><span class="muted">+ ${A2.length - 2}종목 더 보기 (구독)</span></a>` : ''}</div></section>`; };
+        el.innerHTML = `<div class="seg" id="aiMk" style="margin-bottom:12px"><button data-v="kr" class="${mk === 'kr' ? 'on' : ''}">국내</button><button data-v="us" class="${mk === 'us' ? 'on' : ''}">미국</button></div>
+          <p class="dim" style="font-size:12px;margin:0 0 12px">${U.dt(P.updatedAt)} 기준 · 국내 ${n0(P.analyzed.kr)}종목 · 미국 ${n0(P.analyzed.us)}종목을 전부 분석해 점수 상위 종목을 골랐습니다 (손익비 1 이상).</p>
+          <div class="grid g-main" style="gap:16px"><section class="panel"><div class="panel-h"><h3>AI 점수 상위 ${L.length}</h3>${lock ? '<a class="btn btn-sm btn-brand" href="#/ai/sub">전체 보기 · 구독</a>' : ''}</div><div class="panel-b flush">${L.map(row).join('') || '<div class="empty">조건에 맞는 종목이 없습니다</div>'}</div></section>
+          <div style="display:grid;gap:16px;align-content:start">${themeBox('breakout', '돌파 · 신고가', '박스권 상단·52주 고점 돌파')}${themeBox('supply', '수급 강세', '외국인·기관 동반 매수')}${themeBox('rebound', '낙폭 과대 · 가치', 'RSI 과매도 + 저평가')}</div></div>`;
+        $$('#aiMk button').forEach((b) => (b.onclick = () => { mk = b.dataset.v; draw(); }));
+      } else if (tab === 'analyze') {
+        el.innerHTML = `<section class="panel" style="margin-bottom:16px"><div class="panel-b"><div class="search ai-search">${ICON.search}<input id="aiQ" placeholder="분석할 종목명·코드 (예: 삼성전자, NVDA)" autocomplete="off"><div class="search-results hidden" id="aiQr"></div></div><div class="ai-quick">${['005930', '000660', '035420', '005380', 'NVDA', 'AAPL', 'TSLA'].filter((c) => Market.quote(c)).map((c) => `<button class="btn btn-sm" data-ac="${c}">${esc(Market.quote(c).name)}</button>`).join('')}</div></div></section><section class="panel"><div class="panel-b" id="aiRep"><div class="empty">종목을 선택하면 AI가 차트·수급·뉴스를 분석합니다.</div></div></section>`;
+        const go = (code) => { history.replaceState(null, '', '#/ai/analyze/' + code); arg = code; one(code); };
+        bindSearch($('#aiQ'), $('#aiQr'), go);
+        $$('[data-ac]').forEach((b) => (b.onclick = () => go(b.dataset.ac)));
+        if (arg) one(arg);
+      } else if (tab === 'holdings') {
+        const H = S.v.holdings;
+        if (!H.length) { el.innerHTML = '<div class="empty">보유 종목이 없습니다.</div>'; return; }
+        el.innerHTML = `<p class="muted" style="margin:0 0 12px">보유 종목 ${H.length}개를 한 번에 진단합니다. 종목마다 분석 횟수가 1회씩 차감됩니다 (오늘 이미 분석한 종목은 제외).</p><button class="btn btn-brand" id="aiHGo">${ICON.spark} 보유종목 전체 진단</button><div id="aiH" style="margin-top:16px"></div>`;
+        $('#aiHGo').onclick = async () => {
+          const box = $('#aiH'); box.innerHTML = '<div class="empty">진단 중…</div>'; const out = [];
+          for (const h of H) { try { const R = await AI.run(h.code); out.push({ h, R }); } catch (e) { out.push({ h, err: e.message }); if (/한도|무료/.test(e.message)) break; } }
+          stLine(true);
+          box.innerHTML = `<section class="panel"><div class="table-wrap"><table class="t"><thead><tr><th class="l">종목</th><th>수익률</th><th>AI 점수</th><th>의견</th><th>손절 기준</th><th>1차 저항</th><th class="l hide-m">핵심 근거</th><th></th></tr></thead><tbody>${out.map(({ h, R, err }) => `<tr><td class="l"><div class="sname"><b>${esc(h.name)}</b><small>${h.code}</small></div></td><td class="${cls(h.pnlPct)}">${pct(h.pnlPct)}</td>${R && R.ok ? `<td><b>${R.score}</b></td><td><span class="ai-badge sm ${R.tone}">${R.opinion}</span></td><td class="down">${AI.px(R.levels.stop, R.currency)}${R.price < R.levels.stop ? ' <span class="tag tag-sell">이탈</span>' : ''}</td><td>${AI.px(R.levels.resist, R.currency)}</td><td class="l hide-m muted" style="font-size:12px">${esc((R.factors[0] || ['', ''])[1])}</td><td><a class="btn btn-sm" href="#/ai/analyze/${h.code}">상세</a></td>` : `<td colspan="6" class="muted">${esc(err || (R && R.reason) || '-')}</td>`}</tr>`).join('')}</tbody></table></div></section>`;
+        };
+      } else {
+        el.innerHTML = '<div class="empty">불러오는 중…</div>';
+        const [st, subs] = await Promise.all([AI.status(true), Store.mySubs().catch(() => [])]);
+        const plans = S.st.aiPlans || []; let plan = (plans[1] || plans[0] || {}).id, meth = 'card';
+        const stt = { pending: ['승인 대기', 'tag-wait'], active: ['이용 중', 'tag-ok'], rejected: ['반려', 'tag-sell'], cancelled: ['취소', 'tag-no'], expired: ['만료', 'tag-no'] };
+        el.innerHTML = `<div class="ai-plans">${[{ id: '_free', name: '무료', price: 0, daily: S.st.aiFreeDaily ?? 3, free: true }, ...plans].map((p) => `<div class="ai-plan ${p.free ? 'free' : ''} ${p.id === plan ? 'on' : ''}" data-plan="${p.id}"><b>${esc(p.name)}</b><div class="pr">${p.price ? n0(p.price) + '<small>원 / ' + (p.days || 30) + '일</small>' : '0<small>원</small>'}</div><ul><li>종목 분석 ${p.daily ? `하루 ${p.daily}회` : '<b>무제한</b>'}</li><li>${p.free ? 'AI 추천종목 상위 3개' : 'AI 추천종목 전체 (국내·미국 60종목 + 테마)'}</li><li>보유종목 일괄 진단</li><li>${p.free ? '-' : '지지·저항·손절 구간 · 손익비'}</li></ul>${p.free ? `<span class="tag tag-no">${st && st.source === 'free' ? '현재 이용 중' : '기본 제공'}</span>` : ''}</div>`).join('')}</div>
+          ${S.st.aiCardFree ? '<p class="muted" style="font-size:13px">MAX DAY LIFE 카드 회원은 베이직 혜택이 무료로 적용됩니다.</p>' : ''}
+          <div class="grid g-main" style="margin-top:16px"><section class="panel"><div class="panel-h"><h3>구독 신청</h3></div><div class="panel-b">
+            <div class="field"><label>결제 수단</label><div class="pay-grid" id="sbM">${PAY.map((m) => `<button class="pay-opt ${m.k === meth ? 'on' : ''}" data-m="${m.k}" ${S.st.payMethods && S.st.payMethods[m.k] === false ? 'disabled' : ''}><b>${m.n}</b><small>${m.d}</small></button>`).join('')}</div></div>
+            <div class="field"><label>메모 (입금자명, 지갑 주소 등)</label><input class="input" id="sbMemo" maxlength="200"></div>
+            <div class="order-sum" id="sbSum"></div>
+            <button class="btn btn-brand btn-block btn-lg" id="sbGo">구독 신청</button><p class="dim" style="font-size:12px;margin-top:8px">결제 확인 후 관리자가 승인하면 바로 적용됩니다. 이용 중인 구독이 있으면 종료일 다음 날부터 이어집니다.</p></div></section>
+          <section class="panel"><div class="panel-h"><h3>내 구독 내역</h3></div><div class="table-wrap"><table class="t"><thead><tr><th>신청일</th><th>요금제</th><th>금액</th><th>상태</th><th>기간</th><th></th></tr></thead><tbody>${subs.map((x) => `<tr><td class="dim">${U.date(x.createdAt)}</td><td>${esc(x.planName)}</td><td>${x.method === 'grant' ? '지급' : won(x.price)}</td><td><span class="tag ${stt[x.status][1]}">${stt[x.status][0]}</span></td><td class="dim">${x.startsAt ? U.date(x.startsAt) + ' ~ ' + U.date(x.endsAt) : '-'}</td><td>${x.status === 'pending' ? `<button class="btn btn-sm" data-sc="${x.id}">취소</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6"><div class="empty">구독 내역이 없습니다</div></td></tr>'}</tbody></table></div></section></div>`;
+        const sum = () => { const p = plans.find((x) => x.id === plan); $('#sbSum').innerHTML = p ? `<dl class="kv"><dt>요금제</dt><dd>${esc(p.name)} · ${p.days || 30}일</dd><dt>결제 수단</dt><dd>${PAYN(meth)}</dd><dt><b style="color:var(--text)">결제 금액</b></dt><dd style="font-size:16px" class="brand">${won(p.price)}</dd></dl>` : ''; $$('.ai-plan').forEach((x) => x.classList.toggle('on', x.dataset.plan === plan)); };
+        $$('.ai-plan:not(.free)').forEach((x) => (x.onclick = () => { plan = x.dataset.plan; sum(); }));
+        $$('#sbM [data-m]').forEach((b) => (b.onclick = () => { meth = b.dataset.m; $$('#sbM [data-m]').forEach((x) => x.classList.toggle('on', x === b)); sum(); }));
+        $('#sbGo').onclick = async () => { try { await Store.requestSub(plan, meth, $('#sbMemo').value); U.toast('구독 신청이 접수되었습니다. 승인되면 알림으로 알려드립니다.'); Voice.say('AI 구독 신청이 접수되었습니다.'); draw(); } catch (e) { U.toast(e.message, true); } };
+        $$('[data-sc]').forEach((b) => (b.onclick = async () => { try { await Store.cancelSub(b.dataset.sc); U.toast('취소되었습니다.'); draw(); } catch (e) { U.toast(e.message, true); } }));
+        sum();
+      }
+    }
+    async function one(code) {
+      const box = $('#aiRep'); box.innerHTML = '<div class="empty">AI가 차트·수급·뉴스를 분석하는 중…</div>';
+      try { const R = await AI.run(code); box.innerHTML = AI.report(R); stLine(); } catch (e) { box.innerHTML = AI.gate(e.message); }
+    }
+    draw();
+    return { data: () => {} };
   }
 
   // ═════════ 고객센터 (1:1 문의 · 쪽지) ═════════

@@ -1,0 +1,51 @@
+{
+  "name": "maxlife-stock",
+  "productName": "MAX라이프 주식",
+  "version": "1.0.0",
+  "description": "MAX라이프 주식 HTS — 국내·미국 전 종목 실시세 가상투자",
+  "author": "주식회사 고래등",
+  "main": "main.js",
+  "homepage": "https://whaleguard.github.io/maxlife-stock/",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:linux": "electron-builder --linux --publish never"
+  },
+  "dependencies": {
+    "electron-updater": "6.3.9"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "kr.goraedeung.maxlifestock",
+    "productName": "MAX라이프 주식",
+    "artifactName": "MAXLife-Stock-${version}-${arch}.${ext}",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "preload.js", "offline.html", "build/icon.png", "build/tray.png"],
+    "publish": [{ "provider": "github", "owner": "whaleguard", "repo": "maxlife-stock", "releaseType": "release" }],
+    "win": {
+      "icon": "build/icon.png",
+      "target": [{ "target": "nsis", "arch": ["x64"] }, { "target": "portable", "arch": ["x64"] }]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MAX라이프 주식",
+      "artifactName": "MAXLife-Stock-Setup.${ext}"
+    },
+    "portable": { "artifactName": "MAXLife-Stock-Portable.${ext}" },
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.finance",
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "identity": null
+    },
+    "dmg": { "artifactName": "MAXLife-Stock-mac-${arch}.${ext}" },
+    "linux": { "icon": "build/icon.png", "target": ["AppImage"], "category": "Finance" }
+  }
+}

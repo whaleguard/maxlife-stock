@@ -25,7 +25,7 @@
   async function reload() {
     A.st = await Store.settings();
     [A.posts, A.notices] = await Promise.all([Store.posts(), Store.notices()]);
-    if (A.me.role === 'admin') { [A.users, A.bundles, A.flows, A.stats, A.buffs] = await Promise.all([Store.users(), Store.allBundles(), Store.cashflows(), Store.stats(), Store.buffs()]); }
+    if (A.me.role === 'admin') { [A.users, A.bundles, A.flows, A.stats, A.buffs, A.sum] = await Promise.all([Store.users(), Store.allBundles(), Store.cashflows(), Store.stats(), Store.buffs(), Store.memberSummary().catch(() => ({}))]); }
   }
   function login() {
     root.innerHTML = `<div class="auth-form" style="min-height:100vh"><div class="auth-card"><div style="margin-bottom:28px">${U.logo()}</div><h1>관리자 로그인</h1><p class="sub">관리자 계정으로 로그인하세요.</p>
@@ -37,14 +37,14 @@
   const val = (b) => Engine.valuate(b, A.st);
   const ROLE = { user: '이용자', instructor: 'MAX 리딩', admin: '관리자' };
 
-  const NAV_ADMIN = [['dash', '대시보드', ICON.chart], ['members', '회원관리', ICON.users], ['cash', '입출금 승인', ICON.bank], ['buffs', 'MAX 버프', ICON.shield], ['inq', '1:1 문의', ICON.doc], ['grades', '등급 관리', ICON.trophy], ['lead', 'MAX 리딩·공지', ICON.lead], ['stocks', '종목·시세', ICON.list], ['settings', '수수료·설정', ICON.gear]];
+  const NAV_ADMIN = [['dash', '대시보드', ICON.chart], ['members', '회원관리', ICON.users], ['cash', '입출금 승인', ICON.bank], ['buffs', 'MAX 버프', ICON.shield], ['inq', '1:1 문의', ICON.doc], ['subs', 'AI 구독', ICON.spark], ['grades', '등급 관리', ICON.trophy], ['lead', 'MAX 리딩·공지', ICON.lead], ['stocks', '종목·시세', ICON.list], ['settings', '수수료·설정', ICON.gear]];
   const NAV_INST = [['lead', '리딩·공지', ICON.lead]];
   function shell() {
     const nav = A.me.role === 'admin' ? NAV_ADMIN : NAV_INST;
     root.innerHTML = `<div class="app admin">
       <header class="topbar"><a href="#/${nav[0][0]}">${U.logo()}</a><span class="badge-mode">${A.me.role === 'admin' ? 'ADMIN' : 'MAX 리딩'}</span><div class="ticker" id="tk"></div>
         <div class="top-actions"><a class="btn btn-sm hide-m" href="index.html">사용자 화면</a>${A.me.role === 'admin' ? `<button class="icon-btn bell" id="aBell" title="알림">${ICON.bell}<span class="bdg" id="aBellN" hidden></span></button><div class="notif-pop hidden" id="aPop"></div><button class="icon-btn" id="aSnd" title="알림 소리"></button>` : ''}<button class="icon-btn" id="th">${ICON.sun}</button><button class="user-chip" id="out" title="로그아웃"><span class="avatar">${esc(A.me.name.slice(0, 1))}</span><span class="nm">${esc(A.me.name)}</span></button></div></header>
-      <aside class="sidebar"><nav class="nav"><div class="cap">${A.me.role === 'admin' ? 'ADMIN CONSOLE' : 'MAX 리딩'}</div>${nav.map(([r, l, i]) => `<a href="#/${r}" data-r="${r}">${i}<span>${l}</span>${['cash', 'buffs', 'inq', 'members'].includes(r) ? `<span class="nbdg" id="nb-${r}" hidden></span>` : ''}</a>`).join('')}<div class="sep"></div><a href="index.html">${ICON.home}<span>사용자 화면</span></a></nav><div class="side-foot" id="sf"></div></aside>
+      <aside class="sidebar"><nav class="nav"><div class="cap">${A.me.role === 'admin' ? 'ADMIN CONSOLE' : 'MAX 리딩'}</div>${nav.map(([r, l, i]) => `<a href="#/${r}" data-r="${r}">${i}<span>${l}</span>${['cash', 'buffs', 'inq', 'members', 'subs'].includes(r) ? `<span class="nbdg" id="nb-${r}" hidden></span>` : ''}</a>`).join('')}<div class="sep"></div><a href="index.html">${ICON.home}<span>사용자 화면</span></a></nav><div class="side-foot" id="sf"></div></aside>
       <main class="main" id="main"></main>
       <nav class="tabbar" style="grid-template-columns:repeat(${Math.min(5, nav.length + 1)},1fr)">${nav.slice(0, 4).map(([r, l, i]) => `<a href="#/${r}" data-r="${r}">${i}${l.split('·')[0]}</a>`).join('')}<a href="index.html">${ICON.home}사용자</a></nav>
     </div>`;
@@ -78,8 +78,8 @@
     badges() {
       const d = this.d; const set = (k, n) => { const e = $('#nb-' + k); if (e) { e.hidden = !n; e.textContent = n > 99 ? '99+' : n; } };
       const cash = d ? d.cash.length : A.flows.filter((f) => f.status === 'pending').length;
-      set('cash', cash); set('buffs', d ? d.buffs.length + d.danger.length : 0); set('inq', d ? d.inquiries.length : 0); set('members', d ? d.signups.length : 0);
-      const tot = d ? d.cash.length + d.buffs.length + d.inquiries.length + d.danger.length : cash;
+      set('cash', cash); set('subs', d && d.subs ? d.subs.length : 0); set('buffs', d ? d.buffs.length + d.danger.length : 0); set('inq', d ? d.inquiries.length : 0); set('members', d ? d.signups.length : 0);
+      const tot = d ? d.cash.length + d.buffs.length + d.inquiries.length + d.danger.length + (d.subs || []).length : cash;
       const bn = $('#aBellN'); if (bn) { bn.hidden = !tot; bn.textContent = tot > 99 ? '99+' : tot; }
       document.title = (tot ? `(${tot}) ` : '') + 'MAX라이프 주식 · 관리자';
     },
@@ -89,6 +89,7 @@
       const rows = [
         ...d.danger.map((x) => it('#/buffs', '담보 위험', 'tag-sell', `${esc(x.name)} · 담보비율 ${Number(x.ratio).toFixed(1)}% (청산 ${x.maintain}%)`)),
         ...d.cash.map((x) => it('#/cash', x.type === 'deposit' ? '입금 신청' : '출금 신청', x.type === 'deposit' ? 'tag-buy' : 'tag-sell', `${esc(x.name)} · ${won(x.amount)} · ${PAYN(x.method)}`, x.at)),
+        ...(d.subs || []).map((x) => it('#/subs', 'AI 구독', 'tag-brand', `${esc(x.name)} · ${esc(x.planName)} ${won(x.price)}`, x.at)),
         ...d.buffs.map((x) => it('#/buffs', '버프 신청', 'tag-brand', `${esc(x.name)} · ${x.mult}배 · ${won(x.amount)}`, x.at)),
         ...d.inquiries.map((x) => it('#/inq', '1:1 문의', 'tag-wait', `${esc(x.name)} · ${esc(x.title)}`, x.at)),
         ...d.liquidations.map((x) => it('#/buffs', '자동 청산', 'tag-sell', `${esc(x.name)} · ${won(x.amount)}`, x.at)),
@@ -101,11 +102,12 @@
       let d; try { d = await Store.adminPoll(); } catch { return; }
       if (!d) return; this.d = d;
       const ids = (k) => (d[k] || []).map((x) => x.id || x.userId);
-      const cur = { cash: ids('cash'), buffs: ids('buffs'), inquiries: ids('inquiries'), signups: ids('signups'), liquidations: ids('liquidations'), danger: ids('danger') };
+      const cur = { subs: ids('subs'), cash: ids('cash'), buffs: ids('buffs'), inquiries: ids('inquiries'), signups: ids('signups'), liquidations: ids('liquidations'), danger: ids('danger') };
       if (this.seen) {
         const nw = (k) => (d[k] || []).filter((x) => !this.seen[k].includes(x.id || x.userId));
         const ev = [];
         for (const x of nw('cash')) ev.push(['cash', `${x.type === 'deposit' ? '입금' : '출금'} 신청`, `${x.name} · ${won(x.amount)} · ${PAYN(x.method)}`, '#/cash']);
+        for (const x of nw('subs')) ev.push(['subs', 'AI 구독 신청', `${x.name} · ${x.planName} ${won(x.price)} · ${PAYN(x.method)}`, '#/subs']);
         for (const x of nw('buffs')) ev.push(['buffs', 'MAX 버프 신청', `${x.name} · ${x.mult}배 · ${won(x.amount)}`, '#/buffs']);
         for (const x of nw('inquiries')) ev.push(['inq', '1:1 문의 접수', `${x.name} · ${x.title}`, '#/inq']);
         for (const x of nw('signups')) ev.push(['members', '신규 가입', `${x.name} (${x.username})`, '#/members']);
@@ -143,7 +145,7 @@
   };
   function route() {
     const r = location.hash.replace(/^#\/?/, '') || (A.me.role === 'admin' ? 'dash' : 'lead');
-    const pages = A.me.role === 'admin' ? { dash: Dash, members: Members, cash: CashAdm, buffs: BuffAdm, inq: InqAdm, grades: Grades, lead: LeadAdm, stocks: Stocks, settings: Settings } : { lead: LeadAdm };
+    const pages = A.me.role === 'admin' ? { dash: Dash, members: Members, cash: CashAdm, buffs: BuffAdm, inq: InqAdm, subs: SubsAdm, grades: Grades, lead: LeadAdm, stocks: Stocks, settings: Settings } : { lead: LeadAdm };
     const P = pages[r] || Object.values(pages)[0];
     $$('.nav a, .tabbar a').forEach((a) => a.classList.toggle('active', a.dataset.r === r));
     A.page && A.page.destroy && A.page.destroy();
@@ -162,7 +164,7 @@
         <section class="panel"><div class="panel-h"><h3>일별 매매 추이 (최근 14일)</h3><span class="dim" style="font-size:12px"><span class="up">■</span> 매수 <span class="down">■</span> 매도</span></div><div class="panel-b"><div class="bar-chart"><canvas id="dBar"></canvas></div></div></section>
         <section class="panel"><div class="panel-h"><h3>승인 대기</h3><a class="dim" href="#/cash" style="font-size:12px">전체</a></div><div class="panel-b flush" id="dPend"></div></section>
       </div>
-      <section class="panel" style="margin-bottom:16px"><div class="panel-h"><h3>운영 수익</h3><span class="dim" style="font-size:12px">수수료 · 거래세 · 버프 이자 (최근 30일 일별)</span></div><div class="panel-b"><div class="grid g-4" id="dRev" style="margin-bottom:14px"></div><div class="bar-chart"><canvas id="dRevBar"></canvas></div></div></section>
+      <section class="panel" style="margin-bottom:16px"><div class="panel-h"><h3>운영 수익</h3><span class="dim" style="font-size:12px">수수료 · 거래세 · 버프 이자 (최근 30일 일별)</span></div><div class="panel-b"><div class="grid g-5" id="dRev" style="margin-bottom:14px"></div><div class="bar-chart"><canvas id="dRevBar"></canvas></div></div></section>
       <div class="grid g-2 stack">
         <section class="panel"><div class="panel-h"><h3>회원 보유 상위 종목</h3></div><div class="panel-b flush" id="dTop"></div></section>
         <section class="panel"><div class="panel-h"><h3>최근 체결</h3></div><div class="panel-b flush" id="dFills"></div></section>
@@ -202,7 +204,7 @@
     async function rev() {
       if (!R || Date.now() - revAt > 60000) { revAt = Date.now(); try { R = await Store.revenue(); } catch { R = R || null; } }
       if (!R || !$('#dRev')) return; const T = R.total;
-      $('#dRev').innerHTML = stat('누적 매매 수수료', won(T.fee), '체결 시 부과', 'brand') + stat('누적 거래세', won(T.tax), '매도 시 부과') + stat('MAX 버프 이자', won(T.interest), `사용 중 지원금 ${compact(T.loan)}원`) + stat('총 운영 수익', won(T.fee + T.tax + T.interest), `누적 거래대금 ${compact(T.volume)}원`, 'brand');
+      $('#dRev').innerHTML = stat('누적 매매 수수료', won(T.fee), '체결 시 부과', 'brand') + stat('누적 거래세', won(T.tax), '매도 시 부과') + stat('MAX 버프 이자', won(T.interest), `사용 중 지원금 ${compact(T.loan)}원`) + stat('AI 구독 매출', won(T.ai || 0), `이용 중 ${T.aiActive || 0}명`, 'brand') + stat('총 운영 수익', won(T.fee + T.tax + T.interest + (T.ai || 0)), `누적 거래대금 ${compact(T.volume)}원`, 'brand');
       const days = []; for (let i = 29; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(dayKey(d)); }
       const m = Object.fromEntries((R.daily || []).map((x) => [x.d, x]));
       Chart.bars($('#dRevBar'), { labels: days.map((d) => d.slice(5).replace('-', '.')), series: [{ values: days.map((d) => (m[d] ? m[d].fee : 0)), color: Chart.css('--brand') }, { values: days.map((d) => (m[d] ? m[d].tax : 0)), color: Chart.css('--warn') }] });
@@ -216,6 +218,51 @@
     $$('[data-rj]', el).forEach((b) => (b.onclick = () => {
       U.modal({ title: '신청 반려', body: '<div class="field"><label>반려 사유 (회원에게 표시)</label><input class="input" id="rjm" placeholder="예: 1회 한도 초과"></div>', foot: '<button class="btn" data-x>취소</button><button class="btn btn-danger" id="rjOk">반려</button>', onMount: (m, close) => { $('#rjOk', m).onclick = async () => { try { await Store.processCash(b.dataset.rj, false, $('#rjm', m).value); close(); U.toast('반려되었습니다.'); } catch (e) { U.toast(e.message, true); } }; } });
     }));
+  }
+
+  const geo = (l) => (l ? [l.country, l.region, l.city].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).join(' ') : '');
+  function device(ua) {
+    if (!ua) return '-'; const os = /Windows/.test(ua) ? 'Windows' : /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Mac OS/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : '기타';
+    const br = /MAXLifeHTS/.test(ua) ? 'PC 프로그램' : /Edg\//.test(ua) ? 'Edge' : /Whale/.test(ua) ? '웨일' : /SamsungBrowser/.test(ua) ? '삼성 인터넷' : /KAKAOTALK/.test(ua) ? '카카오톡' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : /Firefox/.test(ua) ? 'Firefox' : '브라우저';
+    return `${os} · ${br}`;
+  }
+  function grantDlg(u, after) {
+    const P = A.st.aiPlans || [];
+    U.modal({ title: 'AI 구독 지급', body: `<p class="muted" style="margin-top:0">${esc(u.name)} (${esc(u.username)}) 회원에게 결제 없이 AI 구독을 지급합니다. 이용 중이면 종료일 뒤로 이어집니다.</p><div class="field"><label>요금제</label><select class="input" id="gP">${P.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div><div class="field"><label>기간 (일)</label><input class="input" id="gD" value="30" inputmode="numeric"></div><div class="field"><label>사유</label><input class="input" id="gM" value="관리자 지급"></div>`, foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="gOk">지급</button>', onMount: (m, close) => { $('#gOk', m).onclick = async () => { try { await Store.grantSub(u.id, $('#gP', m).value, +$('#gD', m).value || 30, $('#gM', m).value); close(); U.toast('AI 구독을 지급했습니다.'); await reload(); A.page && A.page.data && A.page.data(); } catch (e) { U.toast(e.message, true); } }; } });
+  }
+
+  // ═════ AI 구독 ═════
+  function SubsAdm(main) {
+    let F = 'pending', L = [];
+    const ST = { pending: ['승인 대기', 'tag-wait'], active: ['이용 중', 'tag-ok'], rejected: ['반려', 'tag-sell'], cancelled: ['취소', 'tag-no'], expired: ['만료', 'tag-no'] };
+    main.innerHTML = `${head('AI 구독', 'MAX AI 분석 월정액 신청을 승인하고, 요금제·무료 이용 한도를 설정합니다.')}
+      <div class="grid g-4" id="sbS" style="margin-bottom:16px"></div>
+      <section class="panel" style="margin-bottom:16px"><div class="panel-b"><div class="filters"><div class="seg" id="sbF">${[['pending', '승인 대기'], ['active', '이용 중'], ['all', '전체']].map(([k, n]) => `<button data-s="${k}" class="${k === F ? 'on' : ''}">${n}</button>`).join('')}</div><select class="input" id="sbU" style="max-width:240px"><option value="">회원 선택 → 구독 지급</option>${A.users.filter((u) => u.role === 'user').map((u) => `<option value="${u.id}">${esc(u.name)} (${esc(u.username)})</option>`).join('')}</select></div></div><div class="panel-b flush" id="sbL"></div></section>
+      <section class="panel"><div class="panel-h"><h3>요금제 · 이용 설정</h3><button class="btn btn-sm btn-brand" id="spSave">저장</button></div><div class="panel-b">
+        <div class="setting-row"><div><b>AI 분석 사용</b><small>끄면 모든 이용자의 AI 분석이 일시 중지됩니다.</small></div><label class="switch" style="justify-self:end"><input type="checkbox" id="spEn" ${A.st.aiEnabled !== false ? 'checked' : ''}><span></span></label></div>
+        <div class="setting-row"><div><b>카드 회원 무료</b><small>MAX DAY LIFE 카드 회원에게 첫 번째 요금제 혜택을 무료로 적용합니다.</small></div><label class="switch" style="justify-self:end"><input type="checkbox" id="spCard" ${A.st.aiCardFree ? 'checked' : ''}><span></span></label></div>
+        <div class="setting-row"><div><b>무료 이용자 하루 분석 횟수</b><small>구독하지 않은 이용자</small></div><input class="input" id="spFree" style="max-width:100px;justify-self:end;text-align:right" value="${A.st.aiFreeDaily ?? 3}"></div>
+        <div class="table-wrap" style="margin-top:12px"><table class="t"><thead><tr><th>코드</th><th class="l">이름</th><th>월 요금(원)</th><th>기간(일)</th><th>하루 분석 (0=무제한)</th><th></th></tr></thead><tbody id="spT"></tbody></table></div><button class="btn btn-sm" id="spAdd" style="margin-top:8px">+ 요금제 추가</button>
+      </div></section>`;
+    let P = JSON.parse(JSON.stringify(A.st.aiPlans || []));
+    const drawP = () => { $('#spT').innerHTML = P.map((p, i) => `<tr><td><input class="input" data-i="${i}" data-f="id" value="${esc(p.id)}" style="width:80px"></td><td class="l"><input class="input" data-i="${i}" data-f="name" value="${esc(p.name)}"></td><td><input class="input" data-i="${i}" data-f="price" value="${p.price}" style="width:100px;text-align:right"></td><td><input class="input" data-i="${i}" data-f="days" value="${p.days || 30}" style="width:70px;text-align:right"></td><td><input class="input" data-i="${i}" data-f="daily" value="${p.daily || 0}" style="width:70px;text-align:right"></td><td><button class="btn btn-sm btn-ghost" data-del="${i}">삭제</button></td></tr>`).join(''); $$('#spT input').forEach((x) => (x.onchange = () => { const f = x.dataset.f; P[+x.dataset.i][f] = ['price', 'days', 'daily'].includes(f) ? +x.value.replace(/[^0-9]/g, '') || 0 : x.value.trim(); })); $$('[data-del]', main).forEach((b) => (b.onclick = () => { if (P.length <= 1) return U.toast('요금제는 최소 1개가 필요합니다.', true); P.splice(+b.dataset.del, 1); drawP(); })); };
+    drawP();
+    $('#spAdd').onclick = () => { P.push({ id: 'p' + (P.length + 1), name: '새 요금제', price: 19900, days: 30, daily: 100 }); drawP(); };
+    $('#spSave').onclick = async () => { try { await Store.saveSettings({ aiEnabled: $('#spEn').checked, aiCardFree: $('#spCard').checked, aiFreeDaily: +$('#spFree').value || 0, aiPlans: P }); A.st = await Store.settings(); U.toast('저장되었습니다.'); } catch (e) { U.toast(e.message, true); } };
+    $$('#sbF button').forEach((b) => (b.onclick = () => { F = b.dataset.s; $$('#sbF button').forEach((x) => x.classList.toggle('on', x === b)); draw(); }));
+    $('#sbU').onchange = (e) => { const u = A.users.find((x) => x.id === e.target.value); e.target.value = ''; if (u) grantDlg(u, load); };
+    function draw() {
+      const act = L.filter((x) => x.status === 'active'); const now = new Date().toISOString();
+      $('#sbS').innerHTML = stat('승인 대기', L.filter((x) => x.status === 'pending').length + '건', '', 'brand') + stat('이용 중', new Set(act.filter((x) => x.startsAt <= now).map((x) => x.userId)).size + '명', '') + stat('누적 구독 매출', won(L.filter((x) => ['active', 'expired'].includes(x.status)).reduce((s, x) => s + x.price, 0)), '') + stat('이번 달 매출', won(L.filter((x) => ['active', 'expired'].includes(x.status) && (x.processedAt || '').slice(0, 7) === U.today().slice(0, 7)).reduce((s, x) => s + x.price, 0)), '');
+      const R = L.filter((x) => F === 'all' || x.status === F);
+      $('#sbL').innerHTML = R.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>신청일시</th><th class="l">회원</th><th>요금제</th><th>금액</th><th>결제 수단</th><th class="l hide-m">메모</th><th>상태</th><th>기간</th><th></th></tr></thead><tbody>${R.map((x) => `<tr><td class="dim">${U.dt(x.createdAt)}</td><td class="l"><div class="sname"><b>${esc(x.name || '')}</b><small>${esc(x.username || '')}</small></div></td><td>${esc(x.planName)}</td><td><b>${x.method === 'grant' ? '지급' : won(x.price)}</b></td><td>${x.method === 'grant' ? '관리자' : PAYN(x.method)}</td><td class="l hide-m muted" style="font-size:12px">${esc(x.memo || '')}${x.adminMemo ? ' · ' + esc(x.adminMemo) : ''}</td><td><span class="tag ${ST[x.status][1]}">${ST[x.status][0]}</span></td><td class="dim" style="font-size:12px">${x.startsAt ? U.date(x.startsAt) + ' ~ ' + U.date(x.endsAt) : '-'}</td><td style="white-space:nowrap">${x.status === 'pending' ? `<button class="btn btn-sm btn-brand" data-ok="${x.id}">승인</button> <button class="btn btn-sm" data-no="${x.id}">반려</button>` : x.status === 'active' ? `<button class="btn btn-sm btn-ghost" data-rv="${x.id}">중지</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">해당 구독이 없습니다</div>';
+      $$('[data-ok]', main).forEach((b) => (b.onclick = async () => { try { await Store.processSub(b.dataset.ok, true); U.toast('승인했습니다. 바로 적용됩니다.'); load(); } catch (e) { U.toast(e.message, true); } }));
+      $$('[data-no]', main).forEach((b) => (b.onclick = () => U.modal({ title: '구독 반려', body: '<div class="field"><label>반려 사유 (회원에게 표시)</label><input class="input" id="rjm" placeholder="예: 입금 확인 불가"></div>', foot: '<button class="btn" data-x>취소</button><button class="btn btn-danger" id="rjOk">반려</button>', onMount: (m, close) => { $('#rjOk', m).onclick = async () => { try { await Store.processSub(b.dataset.no, false, $('#rjm', m).value); close(); U.toast('반려했습니다.'); load(); } catch (e) { U.toast(e.message, true); } }; } })));
+      $$('[data-rv]', main).forEach((b) => (b.onclick = async () => { if (!(await U.confirmBox('구독 중지', '이 구독을 즉시 중지할까요?', '중지', 'btn-danger'))) return; await Store.revokeSub(b.dataset.rv); U.toast('중지했습니다.'); load(); }));
+    }
+    async function load() { try { L = await Store.adminSubs(); } catch { L = []; } draw(); }
+    load();
+    return { data: load };
   }
 
   // ═════ 1:1 문의 ═════
@@ -273,7 +320,7 @@
       rows = rows.filter(({ u }) => (F.status === 'all' || u.status === F.status) && (F.role === 'all' || u.role === F.role) && (!F.q || [u.name, u.username, u.phone, u.email].join(' ').toLowerCase().includes(F.q)));
       const s = { join: (a, b) => b.u.createdAt.localeCompare(a.u.createdAt), ret: (a, b) => (b.v ? b.v.netPct : -1e9) - (a.v ? a.v.netPct : -1e9), asset: (a, b) => (b.v ? b.v.net : 0) - (a.v ? a.v.net : 0), trade: (a, b) => (b.b ? b.b.fills.length : 0) - (a.b ? a.b.fills.length : 0), login: (a, b) => String(b.u.lastLogin || '').localeCompare(String(a.u.lastLogin || '')) };
       rows.sort(s[F.sort]);
-      $('#mList').innerHTML = rows.length ? `<div class="table-wrap"><table class="t"><thead><tr><th class="ck"><input type="checkbox" id="mAll"></th><th>회원</th><th>등급</th><th>권한</th><th>상태</th><th>순자산</th><th>수익률</th><th class="hide-m">버프·담보비율</th><th class="hide-m">예수금</th><th class="hide-m">보유</th><th class="hide-m">체결</th><th class="hide-m">가입일</th><th class="hide-m">최근접속</th></tr></thead><tbody>${rows.map(({ u, v, b }) => `<tr class="click" data-u="${u.id}"><td class="ck">${u.role === 'user' ? `<input type="checkbox" data-ck="${u.id}" ${SEL.has(u.id) ? 'checked' : ''}>` : ''}</td><td><div class="sname"><b>${esc(u.name)}</b><small>${esc(u.username)}${u.phone ? ' · ' + esc(u.phone) : ''}</small></div></td><td>${esc(GRADE(u.grade).name)}${u.cardTier ? ' <span class="tag card-' + u.cardTier + '">' + CARD[u.cardTier] + '</span>' : ''}</td><td>${ROLE[u.role]}</td><td><span class="tag ${u.status === 'active' ? 'tag-ok' : 'tag-sell'}">${u.status === 'active' ? '정상' : '정지'}</span></td><td>${v ? won(v.net) : '-'}</td><td class="${v ? cls(v.netPct) : ''}"><b>${v ? pct(v.netPct) : '-'}</b></td><td class="hide-m">${v && v.loan ? `${v.buff.mult}배 · <b style="color:${v.ratio < v.maintain ? 'var(--up)' : v.ratio < (A.st.buffWarn || 140) ? 'var(--warn)' : 'var(--ok)'}">${v.ratio.toFixed(1)}%</b>` : '-'}</td><td class="hide-m">${v ? won(v.cash) : '-'}</td><td class="hide-m">${v ? v.holdings.length : '-'}</td><td class="hide-m">${b ? b.fills.length : '-'}</td><td class="hide-m dim">${U.date(u.createdAt)}</td><td class="hide-m dim">${u.lastLogin ? U.ago(u.lastLogin) : '-'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">조건에 맞는 회원이 없습니다</div>';
+      $('#mList').innerHTML = rows.length ? `<div class="table-wrap"><table class="t"><thead><tr><th class="ck"><input type="checkbox" id="mAll"></th><th>회원</th><th>등급</th><th>권한</th><th>상태</th><th>순자산</th><th>수익률</th><th class="hide-m">버프·담보비율</th><th class="hide-m">예수금</th><th class="hide-m">보유</th><th class="hide-m">체결</th><th class="hide-m">총 충전</th><th class="hide-m">가입일</th><th class="hide-m l">최근 접속 · IP · 지역</th></tr></thead><tbody>${rows.map(({ u, v, b }) => `<tr class="click" data-u="${u.id}"><td class="ck">${u.role === 'user' ? `<input type="checkbox" data-ck="${u.id}" ${SEL.has(u.id) ? 'checked' : ''}>` : ''}</td><td><div class="sname"><b>${esc(u.name)}</b><small>${esc(u.username)}${u.phone ? ' · ' + esc(u.phone) : ''}</small></div></td><td>${esc(GRADE(u.grade).name)}${u.cardTier ? ' <span class="tag card-' + u.cardTier + '">' + CARD[u.cardTier] + '</span>' : ''}</td><td>${ROLE[u.role]}</td><td><span class="tag ${u.status === 'active' ? 'tag-ok' : 'tag-sell'}">${u.status === 'active' ? '정상' : '정지'}</span></td><td>${v ? won(v.net) : '-'}</td><td class="${v ? cls(v.netPct) : ''}"><b>${v ? pct(v.netPct) : '-'}</b></td><td class="hide-m">${v && v.loan ? `${v.buff.mult}배 · <b style="color:${v.ratio < v.maintain ? 'var(--up)' : v.ratio < (A.st.buffWarn || 140) ? 'var(--warn)' : 'var(--ok)'}">${v.ratio.toFixed(1)}%</b>` : '-'}</td><td class="hide-m">${v ? won(v.cash) : '-'}</td><td class="hide-m">${v ? v.holdings.length : '-'}</td><td class="hide-m">${b ? b.fills.length : '-'}</td><td class="hide-m">${won((A.sum[u.id] || {}).dep || 0)}</td><td class="hide-m dim">${U.date(u.createdAt)}</td><td class="hide-m l dim" style="font-size:12px">${u.lastLogin ? U.ago(u.lastLogin) : '-'}${(() => { const L = (A.sum[u.id] || {}).last; return L && L.ip ? `<br>${esc(L.ip)} · ${esc(geo(L) || '확인 중')}` : ''; })()}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">조건에 맞는 회원이 없습니다</div>';
       $$('[data-u]', main).forEach((r) => (r.onclick = (e) => { if (e.target.closest('.ck')) return; memberDetail(r.dataset.u); }));
       $$('[data-ck]', main).forEach((c) => (c.onchange = () => { c.checked ? SEL.add(c.dataset.ck) : SEL.delete(c.dataset.ck); selTxt(); }));
       const all = $('#mAll'); if (all) { const us = rows.filter((r) => r.u.role === 'user').map((r) => r.u.id); all.checked = us.length && us.every((id) => SEL.has(id)); all.onchange = () => { us.forEach((id) => (all.checked ? SEL.add(id) : SEL.delete(id))); data(); }; }
@@ -297,10 +344,17 @@
         <div class="grid g-4" style="gap:10px;margin-bottom:16px">
           ${stat('순자산', won(v.net), `원금 ${won(v.principal)}${v.loan ? ' · 버프 ' + won(v.loan) : ''}`)}${stat('누적 수익률', pct(v.netPct), signedWon(v.netPnl), cls(v.netPct))}${stat('평가손익', signedWon(v.pnl), `평가금액 ${won(v.evalKrw)}`, cls(v.pnl))}${stat('예수금', won(v.cash), `실현손익 ${signedWon(v.realized)}`)}
         </div>
+        <div class="md-sum">${(() => { const X = A.sum[u.id] || {}; const L = X.last || {}; const dep = X.dep || 0, wd = X.wd || 0; return [
+          ['총 충전', won(dep), `${b.cashflows.filter((c) => c.type === 'deposit' && c.status === 'approved').length}회`], ['총 출금', won(wd), `${b.cashflows.filter((c) => c.type === 'withdraw' && c.status === 'approved').length}회`],
+          ['보유 주식 평가', won(v.evalKrw), `${v.holdings.length}종목`], ['실현손익', `<span class="${cls(v.realized)}">${signedWon(v.realized)}</span>`, '매도 확정분'],
+          ['평가손익', `<span class="${cls(v.pnl)}">${signedWon(v.pnl)}</span>`, '보유 종목'], ['총 손익', `<span class="${cls(v.netPnl)}">${signedWon(v.netPnl)}</span>`, pct(v.netPct)],
+          ['거래대금', won(X.vol || 0), `${b.fills.length}건 체결`], ['수수료·세금', won(X.fee || 0), '누적 납부'],
+          ['AI 구독', X.ai ? esc(X.ai.plan) : '없음', X.ai ? U.date(X.ai.endsAt) + '까지' : '-'], ['MAX 버프', v.loan ? `${v.buff.mult}배 · ${won(v.loan)}` : '없음', v.loan ? `담보비율 ${v.ratio.toFixed(1)}%` : '-'],
+        ].map(([k, val, sub]) => `<div><small>${k}</small><b>${val}</b><em>${sub}</em></div>`).join('') + `</div><div class="md-login"><div><small>최근 접속</small><b>${L.at ? U.dt(L.at) : u.lastLogin ? U.dt(u.lastLogin) : '-'}</b></div><div><small>접속 IP</small><b>${esc(L.ip || '-')}</b></div><div><small>지역</small><b>${esc(geo(L) || (L.ip ? '확인 중' : '-'))}</b></div><div><small>통신사</small><b>${esc(L.isp || '-')}</b></div><div><small>기기 · 브라우저</small><b>${esc(device(L.ua))}</b></div><div><small>30일 접속 · IP 수</small><b>${X.logins30 || 0}회 · ${X.ips || 0}개</b></div>`; })()}</div>
         <div style="height:160px;margin-bottom:12px"><canvas id="mdLine" style="width:100%;height:100%"></canvas></div>
-        <div class="tabs" id="mdTab" style="padding:0"><button data-v="hold" class="on">보유종목 ${v.holdings.length}</button><button data-v="fills">매입·매출 ${b.fills.length}</button><button data-v="orders">주문 ${b.orders.length}</button><button data-v="cash">입출금 ${b.cashflows.length}</button><button data-v="buff">MAX 버프 ${(b.buffs || []).length}</button></div>
+        <div class="tabs" id="mdTab" style="padding:0"><button data-v="hold" class="on">보유종목 ${v.holdings.length}</button><button data-v="fills">매입·매출 ${b.fills.length}</button><button data-v="orders">주문 ${b.orders.length}</button><button data-v="cash">입출금 ${b.cashflows.length}</button><button data-v="buff">MAX 버프 ${(b.buffs || []).length}</button><button data-v="login">접속 기록</button></div>
         <div id="mdBody" style="margin:0 -20px"></div>`,
-      foot: `<button class="btn" id="mdGrade">등급: ${esc(GRADE(u.grade).name)}</button><button class="btn" id="mdCard">카드: ${CARD[u.cardTier || '']}</button>${v.loan ? '<button class="btn btn-danger" id="mdLiq">강제 청산</button>' : ''}<button class="btn" id="mdCash">예수금 조정</button>${u.role !== 'admin' ? `<button class="btn" id="mdRole">권한: ${ROLE[u.role]}</button>` : ''}<button class="btn ${u.status === 'active' ? 'btn-danger' : 'btn-brand'}" id="mdStat">${u.status === 'active' ? '계정 정지' : '정지 해제'}</button>`,
+      foot: `<button class="btn" id="mdAi">AI 구독 지급</button><button class="btn" id="mdGrade">등급: ${esc(GRADE(u.grade).name)}</button><button class="btn" id="mdCard">카드: ${CARD[u.cardTier || '']}</button>${v.loan ? '<button class="btn btn-danger" id="mdLiq">강제 청산</button>' : ''}<button class="btn" id="mdCash">예수금 조정</button>${u.role !== 'admin' ? `<button class="btn" id="mdRole">권한: ${ROLE[u.role]}</button>` : ''}<button class="btn ${u.status === 'active' ? 'btn-danger' : 'btn-brand'}" id="mdStat">${u.status === 'active' ? '계정 정지' : '정지 해제'}</button>`,
       onMount: (m, close) => {
         const snaps = (b.snapshots || []).map((s) => [s[0], s[1]]); if (!snaps.length || snaps[snaps.length - 1][0] !== U.today()) snaps.push([U.today(), v.total]);
         setTimeout(() => Chart.line($('#mdLine', m), { points: snaps, color: v.totalPnl >= 0 ? Chart.css('--up') : Chart.css('--down'), labels: true, base: v.principal }), 30);
@@ -311,6 +365,7 @@
             el.innerHTML = `<div style="padding:12px 20px;font-size:13px" class="muted">매입 합계 <b class="up">${won(buy)}</b> · 매출 합계 <b class="down">${won(sell)}</b> · 실현손익 <b class="${cls(v.realized)}">${signedWon(v.realized)}</b></div>` + (fs.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>체결일시</th><th class="l">종목</th><th>구분</th><th>체결가</th><th>수량</th><th>금액</th><th>수수료+세금</th><th>실현손익</th></tr></thead><tbody>${fs.map((f) => `<tr><td class="dim">${U.dt(f.at)}</td><td class="l">${esc(f.name)}</td><td><span class="tag ${f.side === 'buy' ? 'tag-buy' : 'tag-sell'}">${f.side === 'buy' ? '매입' : '매출'}</span></td><td>${px(f.price, f.currency)}</td><td>${n0(f.qty)}</td><td>${won(f.amount)}</td><td>${won(f.fee + f.tax)}</td><td class="${cls(f.pnl)}">${f.side === 'sell' ? signedWon(f.pnl) : '-'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">체결 내역 없음</div>'); }
           else if (tab === 'orders') { const os = b.orders.slice().sort((x, y) => y.createdAt.localeCompare(x.createdAt)); const st = { pending: '미체결', filled: '체결', cancelled: '취소', rejected: '거부' };
             el.innerHTML = os.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>주문일시</th><th class="l">종목</th><th>구분</th><th>유형</th><th>주문가</th><th>수량</th><th>상태</th></tr></thead><tbody>${os.map((o) => `<tr><td class="dim">${U.dt(o.createdAt)}</td><td class="l">${esc(o.name)}</td><td><span class="tag ${o.side === 'buy' ? 'tag-buy' : 'tag-sell'}">${o.side === 'buy' ? '매수' : '매도'}</span></td><td>${o.type === 'market' ? '시장가' : o.type === 'stop' ? '감시' : o.type === 'ext' ? '시간외' : '지정가'}${o.reason ? ' (' + esc(o.reason) + ')' : ''}</td><td>${o.type === 'market' ? '-' : o.type === 'stop' ? px(o.triggerPrice, o.currency) + (o.triggerCond === 'ge' ? ' 이상' : ' 이하') + ' → 시장가' : px(o.price, o.currency)}</td><td>${n0(o.qty)}</td><td>${st[o.status] || o.status}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">주문 내역 없음</div>'; }
+          else if (tab === 'login') { el.innerHTML = '<div class="empty">불러오는 중…</div>'; Store.userLogins(uid).then((L) => { if (tab !== 'login') return; el.innerHTML = L.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>접속 일시</th><th>IP</th><th class="l">지역</th><th class="l hide-m">통신사</th><th class="l">기기 · 브라우저</th></tr></thead><tbody>${L.map((l) => `<tr><td class="dim">${U.dt(l.at)}</td><td>${esc(l.ip || '-')}</td><td class="l">${esc(geo(l) || (l.ip ? '확인 중' : '-'))}</td><td class="l hide-m muted">${esc(l.isp || '')}</td><td class="l muted" style="font-size:12px">${esc(device(l.ua))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">접속 기록이 없습니다</div>'; }); }
           else if (tab === 'buff') { const B = b.buffs || []; el.innerHTML = (v.loan ? `<div style="padding:12px 20px">${A.gauge(v)}</div>` : '') + (B.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>신청일시</th><th>배수</th><th>지원금</th><th>이자율</th><th>청산 기준</th><th>상태</th><th>이자</th><th>종료</th></tr></thead><tbody>${B.map((x) => `<tr><td class="dim">${U.dt(x.createdAt)}</td><td>${x.mult}배</td><td>${won(x.amount)}</td><td>${x.rate}%</td><td>${x.maintain}%</td><td>${A.BST[x.status] || x.status}</td><td>${won(x.status === 'active' ? x.interestNow || 0 : x.interest || 0)}</td><td class="dim">${x.closedAt ? U.dt(x.closedAt) : '-'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">버프 내역이 없습니다</div>'); }
           else { const cs = b.cashflows.slice().sort((x, y) => y.at.localeCompare(x.at)); const st = { pending: ['대기', 'tag-wait'], approved: ['승인', 'tag-ok'], rejected: ['반려', 'tag-sell'], cancelled: ['취소', 'tag-no'] };
             el.innerHTML = cs.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>신청일시</th><th>구분</th><th>금액</th><th class="l">메모</th><th>상태</th><th>처리자</th></tr></thead><tbody>${cs.map((c) => `<tr><td class="dim">${U.dt(c.at)}</td><td><span class="tag ${c.type === 'deposit' ? 'tag-buy' : 'tag-sell'}">${c.type === 'deposit' ? '입금' : '출금'}</span></td><td>${won(c.amount)}</td><td class="l muted">${esc(c.memo || '')}</td><td><span class="tag ${st[c.status][1]}">${st[c.status][0]}</span></td><td class="dim">${esc(c.processedBy || '-')}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">입출금 내역 없음</div>'; }
@@ -318,6 +373,7 @@
         $('#mdTab', m).onclick = (e) => { const bt = e.target.closest('button'); if (!bt) return; tab = bt.dataset.v; $$('#mdTab button', m).forEach((x) => x.classList.toggle('on', x === bt)); body(); };
         body();
         $('#mdStat', m).onclick = async () => { const to = u.status === 'active' ? 'suspended' : 'active'; if (await U.confirmBox(to === 'suspended' ? '계정 정지' : '정지 해제', `<p>${esc(u.name)} 회원을 ${to === 'suspended' ? '정지' : '정지 해제'}할까요?${to === 'suspended' ? '<br><span class="muted" style="font-size:13px">정지된 회원은 로그인 및 주문이 불가합니다.</span>' : ''}</p>`, '확인', to === 'suspended' ? 'btn-danger' : 'btn-brand')) { await Store.setUserStatus(uid, to); close(); U.toast('처리되었습니다.'); } };
+        $('#mdAi', m).onclick = () => grantDlg(u, close);
         $('#mdGrade', m).onclick = () => U.modal({ title: '이용자 등급 변경', body: `<p class="muted" style="margin-bottom:10px">${esc(u.name)} · 현재 ${esc(GRADE(u.grade).name)}</p><select class="input" id="gd">${(A.st.grades || []).map((g) => `<option value="${g.id}" ${g.id === (u.grade || 'basic') ? 'selected' : ''}>${esc(g.name)} · 버프 최대 ${g.maxMult}배 · 이자 ${g.rate}% · 청산 ${g.maintain}%</option>`).join('')}</select>`, foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="gdOk">변경</button>', onMount: (m2, c2) => { $('#gdOk', m2).onclick = async () => { try { await Store.setGrade(u.id, $('#gd', m2).value); c2(); close(); U.toast('등급이 변경되었습니다.'); } catch (e) { U.toast(e.message, true); } }; } });
         $('#mdCard', m).onclick = () => U.modal({ title: 'MAX DAY LIFE 카드 등급', body: `<select class="input" id="cd">${Object.entries(CARD).map(([k, n]) => `<option value="${k}" ${k === (u.cardTier || '') ? 'selected' : ''}>${n}</option>`).join('')}</select><p class="dim" style="font-size:12px;margin-top:8px">카드 발급이 확인된 회원의 카드 등급을 연결합니다. 카드 회원은 MAX 리딩 무료 혜택이 표시됩니다.</p>`, foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="cdOk">저장</button>', onMount: (m2, c2) => { $('#cdOk', m2).onclick = async () => { try { await Store.setCardTier(u.id, $('#cd', m2).value); c2(); close(); U.toast('저장되었습니다.'); } catch (e) { U.toast(e.message, true); } }; } });
         const lq = $('#mdLiq', m); if (lq) lq.onclick = async () => { if (!(await U.confirmBox('강제 청산', `<p>${esc(u.name)} 회원의 보유 종목을 전량 시장가 매도하고 버프 지원금 ${won(v.loan)}과 이자 ${won(v.interest)}를 상환합니다.</p><p class="muted" style="font-size:13px;margin-top:6px">현재 담보비율 ${v.ratio.toFixed(1)}% · 되돌릴 수 없습니다.</p>`, '강제 청산', 'btn-danger'))) return; try { await Store.forceLiquidate(u.id); close(); U.toast('청산되었습니다.'); } catch (e) { U.toast(e.message, true); } };
