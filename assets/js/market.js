@@ -145,7 +145,7 @@ const Market = (() => {
       while (bids.length < 10) { const b = U.stepPrice(bids[bids.length - 1][0], 'KRW', -1); bids.push([b, Math.round(avg * (0.5 + r()))]); }
       return { asks, bids, live: true };
     }
-    // 합성 호가 (현재가 기준, 교육용)
+    // 합성 호가 (현재가 기준)
     const r = U.rng(code + Math.floor(Date.now() / 4000));
     const asks = [], bids = [];
     let a = q.currency === 'USD' ? +(q.price + 0.01).toFixed(2) : U.stepPrice(q.price, 'KRW', 1);
