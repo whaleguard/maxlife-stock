@@ -13,7 +13,7 @@ const Engine = (() => {
     for (const o of pending) {
       const q = Market.quote(o.code); const ccy = q ? q.currency : 'KRW';
       const rem = o.qty - (o.filled || 0);
-      if (o.side === 'buy') reserved += Market.toKrw(o.price * rem, ccy) * (1 + feeRate(st, ccy));
+      if (o.side === 'buy') reserved += Market.toKrw((o.type === 'stop' ? o.triggerPrice : o.price) * rem, ccy) * (1 + feeRate(st, ccy));
       else sellLock[o.code] = (sellLock[o.code] || 0) + rem;
     }
     const holdings = [];
@@ -34,7 +34,15 @@ const Engine = (() => {
     const total = cash + evalKrw;
     const realized = (d.fills || []).reduce((s, f) => s + (f.pnl || 0), 0);
     const pendingWithdraw = (d.cashflows || []).filter((c) => c.status === 'pending' && c.type === 'withdraw').reduce((s, c) => s + c.amount, 0);
+    // MAX 버프 (담보 신용)
+    const buff = (d.buffs || []).find((b) => b.status === 'active') || null;
+    const loan = buff ? buff.amount : 0;
+    const interest = buff ? (buff.interestNow != null ? buff.interestNow : Math.round(buff.amount * (buff.rate / 100) * Math.max(0, (Date.now() - new Date(buff.approvedAt).getTime()) / 86400000) / 365)) : 0;
+    const net = total - loan - interest;
+    const ratio = loan ? (total / (loan + interest)) * 100 : null;
     return {
+      buff, loan, interest, net, ratio, maintain: buff ? buff.maintain : null,
+      netPnl: net - principal, netPct: principal ? ((net - principal) / principal) * 100 : 0,
       cash, reserved, orderable: Math.max(0, cash - reserved - pendingWithdraw), withdrawable: Math.max(0, cash - reserved - pendingWithdraw),
       evalKrw, costKrw, pnl: evalKrw - costKrw, pnlPct: costKrw ? ((evalKrw - costKrw) / costKrw) * 100 : 0,
       total, principal, totalPnl: total - principal, totalPct: principal ? ((total - principal) / principal) * 100 : 0,
@@ -52,6 +60,10 @@ const Engine = (() => {
     if (o.qty > 1000000) return '1회 최대 주문 수량을 초과했습니다.';
     const ses = Market.session(q.market);
     if (st.enforceHours && !ses.open && o.type === 'market') return `장 운영시간(${ses.hours})이 아닙니다. 지정가 예약주문을 이용하세요.`;
+    if (o.type === 'stop') {
+      if (!(o.triggerPrice > 0)) return '감시 가격을 입력해 주세요.';
+      if (!['ge', 'le'].includes(o.triggerCond)) return '감시 조건을 선택해 주세요.';
+    }
     if (o.type === 'limit') {
       if (!(o.price > 0)) return '주문 가격을 입력해 주세요.';
       if (q.currency === 'KRW') {
@@ -62,7 +74,7 @@ const Engine = (() => {
     }
     const v = valuate(d, st);
     if (o.side === 'buy') {
-      const p = o.type === 'market' ? Market.bestAsk(o.code) * (q.currency === 'KRW' ? 1 : 1.002) : o.price;
+      const p = o.type === 'market' ? Market.bestAsk(o.code) * (q.currency === 'KRW' ? 1 : 1.002) : o.type === 'stop' ? o.triggerPrice : o.price;
       const need = Market.toKrw(p * o.qty, q.currency) * (1 + feeRate(st, q.currency));
       if (need > v.orderable + 0.5) return `주문가능금액이 부족합니다. (필요 ${U.won(need)} / 가능 ${U.won(v.orderable)})`;
     } else {
@@ -109,7 +121,7 @@ const Engine = (() => {
   function place(d, st, input) {
     const err = validate(d, st, input); if (err) return { error: err };
     const q = Market.quote(input.code);
-    const order = { id: U.uid('o'), userId: d.user.id, code: input.code, name: q.name, side: input.side, type: input.type, price: input.type === 'market' ? 0 : input.price, qty: input.qty, filled: 0, status: 'pending', createdAt: new Date().toISOString(), currency: q.currency };
+    const order = { id: U.uid('o'), userId: d.user.id, code: input.code, name: q.name, side: input.side, type: input.type, triggerPrice: input.triggerPrice, triggerCond: input.triggerCond, price: input.type === 'limit' ? input.price : 0, qty: input.qty, filled: 0, status: 'pending', createdAt: new Date().toISOString(), currency: q.currency };
     d.orders = d.orders || []; d.orders.push(order);
     const fill = tryFill(d, st, order);
     if (input.type === 'market' && !fill) { order.status = 'rejected'; order.reason = '체결 불가'; return { error: '시장가 주문이 체결되지 않았습니다.', order }; }
@@ -123,7 +135,8 @@ const Engine = (() => {
     if (st.enforceHours && !ses.open) return null;
     const ask = Market.bestAsk(order.code), bid = Market.bestBid(order.code);
     let px = null;
-    if (order.type === 'market') px = order.side === 'buy' ? ask : bid;
+    if (order.type === 'stop') { if (!((order.triggerCond === 'ge' && q.price >= order.triggerPrice) || (order.triggerCond === 'le' && q.price <= order.triggerPrice))) return null; px = order.side === 'buy' ? ask : bid; }
+    else if (order.type === 'market') px = order.side === 'buy' ? ask : bid;
     else if (order.side === 'buy' && ask <= order.price) px = Math.min(ask, order.price);
     else if (order.side === 'sell' && bid >= order.price) px = Math.max(bid, order.price);
     if (px === null) return null;

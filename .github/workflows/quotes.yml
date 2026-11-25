@@ -8,12 +8,13 @@ on:
     - cron: '*/5 0-7 * * 1-5'    # 국내장 09:00~16:00 KST
     - cron: '*/10 13-21 * * 1-5' # 미국장 22:30~06:00 KST
     - cron: '0 */3 * * *'        # 장외 시간 마지막 시세 유지
+    - cron: '17 0-6 * * 1-5'     # 국내 종목정보·투자자·뉴스 (매시 17분)
     - cron: '20 7 * * 1-5'       # 국내 일봉 마감 갱신 (16:20 KST)
     - cron: '30 21 * * 2-6'      # 미국 일봉 마감 갱신 (06:30 KST)
   workflow_dispatch:
     inputs:
       mode:
-        description: 'quotes | candles | all'
+        description: 'quotes | candles | info | index | all'
         default: 'all'
 
 permissions:
@@ -54,6 +55,7 @@ jobs:
           if [ -z "$MODE" ]; then
             case "${{ github.event.schedule }}" in
               "20 7 * * 1-5"|"30 21 * * 2-6") MODE=all ;;
+              "17 0-6 * * 1-5") MODE=info ;;
               *) MODE=quotes ;;
             esac
           fi

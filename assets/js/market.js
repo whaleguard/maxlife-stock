@@ -256,6 +256,22 @@ const Market = (() => {
     return { data: daily, live: isLive };
   }
 
+  // ── 종목 정보 · 투자자 · 뉴스 (국내 거래대금 상위 500) / 지수 일봉 ──
+  const infoCache = {};
+  async function info(code) {
+    if (infoCache[code] && Date.now() - infoCache[code].at < 10 * 60000) return infoCache[code].data;
+    let data = null;
+    for (const base of [dataBase, ...C.DATA_URLS, C.LOCAL_DATA].filter(Boolean)) { try { data = await fetchJSON(base + '/info/' + code + '.json'); break; } catch {} }
+    infoCache[code] = { at: Date.now(), data }; return data;
+  }
+  async function indexCandles(code) {
+    const k = 'IX:' + code; if (candleCache[k] && Date.now() - candleCache[k].at < 10 * 60000) return candleCache[k].data;
+    let d = [];
+    for (const base of [dataBase, ...C.DATA_URLS, C.LOCAL_DATA].filter(Boolean)) { try { const j = await fetchJSON(base + '/index/' + code + '.json'); d = (j.d || []).map(([t, o, h, l, c, v]) => ({ t: parseYmd(t), o, h, l, c, v })); break; } catch {} }
+    const ix = state.indices[code]; if (ix && d.length) { const last = d[d.length - 1]; const td = new Date(); td.setHours(0, 0, 0, 0); if (last.t < td.getTime() && code.match(/KOS/)) d.push({ t: td.getTime(), o: last.c, h: Math.max(last.c, ix.price), l: Math.min(last.c, ix.price), c: ix.price, v: 0 }); else { last.c = ix.price; last.h = Math.max(last.h, ix.price); last.l = Math.min(last.l, ix.price); } }
+    candleCache[k] = { at: Date.now(), data: d }; return d;
+  }
+
   // ── 장 운영시간 (KST) ──
   function kst() { const n = new Date(); return new Date(n.getTime() + (n.getTimezoneOffset() + 540) * 60000); }
   function usDST(d) { // 미국 서머타임: 3월 둘째 일요일 ~ 11월 첫째 일요일
@@ -274,6 +290,6 @@ const Market = (() => {
     return { open, label: open ? '장중' : '장 마감', hours: dst ? '22:30~05:00' : '23:30~06:00' };
   }
 
-  const api = { init, refresh, on: ev.on, quote, list, allMeta, meta, book, bestAsk, bestBid, ticks, candles, fx, toKrw, session, setOverrides, isUS, get state() { return state; }, get universe() { return universe; } };
+  const api = { init, refresh, on: ev.on, info, indexCandles, quote, list, allMeta, meta, book, bestAsk, bestBid, ticks, candles, fx, toKrw, session, setOverrides, isUS, get state() { return state; }, get universe() { return universe; } };
   return api;
 })();

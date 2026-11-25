@@ -1,4 +1,4 @@
-// 리딩/공지 편집기 — 사용자 앱(강사)·관리자 페이지 공용
+// 리딩/공지 편집기 — 사용자 앱(MAX 리딩)·관리자 페이지 공용
 const Editors = (() => {
   const { $, $$, esc } = U;
   function postEditor(p) {
@@ -7,14 +7,14 @@ const Editors = (() => {
     U.modal({
       title: p.id ? '리딩 수정' : '리딩 작성', size: 'lg', body: `
       <form id="pf">
-        <div class="grid g-3" style="gap:12px"><div class="field"><label>유형</label><select class="input" name="kind"><option value="trade" ${p.kind === 'trade' ? 'selected' : ''}>매매 시연</option><option value="lesson" ${p.kind === 'lesson' ? 'selected' : ''}>강의</option></select></div>
+        <div class="grid g-3" style="gap:12px"><div class="field"><label>유형</label><select class="input" name="kind"><option value="trade" ${p.kind === 'trade' ? 'selected' : ''}>매매 시연</option><option value="lesson" ${p.kind === 'lesson' ? 'selected' : ''}>해설</option></select></div>
         <div class="field tr"><label>종목</label><select class="input" name="code">${opts}</select></div>
         <div class="field tr"><label>구분</label><select class="input" name="side"><option value="buy" ${p.side !== 'sell' ? 'selected' : ''}>매수</option><option value="sell" ${p.side === 'sell' ? 'selected' : ''}>매도</option></select></div></div>
         <div class="field"><label>제목</label><input class="input" name="title" value="${esc(p.title)}" required maxlength="100"></div>
         <div class="grid g-4 tr" style="gap:12px"><div class="field"><label>진입가</label><input class="input" name="entry" value="${p.entry || ''}" inputmode="decimal"></div><div class="field"><label>목표가</label><input class="input" name="target" value="${p.target || ''}" inputmode="decimal"></div><div class="field"><label>손절가</label><input class="input" name="stop" value="${p.stop || ''}" inputmode="decimal"></div><div class="field"><label>결과</label><select class="input" name="result"><option value="open">진행중</option><option value="target">목표가 도달</option><option value="stop">손절</option><option value="closed">종료</option></select></div></div>
         <div class="field tr"><label>결과 수익률 (%)</label><input class="input" name="resultPct" value="${p.resultPct || ''}" inputmode="decimal" placeholder="예: 7.6 / -4.5"></div>
         <div class="field"><label>진입 근거 · 본문</label><textarea class="input" name="body" rows="8">${esc(p.body)}</textarea></div>
-        <div class="grid g-2" style="gap:12px"><div class="field"><label>강의 영상 URL (유튜브)</label><input class="input" name="video" value="${esc(p.video || '')}" placeholder="https://youtu.be/..."></div><div class="field"><label>차트 캡처 이미지 URL (선택)</label><input class="input" name="image" value="${esc(p.image || '')}" placeholder="https://..."></div></div>
+        <div class="grid g-2" style="gap:12px"><div class="field"><label>리딩 영상 URL (유튜브)</label><input class="input" name="video" value="${esc(p.video || '')}" placeholder="https://youtu.be/..."></div><div class="field"><label>차트 캡처 이미지 URL (선택)</label><input class="input" name="image" value="${esc(p.image || '')}" placeholder="https://..."></div></div>
         <p class="dim" style="font-size:12px">매매 시연은 종목의 실제 일봉 차트 위에 진입·목표·손절 라인이 자동으로 표시됩니다. 진입가를 비워두면 현재가가 입력됩니다.</p>
       </form>`,
       foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="pfOk">게시</button>',

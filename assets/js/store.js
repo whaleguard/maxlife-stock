@@ -36,7 +36,7 @@ const Store = (() => {
     const me = () => { const s = sess(); return s && userById(s.uid); };
     const needUser = () => { const u = me(); if (!u) throw new Error('로그인이 필요합니다.'); return u; };
     const needAdmin = () => { const u = needUser(); if (u.role !== 'admin') throw new Error('관리자 권한이 필요합니다.'); return u; };
-    const needStaff = () => { const u = needUser(); if (u.role !== 'admin' && u.role !== 'instructor') throw new Error('강사/관리자 권한이 필요합니다.'); return u; };
+    const needStaff = () => { const u = needUser(); if (u.role !== 'admin' && u.role !== 'instructor') throw new Error('MAX 리딩/관리자 권한이 필요합니다.'); return u; };
 
     async function seed() {
       const now = Date.now();
@@ -44,7 +44,7 @@ const Store = (() => {
       const mk = async (username, pw, name, role, extra = {}) => ({ id: U.uid('u'), username, pw: await U.sha256(username + ':' + pw), name, role, status: 'active', phone: '', email: '', createdAt: new Date(now - (extra.days || 30) * 86400000).toISOString(), lastLogin: null, cash: st.initialCash, initial: st.initialCash, watch: ['005930', '000660', 'NVDA', 'AAPL', '035420'], demo: true, ...extra });
       db = { v: 1, users: [], positions: {}, orders: [], fills: [], cashflows: [], posts: [], notices: [], snapshots: {}, logins: [], settings: { ...st, overrides: { hidden: [], base: {} } }, audit: [] };
       db.users.push(await mk('admin', 'admin1234', '관리자', 'admin', { days: 60, initial: 0, cash: 0, watch: [] }));
-      const teacher = await mk('teacher', 'teacher1234', 'MAX 리딩 강사', 'instructor', { days: 60 });
+      const teacher = await mk('teacher', 'teacher1234', 'MAX 리딩', 'instructor', { days: 60 });
       db.users.push(teacher);
       const names = [['demo', '김민수'], ['kim01', '김민준'], ['lee02', '이서연'], ['park03', '박도윤'], ['choi04', '최지우'], ['jung05', '정하준'], ['kang06', '강수아'], ['yoon07', '윤시우']];
       const codes = Market.list().slice(0, 60).map((q) => q.code);
@@ -90,12 +90,12 @@ const Store = (() => {
       const R = (q, m) => (q.currency === 'USD' ? +(q.price * m).toFixed(2) : U.roundTick(q.price * m, 'KRW'));
       db.posts.push(
         { id: U.uid('p'), authorId: teacher.id, authorName: teacher.name, kind: 'trade', title: '[1강 실전] 20일선 눌림목 매수 — 이렇게 들어갑니다', code: '005930', side: 'buy', entry: R(p1, 0.99), target: R(p1, 1.08), stop: R(p1, 0.955), result: 'open', resultPct: 0,
-          body: '진입 근거\n① 일봉 20일 이동평균선까지 거래량 줄면서 눌림 (매도세 약화)\n② 직전 저점 이탈 없음 → 상승 추세 유지\n③ 분봉에서 첫 양봉 장대 출현 시 1차 진입\n\n분할 매수: 1차 50% / 20일선 이탈 없이 재지지 시 2차 50%\n손절: 직전 저점 하향 이탈 (-4.5%) 기계적으로 실행\n목표: 전고점 부근 1차 익절 (+8%)\n\n※ 가상계좌 교육용 시연입니다. 직접 차트를 보면서 근거가 맞는지 확인하고 따라해 보세요.', video: '', at: new Date(now - 5400000).toISOString(), comments: [], likes: [] },
+          body: '진입 근거\n① 일봉 20일 이동평균선까지 거래량 줄면서 눌림 (매도세 약화)\n② 직전 저점 이탈 없음 → 상승 추세 유지\n③ 분봉에서 첫 양봉 장대 출현 시 1차 진입\n\n분할 매수: 1차 50% / 20일선 이탈 없이 재지지 시 2차 50%\n손절: 직전 저점 하향 이탈 (-4.5%) 기계적으로 실행\n목표: 전고점 부근 1차 익절 (+8%)\n\n※ 가상계좌 시연입니다. 직접 차트를 보면서 근거가 맞는지 확인하고 따라해 보세요.', video: '', at: new Date(now - 5400000).toISOString(), comments: [], likes: [] },
         { id: U.uid('p'), authorId: teacher.id, authorName: teacher.name, kind: 'trade', title: '[2강 미국주식] 실적 발표 전후 변동성 대응법', code: 'NVDA', side: 'buy', entry: R(p2, 0.985), target: R(p2, 1.12), stop: R(p2, 0.94), result: 'open', resultPct: 0,
           body: '실적 발표 전에는 비중을 30% 이하로 제한합니다.\n\n체크리스트\n- 발표일/시간 확인 (한국시간 새벽)\n- 옵션 내재변동성 → 예상 변동폭 파악\n- 발표 후 갭 방향 확인 뒤 추가 진입\n\n오늘 시연: 30% 선진입 → 발표 후 지지 확인 시 추가.', video: '', at: new Date(now - 86400000).toISOString(), comments: [], likes: [] },
         { id: U.uid('p'), authorId: teacher.id, authorName: teacher.name, kind: 'trade', title: '[복기] SK하이닉스 돌파 매매 — 목표가 도달', code: '000660', side: 'buy', entry: R(p3, 0.92), target: R(p3, 0.99), stop: R(p3, 0.89), result: 'target', resultPct: 7.6,
           body: '박스권 상단 돌파 + 거래량 2배 이상 동반 시 진입했던 시연입니다.\n목표가 도달로 전량 익절, +7.6%.\n\n복기 포인트: 돌파 당일 거래량이 핵심. 거래량 없는 돌파는 속임수(페이크)일 확률이 높습니다.', video: '', at: new Date(now - 3 * 86400000).toISOString(), comments: [], likes: [] },
-        { id: U.uid('p'), authorId: teacher.id, authorName: teacher.name, kind: 'lesson', title: '[기초 강의] 호가창 읽는 법 — 매수·매도 잔량의 의미', code: '', side: '', entry: 0, target: 0, stop: 0, result: '', resultPct: 0,
+        { id: U.uid('p'), authorId: teacher.id, authorName: teacher.name, kind: 'lesson', title: '[기초 해설] 호가창 읽는 법 — 매수·매도 잔량의 의미', code: '', side: '', entry: 0, target: 0, stop: 0, result: '', resultPct: 0,
           body: '호가창은 지금 이 순간 시장 참여자들이 어디에 주문을 걸어두었는지 보여줍니다.\n\n· 위쪽(파랑) = 매도 대기 물량, 아래쪽(빨강) = 매수 대기 물량\n· 시장가 매수는 가장 낮은 매도호가에 즉시 체결됩니다\n· 지정가 주문은 그 가격까지 와야 체결 — 미체결 상태로 대기\n\n종목 화면에서 호가를 클릭하면 주문 가격이 자동 입력됩니다. 직접 해보세요.', video: '', at: new Date(now - 5 * 86400000).toISOString(), comments: [], likes: [] },
       );
       const lee = db.users.find((u) => u.username === 'lee02'), kim = db.users.find((u) => u.username === 'kim01');
@@ -133,7 +133,7 @@ const Store = (() => {
         username = (username || '').trim();
         if (!/^[a-zA-Z0-9_]{4,20}$/.test(username)) throw new Error('아이디는 영문/숫자 4~20자입니다.');
         if ((pw || '').length < 6) throw new Error('비밀번호는 6자 이상입니다.');
-        if (!(name || '').trim()) throw new Error('이름을 입력해 주세요.');
+        if (!(name || '').trim()) throw new Error('닉네임을 입력해 주세요.');
         if (db.users.some((u) => u.username === username)) throw new Error('이미 사용 중인 아이디입니다.');
         const init = db.settings.initialCash;
         const u = { id: U.uid('u'), username, pw: await U.sha256(username + ':' + pw), name: name.trim(), phone: phone || '', email: '', role: 'user', status: 'active', createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), cash: init, initial: init, watch: ['005930', '000660', 'NVDA', 'AAPL'] };
@@ -155,18 +155,28 @@ const Store = (() => {
         for (const uid of uids) { const d = bundle(uid); for (const o of d.orders) { const f = Engine.tryFill(d, db.settings, o); if (f) fills.push(f); } if (fills.length) commit(d); }
         return fills;
       },
-      async requestCash(type, amount, memo) {
+      async requestCash(type, amount, memo, method) {
         const u = needUser(); amount = Math.floor(+amount);
         if (!(amount >= 10000)) throw new Error('최소 10,000원 이상 신청 가능합니다.');
         if (type === 'deposit' && amount > db.settings.maxDeposit) throw new Error(`1회 최대 ${U.won(db.settings.maxDeposit)}까지 신청 가능합니다.`);
         if (type === 'withdraw') { const v = Engine.valuate(bundle(u.id), db.settings); if (amount > v.withdrawable) throw new Error(`출금가능금액(${U.won(v.withdrawable)})을 초과했습니다.`); }
         if (db.cashflows.filter((c) => c.userId === u.id && c.status === 'pending').length >= 3) throw new Error('처리 대기 중인 신청이 3건 이상입니다.');
-        const c = { id: U.uid('c'), userId: u.id, type, amount, memo: memo || '', status: 'pending', at: new Date().toISOString() };
+        const c = { id: U.uid('c'), userId: u.id, type, amount, memo: memo || '', method: method || 'cash', status: 'pending', at: new Date().toISOString() };
         db.cashflows.push(c);
         if (db.settings.autoApprove) applyCash(c, true, 'auto');
         save(); ev.emit('change'); return c;
       },
       async cancelCash(id) { const u = needUser(); const c = db.cashflows.find((x) => x.id === id && x.userId === u.id); if (!c || c.status !== 'pending') throw new Error('취소할 수 없습니다.'); c.status = 'cancelled'; c.processedAt = new Date().toISOString(); save(); ev.emit('change'); },
+      async margin() { return null; },
+      async requestBuff() { throw new Error('MAX 버프는 운영 서버 연결 후 사용할 수 있습니다.'); },
+      async cancelBuff() { throw new Error('운영 서버 연결 후 사용할 수 있습니다.'); },
+      async repayBuff() { throw new Error('운영 서버 연결 후 사용할 수 있습니다.'); },
+      async buffs() { return []; },
+      async processBuff() { throw new Error('운영 서버 연결 후 사용할 수 있습니다.'); },
+      async forceLiquidate() { throw new Error('운영 서버 연결 후 사용할 수 있습니다.'); },
+      async adjustBuff() { throw new Error('운영 서버 연결 후 사용할 수 있습니다.'); },
+      async setGrade(id, grade) { needAdmin(); const u = db.users.find((x) => x.id === id); if (u) u.grade = grade; save(); ev.emit('change'); return true; },
+      async setCardTier(id, tier) { needAdmin(); const u = db.users.find((x) => x.id === id); if (u) u.cardTier = tier; save(); ev.emit('change'); return true; },
       async watchGroups() { const u = needUser(); db.wg = db.wg || {}; return JSON.parse(JSON.stringify(db.wg[u.id] || [{ id: 'g1', name: '관심종목', codes: [...(u.watch || [])] }])); },
       async saveWatchGroups(groups) { const u = needUser(); db.wg = db.wg || {}; const g = (groups || []).slice(0, 20).map((x, i) => ({ id: String(x.id || 'g' + (i + 1)).slice(0, 24), name: String(x.name || '그룹').slice(0, 20), codes: [...new Set((x.codes || []).map(String))].slice(0, 100) })); db.wg[u.id] = g; u.watch = [...new Set(g.flatMap((x) => x.codes))].slice(0, 200); save(); ev.emit('change'); return g; },
       async toggleWatch(code) { const u = needUser(); u.watch = u.watch || []; u.watch = u.watch.includes(code) ? u.watch.filter((c) => c !== code) : [...u.watch, code]; save(); ev.emit('change'); return u.watch; },
@@ -263,9 +273,19 @@ const Store = (() => {
       saveSettings: mut((s) => call('saveSettings', s)),
       placeOrder: mut((o) => call('placeOrder', o)),
       cancelOrder: mut((id) => call('cancelOrder', { id })),
-      amendOrder: mut((id, price, qty) => call('amendOrder', { id, price, qty })),
+      amendOrder: mut((id, price, qty, extra) => call('amendOrder', { id, price, qty, ...(extra || {}) })),
       matchAll: async () => [], // 서버가 시세 갱신 시 처리
-      requestCash: mut((type, amount, memo) => call('requestCash', { type, amount, memo })),
+      requestCash: mut((type, amount, memo, method) => call('requestCash', { type, amount, memo, method })),
+      margin: () => call('margin'),
+      requestBuff: mut((mult, memo) => call('requestBuff', { mult, memo })),
+      cancelBuff: mut((id) => call('cancelBuff', { id })),
+      repayBuff: mut(() => call('repayBuff')),
+      buffs: () => call('buffs'),
+      processBuff: mut((id, approve, mult, memo) => call('processBuff', { id, approve, mult, memo })),
+      forceLiquidate: mut((userId) => call('forceLiquidate', { userId })),
+      adjustBuff: mut((id, maintain, rate) => call('adjustBuff', { id, maintain, rate })),
+      setGrade: mut((id, grade) => call('setGrade', { id, grade })),
+      setCardTier: mut((id, tier) => call('setCardTier', { id, tier })),
       cancelCash: mut((id) => call('cancelCash', { id })),
       toggleWatch: mut((code) => call('toggleWatch', { code })),
       watchGroups: () => call('watchGroups'),

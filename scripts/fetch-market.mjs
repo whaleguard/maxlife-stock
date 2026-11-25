@@ -91,6 +91,28 @@ async function krMinute(code) {
   return out;
 }
 
+async function krInfo(code) {
+  const j = await get(`https://m.stock.naver.com/api/stock/${code}/integration`);
+  const info = {};
+  for (const x of j.totalInfos || []) info[x.code] = x.value;
+  const deal = (j.dealTrendInfos || []).map((d) => [d.bizdate, num(d.foreignerPureBuyQuant), num(d.organPureBuyQuant), num(d.individualPureBuyQuant), d.foreignerHoldRatio, num(d.closePrice)]);
+  const reports = (j.researches || []).slice(0, 5).map((r) => [r.wdt, r.bnm, r.tit]);
+  let news = [];
+  try { const n = await get(`https://m.stock.naver.com/api/news/stock/${code}?pageSize=10&page=1`); news = (Array.isArray(n) ? n : []).flatMap((g) => g.items || []).slice(0, 10).map((a) => [a.datetime, a.officeName, a.title, `https://n.news.naver.com/mnews/article/${a.officeId}/${a.articleId}`]); } catch {}
+  return { info, deal, reports, news, desc: (j.description || '').slice(0, 400), updatedAt: new Date().toISOString() };
+}
+async function indexDaily(code) {
+  if (code === 'KOSPI' || code === 'KOSDAQ') {
+    const end = kstDate(); const start = new Date(end.getTime() - 400 * 86400e3);
+    const j = await get(`https://api.stock.naver.com/chart/domestic/index/${code}/day?startDateTime=${ymdhm(start).slice(0, 8)}0000&endDateTime=${ymdhm(end).slice(0, 8)}2359`);
+    return (Array.isArray(j) ? j : []).map((r) => [r.localDate, r.openPrice, r.highPrice, r.lowPrice, r.closePrice, r.accumulatedTradingVolume]);
+  }
+  const sym = { NASDAQ: '^IXIC', SPX: '^GSPC', DJI: '^DJI' }[code];
+  const r = await yahoo(sym, '1y', '1d'); const q = r.indicators.quote[0]; const d = [];
+  r.timestamp.forEach((t, i) => { if (q.close[i] == null) return; d.push([new Date((t + (r.meta.gmtoffset || 0)) * 1000).toISOString().slice(0, 10).replace(/-/g, ''), +(q.open[i] ?? q.close[i]).toFixed(2), +(q.high[i] ?? q.close[i]).toFixed(2), +(q.low[i] ?? q.close[i]).toFixed(2), +q.close[i].toFixed(2), q.volume[i] || 0]); });
+  return d;
+}
+
 // ───────── 미국 ─────────
 async function usList(exchange) {
   const j = await get(`https://api.nasdaq.com/api/screener/stocks?tableonly=true&download=true&exchange=${exchange}`, { headers: { origin: 'https://www.nasdaq.com', referer: 'https://www.nasdaq.com/' } });
@@ -193,6 +215,13 @@ async function quotes() {
   }
 }
 
+async function infos(q, n) {
+  fs.mkdirSync(path.join(DATA, 'info'), { recursive: true });
+  const top = Object.entries(q.items).filter(([, v]) => v.currency === 'KRW').sort((a, b) => (b[1].value || 0) - (a[1].value || 0)).slice(0, n).map(([k]) => k);
+  let ok = 0;
+  await pool(top, 6, async (code) => { const x = await krInfo(code); fs.writeFileSync(path.join(DATA, 'info', code + '.json'), JSON.stringify(x)); ok++; });
+  console.log(`info: ${ok} files`);
+}
 async function candles() {
   const q = readJSON(path.join(DATA, 'quotes.json'), { items: {} });
   const all = Object.entries(q.items);
@@ -211,10 +240,16 @@ async function candles() {
     const f = path.join(DATA, 'candles', code + '.json'); const c = readJSON(f, { d: [], m: [] }); c.d = d; c.updatedAt = new Date().toISOString(); fs.writeFileSync(f, JSON.stringify(c)); ok++;
   });
   console.log(`candles: ${ok} files, errors ${errors.length}`);
+  // 지수 일봉
+  fs.mkdirSync(path.join(DATA, 'index'), { recursive: true });
+  for (const k of ['KOSPI', 'KOSDAQ', 'NASDAQ', 'SPX', 'DJI']) { try { const d = await indexDaily(k); if (d.length > 5) fs.writeFileSync(path.join(DATA, 'index', k + '.json'), JSON.stringify({ d, updatedAt: new Date().toISOString() })); } catch (e) { errors.push('index ' + k + ' ' + e.message); } }
+  await infos(q, 500);
 }
 
 (async () => {
   if (MODE === 'quotes' || MODE === 'all') await quotes();
   if (MODE === 'candles' || MODE === 'all') await candles();
+  if (MODE === 'index') { fs.mkdirSync(path.join(DATA, 'index'), { recursive: true }); for (const k of ['KOSPI', 'KOSDAQ', 'NASDAQ', 'SPX', 'DJI']) { try { const d = await indexDaily(k); if (d.length > 5) fs.writeFileSync(path.join(DATA, 'index', k + '.json'), JSON.stringify({ d, updatedAt: new Date().toISOString() })); } catch (e) { errors.push('index ' + k + ' ' + e.message); } } }
+  if (MODE === 'info') await infos(readJSON(path.join(DATA, 'quotes.json'), { items: {} }), 500);
   if (errors.length) console.log('errors(sample):\n' + errors.slice(0, 15).join('\n'));
 })().catch((e) => { console.error(e); process.exit(1); });

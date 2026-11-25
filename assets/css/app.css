@@ -356,3 +356,44 @@ tr.me td { background: var(--brand-soft); }
 #sTabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
 #sTabs button { white-space: nowrap; flex: 0 0 auto; }
 @media (max-width: 760px) { .chart-tools { padding: 8px 12px; gap: 6px; } .chart-tools .seg button { padding: 0 7px; font-size: 12px; } }
+
+/* 충전 수단 선택 */
+.pay-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.pay-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); text-align: left; cursor: pointer; }
+.pay-opt b { font-size: 13px; }
+.pay-opt small { font-size: 11px; color: var(--text-3); }
+.pay-opt.on { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; }
+
+/* MAX 버프 · 담보비율 */
+.gauge { margin-top: 4px; }
+.gauge .gbar { position: relative; height: 12px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border); overflow: visible; }
+.gauge .gbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; transition: width .4s; }
+.gauge .gbar em { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--up); }
+.gauge .gbar em.w { background: var(--warn); }
+.gauge .glab { display: flex; justify-content: space-between; font-size: 12px; margin-top: 6px; color: var(--text-3); gap: 8px; }
+.buff-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.buff-opt { display: flex; flex-direction: column; gap: 4px; padding: 14px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); text-align: left; cursor: pointer; }
+.buff-opt b { font-size: 20px; }
+.buff-opt span { font-weight: 600; }
+.buff-opt small { font-size: 11px; color: var(--text-3); }
+.buff-opt.on { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; }
+.buff-opt:disabled { opacity: .45; cursor: not-allowed; }
+.warn { color: var(--warn); }
+/* 마이페이지 */
+.my-head { margin-bottom: 12px; }
+.my-kpi { display: flex; gap: 22px; flex-wrap: wrap; }
+.my-kpi div { display: flex; flex-direction: column; gap: 2px; }
+.my-kpi small { color: var(--text-3); font-size: 12px; }
+.my-kpi b { font-size: 16px; }
+.my-tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0 6px; }
+.my-tabs button { white-space: nowrap; flex: 0 0 auto; }
+.theme-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.theme-pick button { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); cursor: pointer; }
+.theme-pick button.on { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; }
+.theme-pick .tp { width: 100%; height: 56px; border-radius: 6px; border: 1px solid var(--border); }
+.tp-dark { background: linear-gradient(135deg, #101216 60%, #b7e77a 60% 64%, #1b1e24 64%); }
+.tp-light { background: linear-gradient(135deg, #f6f7f9 60%, #3c8a2e 60% 64%, #ffffff 64%); }
+.tag.card-white { background: #eef0f3; color: #333; } .tag.card-blue { background: #2454c8; color: #fff; } .tag.card-red { background: #c8243a; color: #fff; } .tag.card-black { background: #111; color: #fff; border: 1px solid #444; }
+/* 조건검색 */
+.scr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0 14px; }
+@media (max-width: 760px) { .buff-grid { grid-template-columns: 1fr; } .my-kpi { gap: 14px; } .scr-grid { grid-template-columns: 1fr; } }
