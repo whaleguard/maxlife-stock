@@ -232,6 +232,16 @@ const Store = (() => {
     const ev = U.emitter();
     let token = localStorage.getItem('mls.token') || '';
     async function call(action, body) {
+      if (C.SUPABASE_URL) {
+        const r = await fetch(C.SUPABASE_URL.replace(/\/$/, '') + '/rest/v1/rpc/mls_api', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', apikey: C.SUPABASE_KEY, ...(C.SUPABASE_KEY && C.SUPABASE_KEY.startsWith('eyJ') ? { Authorization: 'Bearer ' + C.SUPABASE_KEY } : {}) },
+          body: JSON.stringify({ p_action: action, p_body: body || {}, p_token: token || null }),
+        });
+        let j; try { j = await r.json(); } catch { throw new Error('서버 응답 오류 (' + r.status + ')'); }
+        if (!r.ok) throw new Error((j && (j.message || j.error)) || '서버 응답 오류 (' + r.status + ')');
+        if (!j || !j.ok) throw new Error((j && j.error) || '요청 실패');
+        return j.data;
+      }
       const r = await fetch(C.API_BASE + '?action=' + encodeURIComponent(action), {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
         body: JSON.stringify({ ...(body || {}), ...(token ? { _t: token } : {}) }),
@@ -288,5 +298,5 @@ const Store = (() => {
     };
   })();
 
-  return C.API_BASE ? Remote : Local;
+  return C.API_BASE || C.SUPABASE_URL ? Remote : Local;
 })();

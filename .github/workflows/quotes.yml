@@ -60,6 +60,13 @@ jobs:
           if [ ! -d store/candles ] || [ "$(ls store/candles | wc -l)" -lt 1000 ]; then MODE=all; fi
           node app/scripts/fetch-market.mjs "$MODE" --data store
 
+      - name: Supabase 운영 DB 시세 반영
+        env:
+          SUPA_URL: ${{ secrets.SUPA_URL }}
+          SUPA_KEY: ${{ secrets.SUPA_KEY }}
+          SUPA_PUSH_SECRET: ${{ secrets.SUPA_PUSH_SECRET }}
+        run: node app/scripts/push-supabase.mjs --data store || echo "Supabase 반영 실패 (다음 실행에서 재시도)"
+
       - name: data 브랜치 갱신 (단일 커밋으로 덮어쓰기)
         run: |
           cd store
