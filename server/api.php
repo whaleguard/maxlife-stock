@@ -118,7 +118,20 @@ try {
     case 'toggleWatch':
       $u = need_user(); $w = json_decode($u['watch'] ?: '[]', true) ?: []; $c = str($in['code'] ?? '', 16);
       $w = in_array($c, $w, true) ? array_values(array_diff($w, [$c])) : array_merge($w, [$c]);
-      q('UPDATE mls_users SET watch=? WHERE id=?', [json_encode(array_slice($w, 0, 100)), $u['id']]); done($w);
+      q('UPDATE mls_users SET watch=? WHERE id=?', [json_encode(array_slice($w, 0, 200)), $u['id']]); done($w);
+    case 'watchGroups':
+      $u = need_user(); $r = row('SELECT v FROM mls_kv WHERE k=?', ['wg:' . $u['id']]);
+      done($r ? (json_decode($r['v'], true) ?: []) : [['id' => 'g1', 'name' => '관심종목', 'codes' => json_decode($u['watch'] ?: '[]', true) ?: []]]);
+    case 'saveWatchGroups':
+      $u = need_user(); $g = []; $all = [];
+      foreach (array_slice(is_array($in['groups'] ?? null) ? $in['groups'] : [], 0, 20) as $i => $x) {
+        $codes = array_values(array_unique(array_map(fn($c) => str((string)$c, 16), array_slice(is_array($x['codes'] ?? null) ? $x['codes'] : [], 0, 100))));
+        $g[] = ['id' => str((string)($x['id'] ?? ('g' . ($i + 1))), 24), 'name' => str((string)($x['name'] ?? '그룹'), 20), 'codes' => $codes];
+        $all = array_merge($all, $codes);
+      }
+      q('REPLACE INTO mls_kv (k, v) VALUES (?, ?)', ['wg:' . $u['id'], json_encode($g, JSON_UNESCAPED_UNICODE)]);
+      q('UPDATE mls_users SET watch=? WHERE id=?', [json_encode(array_slice(array_values(array_unique($all)), 0, 200)), $u['id']]);
+      done($g);
     case 'updateProfile':
       $u = need_user(); q('UPDATE mls_users SET name=?, phone=?, email=? WHERE id=?', [str($in['name'] ?? $u['name'], 20) ?: $u['name'], str($in['phone'] ?? '', 40), str($in['email'] ?? '', 120), $u['id']]);
       done(user_pub(row('SELECT * FROM mls_users WHERE id=?', [$u['id']])));

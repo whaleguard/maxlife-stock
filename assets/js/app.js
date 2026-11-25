@@ -8,6 +8,28 @@
   const theme = { get: () => localStorage.getItem('mls.theme') || 'dark', set(t) { localStorage.setItem('mls.theme', t); document.documentElement.dataset.theme = t; } };
   theme.set(theme.get());
 
+  // ── 가격 알림 (회원별 · 이 기기) ──
+  const Alerts = {
+    key: () => 'mls.alerts.' + (S.user ? S.user.id : ''),
+    list() { try { return JSON.parse(localStorage.getItem(this.key()) || '[]'); } catch { return []; } },
+    save(a) { try { localStorage.setItem(this.key(), JSON.stringify(a)); } catch {} },
+    add(code, cond, price) { const a = this.list(); a.push({ id: U.uid('al'), code, cond, price, at: new Date().toISOString(), hit: null }); this.save(a); if (window.Notification && Notification.permission === 'default') Notification.requestPermission().catch(() => {}); },
+    remove(id) { this.save(this.list().filter((x) => x.id !== id)); },
+    check() {
+      const a = this.list(); let changed = false;
+      for (const x of a) {
+        if (x.hit) continue; const q = Market.quote(x.code); if (!q) continue;
+        if ((x.cond === 'ge' && q.price >= x.price) || (x.cond === 'le' && q.price <= x.price)) {
+          x.hit = new Date().toISOString(); changed = true;
+          const msg = `${q.name} ${px(q.price, q.currency)} — 설정가 ${px(x.price, q.currency)} ${x.cond === 'ge' ? '이상' : '이하'} 도달`;
+          U.toast('가격 알림 · ' + msg);
+          try { if (window.Notification && Notification.permission === 'granted') new Notification('MAX라이프 주식 가격 알림', { body: msg }); } catch {}
+        }
+      }
+      if (changed) this.save(a);
+    },
+  };
+
   // ── 부트 ──
   async function boot() {
     root.innerHTML = `<div style="min-height:100vh;display:grid;place-items:center">${U.logo()}</div>`;
@@ -35,6 +57,7 @@
     if (!S.d) return;
     S.v = Engine.valuate(S.d, S.st);
     renderTicker();
+    Alerts.check();
     S.page && S.page.tick && S.page.tick();
     if (Date.now() - lastMatch > 1500) {
       lastMatch = Date.now();
@@ -111,7 +134,7 @@
 
   // ── 셸 ──
   const NAV = [
-    ['home', '홈', ICON.home], ['stock/005930', '종목·주문', ICON.chart], ['balance', '잔고', ICON.wallet], ['history', '거래내역', ICON.list],
+    ['home', '홈', ICON.home], ['market', '시세·순위', ICON.grid], ['watch', '관심종목', ICON.star], ['stock/005930', '종목·주문', ICON.chart], ['balance', '잔고', ICON.wallet], ['history', '거래내역', ICON.list],
     ['cash', '입출금', ICON.bank], ['lead', '리딩룸', ICON.lead], ['rank', '랭킹', ICON.trophy], ['my', '마이페이지', ICON.user],
   ];
   function renderShell() {
@@ -130,9 +153,9 @@
       <aside class="sidebar">
         <nav class="nav">
           <div class="cap">TRADING</div>
-          ${NAV.slice(0, 5).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
+          ${NAV.slice(0, 7).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
           <div class="sep"></div><div class="cap">EDUCATION</div>
-          ${NAV.slice(5).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
+          ${NAV.slice(7).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
           ${staff ? `<div class="sep"></div><a href="admin.html">${ICON.shield}<span>${S.user.role === 'admin' ? '관리자' : '강사 관리'}</span></a>` : ''}
         </nav>
         <div class="side-foot" id="sideFoot"></div>
@@ -141,8 +164,8 @@
       <nav class="tabbar">
         <a href="#/home" data-r="home">${ICON.home}홈</a>
         <a href="#/stock/005930" data-r="stock">${ICON.chart}주문</a>
+        <a href="#/watch" data-r="watch">${ICON.star}관심</a>
         <a href="#/balance" data-r="balance">${ICON.wallet}잔고</a>
-        <a href="#/lead" data-r="lead">${ICON.lead}리딩</a>
         <a href="#/menu" data-r="menu">${ICON.grid}전체</a>
       </nav>
     </div>`;
@@ -197,7 +220,7 @@
   function route() {
     const h = location.hash.replace(/^#\/?/, '') || 'home';
     const [name, arg] = h.split('/');
-    const pages = { home: Home, stock: Stock, balance: Balance, history: History, cash: Cash, lead: Lead, rank: Rank, my: My, menu: Menu };
+    const pages = { home: Home, market: MarketPage, watch: Watch, stock: Stock, balance: Balance, history: History, cash: Cash, lead: Lead, rank: Rank, my: My, menu: Menu };
     const P = pages[name] || Home;
     S.page && S.page.destroy && S.page.destroy();
     $$('.nav a, .tabbar a').forEach((a) => a.classList.toggle('active', a.dataset.r === name));
@@ -283,11 +306,11 @@
         <div class="col-chart">
           <section class="panel">
             <div class="quote-head" id="sHead"></div>
-            <div class="chart-tools"><div class="seg" id="sTf"><button data-v="m">분</button><button data-v="D" class="on">일</button><button data-v="W">주</button><button data-v="M">월</button></div><span class="dim" style="font-size:11px" id="sCSrc"></span></div>
+            <div class="chart-tools"><div class="seg" id="sTf"><button data-v="m">분</button><button data-v="D" class="on">일</button><button data-v="W">주</button><button data-v="M">월</button></div><div class="seg" id="sMa" title="이동평균선"><button data-v="5" class="on">5</button><button data-v="20" class="on">20</button><button data-v="60" class="on">60</button><button data-v="120" class="on">120</button></div><div class="seg" id="sInd"><button data-v="bb">볼린저</button></div><div class="seg" id="sSub"><button data-v="vol" class="on">거래량</button><button data-v="rsi">RSI</button><button data-v="macd">MACD</button></div><span class="dim" style="font-size:11px" id="sCSrc"></span></div>
             <div class="chart-box"><div class="chart-tip" id="sTip"></div><canvas id="sChart"></canvas></div>
           </section>
           <section class="panel" style="margin-top:16px">
-            <div class="tabs" id="sTabs"><button data-v="open" class="on">미체결</button><button data-v="pos">보유현황</button><button data-v="fills">체결내역</button><button data-v="info">종목정보</button></div>
+            <div class="tabs" id="sTabs"><button data-v="open" class="on">미체결</button><button data-v="pos">보유현황</button><button data-v="fills">체결내역</button><button data-v="daily">일별시세</button><button data-v="info">종목정보</button><button data-v="alert">가격알림</button></div>
             <div id="sBottom"></div>
           </section>
         </div>
@@ -318,6 +341,18 @@
     }
     const avgLine = () => { const h = S.v.holdings.find((x) => x.code === code); return h ? [{ price: h.avg, label: '평균', color: '#8A94A6' }] : []; };
     $('#sTf').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; O.tf = b.dataset.v; $$('#sTf button').forEach((x) => x.classList.toggle('on', x === b)); loadChart(); };
+    const IND = (() => { try { return JSON.parse(localStorage.getItem('mls.ind') || 'null') || { ma: [5, 20, 60, 120], bb: false, sub: 'vol' }; } catch { return { ma: [5, 20, 60, 120], bb: false, sub: 'vol' }; } })();
+    const syncInd = () => {
+      $$('#sMa button').forEach((b) => b.classList.toggle('on', IND.ma.includes(+b.dataset.v)));
+      $$('#sInd button').forEach((b) => b.classList.toggle('on', !!IND[b.dataset.v]));
+      $$('#sSub button').forEach((b) => b.classList.toggle('on', IND.sub === b.dataset.v));
+      try { localStorage.setItem('mls.ind', JSON.stringify(IND)); } catch {}
+      chart.set({ ma: IND.ma.slice().sort((a, b) => a - b), bb: IND.bb, sub: IND.sub });
+    };
+    $('#sMa').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; const v = +b.dataset.v; IND.ma = IND.ma.includes(v) ? IND.ma.filter((x) => x !== v) : [...IND.ma, v]; syncInd(); };
+    $('#sInd').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; IND[b.dataset.v] = !IND[b.dataset.v]; syncInd(); };
+    $('#sSub').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; IND.sub = b.dataset.v; syncInd(); };
+    syncInd();
     $('#sTabs').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; bottomTab = b.dataset.v; $$('#sTabs button').forEach((x) => x.classList.toggle('on', x === b)); renderBottom(); };
     // 주문 패널 이벤트
     $$('.order-side button').forEach((b) => (b.onclick = () => { O.side = b.dataset.side; syncForm(); }));
@@ -408,6 +443,20 @@
       } else if (bottomTab === 'fills') {
         const fs = S.d.fills.filter((f) => f.code === code).sort((a, b) => b.at.localeCompare(a.at));
         el.innerHTML = fs.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>체결시각</th><th>구분</th><th>체결가</th><th>수량</th><th>금액</th><th>실현손익</th></tr></thead><tbody>${fs.map((f) => `<tr><td class="dim">${U.dt(f.at)}</td><td><span class="tag ${f.side === 'buy' ? 'tag-buy' : 'tag-sell'}">${f.side === 'buy' ? '매수' : '매도'}</span></td><td>${px(f.price, f.currency)}</td><td>${n0(f.qty)}</td><td>${won(f.amount)}</td><td class="${cls(f.pnl)}">${f.side === 'sell' ? signedWon(f.pnl) : '-'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">이 종목의 체결 내역이 없습니다</div>';
+      } else if (bottomTab === 'daily') {
+        el.innerHTML = '<div class="empty">불러오는 중…</div>';
+        Market.candles(code, 'D').then((r) => {
+          if (bottomTab !== 'daily') return;
+          const d = r.data.slice(-40).reverse();
+          el.innerHTML = d.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>일자</th><th>종가</th><th>전일비</th><th>등락률</th><th>시가</th><th>고가</th><th>저가</th><th>거래량</th></tr></thead><tbody>${d.map((k, i) => { const pv = d[i + 1]; const today = i === 0 && U.date(k.t) === U.date(Date.now()) && q.prevClose; const ch = today ? q.change : pv ? k.c - pv.c : 0; const cp = today ? q.changePct : pv ? (ch / pv.c) * 100 : 0; return `<tr><td class="dim">${U.date(k.t)}</td><td class="${cls(ch)}"><b>${pxu(k.c, q.currency)}</b></td><td class="${cls(ch)}">${pv || today ? (ch > 0 ? '▲' : ch < 0 ? '▼' : '') + ' ' + pxu(Math.abs(ch), q.currency) : '-'}</td><td class="${cls(ch)}">${pv || today ? pct(cp) : '-'}</td><td>${pxu(k.o, q.currency)}</td><td class="up">${pxu(k.h, q.currency)}</td><td class="down">${pxu(k.l, q.currency)}</td><td>${n0(k.v)}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">일별 시세가 없습니다.</div>';
+        });
+      } else if (bottomTab === 'alert') {
+        const list = Alerts.list().filter((a) => a.code === code);
+        el.innerHTML = `<div class="panel-b"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end"><div class="field" style="margin:0"><label>조건</label><select class="input" id="alC"><option value="ge">이상 도달 시</option><option value="le">이하 도달 시</option></select></div><div class="field" style="margin:0"><label>가격</label><input class="input" id="alP" inputmode="decimal" style="width:140px;text-align:right" value="${q.currency === 'USD' ? q.price.toFixed(2) : n0(q.price)}"></div><button class="btn btn-brand" id="alAdd">알림 등록</button></div>
+          <p class="dim" style="font-size:12px;margin-top:8px">현재가가 조건에 닿으면 화면 알림과 휴대폰·PC 알림으로 알려드립니다.</p>
+          ${list.length ? `<div class="table-wrap" style="margin-top:12px"><table class="t"><thead><tr><th>조건</th><th>가격</th><th>상태</th><th></th></tr></thead><tbody>${list.map((a) => `<tr><td>${a.cond === 'ge' ? '이상' : '이하'}</td><td>${pxu(a.price, q.currency)}</td><td>${a.hit ? '<span class="tag tag-ok">도달 ' + U.dt(a.hit) + '</span>' : '<span class="tag tag-wait">대기</span>'}</td><td><button class="btn btn-sm" data-aldel="${a.id}">삭제</button></td></tr>`).join('')}</tbody></table></div>` : ''}</div>`;
+        $('#alAdd', el).onclick = () => { const v = parseFloat($('#alP', el).value.replace(/,/g, '')); if (!(v > 0)) return U.toast('가격을 입력해 주세요.', true); Alerts.add(code, $('#alC', el).value, v); U.toast('가격 알림이 등록되었습니다.'); renderBottom(); };
+        $$('[data-aldel]', el).forEach((b) => (b.onclick = () => { Alerts.remove(b.dataset.aldel); renderBottom(); }));
       } else {
         const m = Market.meta(code);
         el.innerHTML = `<div class="panel-b"><dl class="kv" style="max-width:520px"><dt>시장</dt><dd>${q.market}</dd><dt>업종</dt><dd>${esc(m.sector || '-')}</dd><dt>통화</dt><dd>${q.currency}</dd><dt>전일 종가</dt><dd>${pxu(q.prevClose, q.currency)}</dd><dt>52주 최고</dt><dd class="up">${q.high52 ? px(q.high52, q.currency) : '-'}</dd><dt>52주 최저</dt><dd class="down">${q.low52 ? px(q.low52, q.currency) : '-'}</dd><dt>PER</dt><dd>${q.per ? q.per.toFixed(2) : '-'}</dd><dt>PBR</dt><dd>${q.pbr ? q.pbr.toFixed(2) : '-'}</dd>${q.marketCap ? `<dt>시가총액</dt><dd>${compact(q.marketCap)}${q.currency === 'USD' ? ' USD' : '원'}</dd>` : ''}<dt>장 운영시간 (KST)</dt><dd>${Market.session(q.market).hours}</dd></dl></div>`;
@@ -438,6 +487,88 @@
         sync();
       },
     });
+  }
+
+  // ═════════ 시세·순위 (전 종목) ═════════
+  function MarketPage(main) {
+    const F = (() => { try { return { mk: 'KR', sub: 'all', sort: 'value', page: 0, kw: '', ...JSON.parse(sessionStorage.getItem('mls.mkt') || '{}') }; } catch { return { mk: 'KR', sub: 'all', sort: 'value', page: 0, kw: '' }; } })();
+    const SUBS = { KR: [['all', '전체'], ['KOSPI', '코스피'], ['KOSDAQ', '코스닥'], ['ETF', 'ETF']], US: [['all', '전체'], ['NASDAQ', '나스닥'], ['NYSE', '뉴욕'], ['AMEX', '아멕스']] };
+    const SORTS = [['value', '거래대금'], ['volume', '거래량'], ['up', '상승률'], ['down', '하락률'], ['cap', '시가총액'], ['high', '52주 신고가 근접'], ['name', '종목명']];
+    const PER = 50;
+    main.innerHTML = `${head('시세·순위', '국내·미국 전 종목 시세를 시장·조건별로 조회합니다.', `<span class="dim" style="font-size:12px" id="mkT"></span>`)}
+      <section class="panel"><div class="panel-h" style="flex-wrap:wrap;gap:8px"><div class="seg" id="mkM"><button data-v="KR">국내</button><button data-v="US">미국</button></div><div class="seg" id="mkS"></div><div class="seg" id="mkO" style="flex-wrap:wrap">${SORTS.map(([v, l]) => `<button data-v="${v}">${l}</button>`).join('')}</div><input class="input" id="mkQ" placeholder="종목명·코드" style="max-width:180px;height:34px"></div>
+      <div id="mkL"></div></section>`;
+    const save = () => { try { sessionStorage.setItem('mls.mkt', JSON.stringify(F)); } catch {} };
+    const segOn = (id, v) => $$(id + ' button').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
+    $('#mkM').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; F.mk = b.dataset.v; F.sub = 'all'; F.page = 0; draw(); };
+    $('#mkS').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; F.sub = b.dataset.v; F.page = 0; draw(); };
+    $('#mkO').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; F.sort = b.dataset.v; F.page = 0; draw(); };
+    $('#mkQ').value = F.kw; $('#mkQ').oninput = (e) => { F.kw = e.target.value.trim(); F.page = 0; clearTimeout(e.target._t); e.target._t = setTimeout(draw, 200); };
+    bindGo($('#mkL'));
+    $('#mkL').addEventListener('click', async (e) => { const st = e.target.closest('[data-star]'); if (st) { e.stopPropagation(); await Store.toggleWatch(st.dataset.star); } const pg = e.target.closest('[data-pg]'); if (pg) { F.page = +pg.dataset.pg; draw(); window.scrollTo(0, 0); } });
+    function rows() {
+      const k = F.kw.toLowerCase();
+      let L = Market.list((q) => (F.mk === 'KR' ? q.currency === 'KRW' : q.currency === 'USD') && (F.sub === 'all' || (F.sub === 'ETF' ? q.type === 'etf' : q.market === F.sub && q.type !== 'etf')) && (!k || q.name.toLowerCase().includes(k) || q.code.toLowerCase().includes(k)));
+      const val = (q) => q.value || q.price * q.volume;
+      const near = (q) => (q.high52 ? q.price / q.high52 : 0);
+      const S_ = { value: (a, b) => val(b) - val(a), volume: (a, b) => b.volume - a.volume, up: (a, b) => b.changePct - a.changePct, down: (a, b) => a.changePct - b.changePct, cap: (a, b) => (b.marketCap || 0) - (a.marketCap || 0), high: (a, b) => near(b) - near(a), name: (a, b) => a.name.localeCompare(b.name, 'ko') };
+      if (F.sort === 'up' || F.sort === 'down') L = L.filter((q) => q.volume > 0);
+      return L.sort(S_[F.sort]);
+    }
+    function draw() {
+      save(); segOn('#mkM', F.mk); $('#mkS').innerHTML = SUBS[F.mk].map(([v, l]) => `<button data-v="${v}">${l}</button>`).join(''); segOn('#mkS', F.sub); segOn('#mkO', F.sort);
+      const L = rows(); const pages = Math.max(1, Math.ceil(L.length / PER)); F.page = Math.min(F.page, pages - 1);
+      const w = S.user.watch || [];
+      const cap = (q) => (q.marketCap ? compact(Market.toKrw(q.marketCap, q.currency)) + '원' : '-');
+      $('#mkT').textContent = Market.state.updatedAt ? U.dt(Market.state.updatedAt) + ' 기준' : '';
+      $('#mkL').innerHTML = `<div class="table-wrap"><table class="t"><thead><tr><th>#</th><th class="l">종목</th><th>현재가</th><th>전일비</th><th>등락률</th><th class="hide-m">거래량</th><th class="hide-m">거래대금</th><th class="hide-m">시가총액</th><th></th></tr></thead><tbody>${L.slice(F.page * PER, F.page * PER + PER).map((q, i) => `<tr class="click" data-go="${q.code}"><td class="dim">${F.page * PER + i + 1}</td><td class="l"><div class="sname"><b>${esc(q.name)}</b><small>${q.code} · ${q.type === 'etf' ? 'ETF' : q.market}</small></div></td><td class="${cls(q.change)}"><b>${px(q.price, q.currency)}</b></td><td class="${cls(q.change)}">${q.change > 0 ? '▲' : q.change < 0 ? '▼' : ''} ${pxu(Math.abs(q.change), q.currency)}</td><td class="${cls(q.change)}">${pct(q.changePct)}</td><td class="hide-m">${n0(q.volume)}</td><td class="hide-m">${compact(Market.toKrw(q.value || q.price * q.volume, q.currency))}원</td><td class="hide-m">${cap(q)}</td><td><button class="star ${w.includes(q.code) ? 'on' : ''}" data-star="${q.code}" data-stop title="관심종목">${ICON.star}</button></td></tr>`).join('') || '<tr><td colspan="9"><div class="empty">조건에 맞는 종목이 없습니다.</div></td></tr>'}</tbody></table></div>
+        <div style="display:flex;gap:6px;justify-content:center;align-items:center;padding:14px;flex-wrap:wrap"><span class="dim" style="font-size:12px;margin-right:8px">${n0(L.length)}종목</span>${F.page > 0 ? `<button class="btn btn-sm" data-pg="0">처음</button><button class="btn btn-sm" data-pg="${F.page - 1}">이전</button>` : ''}<span style="font-size:13px">${F.page + 1} / ${pages}</span>${F.page < pages - 1 ? `<button class="btn btn-sm" data-pg="${F.page + 1}">다음</button><button class="btn btn-sm" data-pg="${pages - 1}">끝</button>` : ''}</div>`;
+    }
+    draw();
+    let t = 0;
+    return { data: draw, tick: () => { if (Date.now() - t > 5000) { t = Date.now(); draw(); } } };
+  }
+
+  // ═════════ 관심종목 (그룹) ═════════
+  function Watch(main) {
+    let G = [], cur = 0;
+    main.innerHTML = `${head('관심종목', '그룹별로 관심종목을 모아 실시간 시세를 확인합니다.', '<button class="btn btn-sm" id="wgNew">그룹 추가</button>')}
+      <section class="panel"><div class="panel-h" style="flex-wrap:wrap;gap:8px"><div class="tabs" id="wgT" style="border:0;flex-wrap:wrap"></div><div style="display:flex;gap:6px;margin-left:auto"><button class="btn btn-sm" id="wgRen">이름 변경</button><button class="btn btn-sm" id="wgDel">그룹 삭제</button></div></div>
+      <div class="panel-b" style="position:relative;border-bottom:1px solid var(--border)"><div class="search" style="max-width:420px">${ICON.search}<input id="wgQ" style="width:100%" placeholder="종목명·코드로 검색해서 추가" autocomplete="off"><div class="search-results hidden" id="wgR"></div></div></div>
+      <div id="wgL"></div></section>`;
+    const norm = () => {
+      const w = S.user.watch || []; const inG = new Set(G.flatMap((g) => g.codes));
+      G.forEach((g) => (g.codes = g.codes.filter((c) => w.includes(c))));
+      const extra = w.filter((c) => !inG.has(c)); if (extra.length) { if (!G.length) G.push({ id: 'g1', name: '관심종목', codes: [] }); G[0].codes.push(...extra); }
+      if (!G.length) G.push({ id: 'g1', name: '관심종목', codes: [] });
+      cur = Math.min(cur, G.length - 1);
+    };
+    const persist = async () => { G = await Store.saveWatchGroups(G); };
+    async function load() { G = await Store.watchGroups(); norm(); draw(); }
+    function draw() {
+      $('#wgT').innerHTML = G.map((g, i) => `<button data-g="${i}" class="${i === cur ? 'on' : ''}">${esc(g.name)} <span class="dim">${g.codes.length}</span></button>`).join('');
+      const g = G[cur]; const qs = g.codes.map(Market.quote).filter(Boolean);
+      $('#wgL').innerHTML = qs.length ? `<div class="table-wrap"><table class="t"><thead><tr><th class="l">종목</th><th>현재가</th><th>등락률</th><th class="hide-m">거래량</th><th class="hide-m">보유</th><th>순서</th><th></th></tr></thead><tbody>${qs.map((q, i) => { const h = S.v.holdings.find((x) => x.code === q.code); return `<tr class="click" data-go="${q.code}"><td class="l"><div class="sname"><b>${esc(q.name)}</b><small>${q.code} · ${q.type === 'etf' ? 'ETF' : q.market}</small></div></td><td class="${cls(q.change)}"><b>${px(q.price, q.currency)}</b></td><td class="${cls(q.change)}">${pct(q.changePct)}</td><td class="hide-m">${n0(q.volume)}</td><td class="hide-m">${h ? n0(h.qty) + '주 · <span class="' + cls(h.pnl) + '">' + pct(h.pnlPct) + '</span>' : '-'}</td><td data-stop><button class="btn btn-sm" data-mv="${i},-1" ${i === 0 ? 'disabled' : ''}>▲</button> <button class="btn btn-sm" data-mv="${i},1" ${i === qs.length - 1 ? 'disabled' : ''}>▼</button></td><td data-stop><select class="input" data-mvg="${q.code}" style="height:30px;width:auto">${G.map((x, j) => `<option value="${j}" ${j === cur ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select> <button class="btn btn-sm" data-rm="${q.code}">삭제</button></td></tr>`; }).join('')}</tbody></table></div>`
+        : '<div class="empty">이 그룹에 종목이 없습니다. 위 검색창에서 종목을 추가하세요.</div>';
+    }
+    bindGo($('#wgL'));
+    $('#wgT').onclick = (e) => { const b = e.target.closest('[data-g]'); if (!b) return; cur = +b.dataset.g; draw(); };
+    $('#wgNew').onclick = async () => { const n = prompt('새 그룹 이름', '그룹 ' + (G.length + 1)); if (!n) return; if (G.length >= 20) return U.toast('그룹은 20개까지 만들 수 있습니다.', true); G.push({ id: U.uid('g'), name: n.slice(0, 20), codes: [] }); cur = G.length - 1; await persist(); norm(); draw(); };
+    $('#wgRen').onclick = async () => { const n = prompt('그룹 이름', G[cur].name); if (!n) return; G[cur].name = n.slice(0, 20); await persist(); norm(); draw(); };
+    $('#wgDel').onclick = async () => { if (G.length <= 1) return U.toast('그룹이 하나뿐이라 삭제할 수 없습니다.', true); if (!(await U.confirmBox('그룹 삭제', `<p>'${esc(G[cur].name)}' 그룹과 그 안의 관심종목을 삭제할까요?</p>`))) return; G.splice(cur, 1); cur = 0; await persist(); norm(); draw(); };
+    $('#wgL').addEventListener('click', async (e) => {
+      const mv = e.target.closest('[data-mv]'); if (mv) { e.stopPropagation(); const [i, d] = mv.dataset.mv.split(',').map(Number); const c = G[cur].codes; [c[i], c[i + d]] = [c[i + d], c[i]]; await persist(); norm(); draw(); return; }
+      const rm = e.target.closest('[data-rm]'); if (rm) { e.stopPropagation(); G[cur].codes = G[cur].codes.filter((x) => x !== rm.dataset.rm); await persist(); norm(); draw(); return; }
+      if (e.target.closest('[data-stop]')) e.stopPropagation();
+    }, true);
+    $('#wgL').addEventListener('change', async (e) => { const s = e.target.closest('[data-mvg]'); if (!s) return; const to = +s.value; if (to === cur) return; const c = s.dataset.mvg; G[cur].codes = G[cur].codes.filter((x) => x !== c); if (!G[to].codes.includes(c)) G[to].codes.push(c); await persist(); norm(); draw(); });
+    const qi = $('#wgQ'), qr = $('#wgR');
+    qi.oninput = () => { const k = qi.value.trim().toLowerCase(); if (!k) { qr.classList.add('hidden'); return; } const res = Market.list((q) => q.name.toLowerCase().includes(k) || q.code.toLowerCase().includes(k)).slice(0, 12); qr.innerHTML = res.map((q) => `<button data-add="${q.code}"><span><b>${esc(q.name)}</b> <small class="dim">${q.code} · ${q.market}</small></span><span class="${cls(q.change)}">${px(q.price, q.currency)} <small>+ 추가</small></span></button>`).join('') || '<div class="empty">검색 결과가 없습니다</div>'; qr.classList.remove('hidden'); };
+    qr.onclick = async (e) => { const a = e.target.closest('[data-add]'); if (!a) return; const c = a.dataset.add; if (!G[cur].codes.includes(c)) { if (G[cur].codes.length >= 100) return U.toast('그룹당 100종목까지 담을 수 있습니다.', true); G[cur].codes.push(c); await persist(); norm(); draw(); U.toast('관심종목에 추가되었습니다.'); } qi.value = ''; qr.classList.add('hidden'); };
+    document.addEventListener('click', (e) => { if (!e.target.closest('#wgQ, #wgR')) qr.classList.add('hidden'); });
+    load();
+    let t = 0;
+    return { data: () => { G.length ? (norm(), draw()) : load(); }, tick: () => { if (Date.now() - t > 3000) { t = Date.now(); if (G.length) draw(); } } };
   }
 
   // ═════════ 잔고 ═════════

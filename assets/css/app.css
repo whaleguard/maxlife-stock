@@ -348,3 +348,11 @@ tr.me td { background: var(--brand-soft); }
   .toasts { bottom: 80px; }
 }
 @media (min-width: 761px) { .show-m { display: none !important; } }
+
+/* 차트 도구·하단 탭 확장 후 모바일 넘침 방지 */
+.trade > *, .col-chart, .col-chart > .panel { min-width: 0; }
+.chart-tools { justify-content: flex-start; }
+.chart-tools .seg button { padding-left: 9px; padding-right: 9px; }
+#sTabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+#sTabs button { white-space: nowrap; flex: 0 0 auto; }
+@media (max-width: 760px) { .chart-tools { padding: 8px 12px; gap: 6px; } .chart-tools .seg button { padding: 0 7px; font-size: 12px; } }

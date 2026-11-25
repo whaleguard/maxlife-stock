@@ -37,6 +37,8 @@ async function pool(items, n, fn) {
 }
 
 // ───────── 국내 ─────────
+const tickKr = (p) => (p < 2000 ? 1 : p < 5000 ? 5 : p < 20000 ? 10 : p < 50000 ? 50 : p < 200000 ? 100 : p < 500000 ? 500 : 1000);
+const tickRound = (p, mode) => { const t = tickKr(p); return (mode === 'floor' ? Math.floor(p / t) : Math.ceil(p / t)) * t; };
 async function krList(market) {
   const out = [];
   for (let page = 1; page < 60; page++) {
@@ -130,13 +132,12 @@ async function quotes() {
       const price = num(d.closePriceRaw || d.closePrice); if (!price) continue;
       const change = num(d.compareToPreviousClosePriceRaw || d.compareToPreviousClosePrice);
       const prevClose = price - change;
-      const tick = (p) => p; // 상하한가는 앱에서 호가단위로 계산
       out.items[s.code] = {
         name: s.name, market: s.market, currency: 'KRW', type: s.type,
         price, change, changePct: num(d.fluctuationsRatioRaw || d.fluctuationsRatio), prevClose,
         open: num(d.openPriceRaw) || price, high: num(d.highPriceRaw) || price, low: num(d.lowPriceRaw) || price,
         volume: num(d.accumulatedTradingVolumeRaw), value: num(d.accumulatedTradingValueRaw),
-        upper: tick(Math.floor(prevClose * 1.3)), lower: tick(Math.ceil(prevClose * 0.7)),
+        upper: tickRound(prevClose * 1.3, 'floor'), lower: tickRound(prevClose * 0.7, 'ceil'),
         marketCap: num(d.marketValueFullRaw) || s.cap, halted: d.tradableStatusCode && d.tradableStatusCode !== 'ok' ? 1 : 0,
       };
     }

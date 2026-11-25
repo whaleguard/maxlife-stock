@@ -9,13 +9,17 @@ const Chart = (() => {
     return { ctx, w, h };
   }
   const font = (s, wt = 500) => `${wt} ${s}px 'Pretendard Variable', Pretendard, sans-serif`;
+  const ema = (vals, n) => { const k = 2 / (n + 1); const out = []; let prev = null; vals.forEach((v, i) => { if (v == null) { out.push(null); return; } prev = prev == null ? v : v * k + prev * (1 - k); out.push(i < n - 1 ? null : prev); }); return out; };
+  const rsiCalc = (all, n = 14) => { const out = new Array(all.length).fill(null); let g = 0, l = 0; for (let i = 1; i < all.length; i++) { const d = all[i].c - all[i - 1].c; const up = Math.max(0, d), dn = Math.max(0, -d); if (i <= n) { g += up; l += dn; if (i === n) { g /= n; l /= n; out[i] = l === 0 ? 100 : 100 - 100 / (1 + g / l); } } else { g = (g * (n - 1) + up) / n; l = (l * (n - 1) + dn) / n; out[i] = l === 0 ? 100 : 100 - 100 / (1 + g / l); } } return out; };
+  const macdCalc = (all) => { const c = all.map((k) => k.c); const e12 = ema(c, 12), e26 = ema(c, 26); const m = c.map((_, i) => (e12[i] != null && e26[i] != null ? e12[i] - e26[i] : null)); const firstIdx = m.findIndex((v) => v != null); const sig = firstIdx < 0 ? m.map(() => null) : [...m.slice(0, firstIdx).map(() => null), ...ema(m.slice(firstIdx), 9)]; return { m, sig, hist: m.map((v, i) => (v != null && sig[i] != null ? v - sig[i] : null)) }; };
+  const bbCalc = (all, n = 20, k = 2) => all.map((_, i) => { if (i < n - 1) return null; const sl = all.slice(i - n + 1, i + 1).map((x) => x.c); const mean = sl.reduce((a, b) => a + b, 0) / n; const sd = Math.sqrt(sl.reduce((a, b) => a + (b - mean) ** 2, 0) / n); return { m: mean, u: mean + k * sd, l: mean - k * sd }; });
   const ma = (data, n) => data.map((_, i) => (i < n - 1 ? null : data.slice(i - n + 1, i + 1).reduce((s, k) => s + k.c, 0) / n));
   const nice = (v, ccy) => (ccy === 'USD' ? v.toFixed(2) : U.n0(v));
   const fmtT = (t, tf) => { const d = new Date(t); return tf === 'm' ? U.two(d.getHours()) + ':' + U.two(d.getMinutes()) : tf === 'M' ? d.getFullYear() + '.' + U.two(d.getMonth() + 1) : U.two(d.getMonth() + 1) + '.' + U.two(d.getDate()); };
 
   // 캔들차트
   function candle(canvas, opts) {
-    const st = { data: [], tf: 'D', ccy: 'KRW', view: 90, offset: 0, hover: -1, lines: [], tip: null, ...opts };
+    const st = { data: [], tf: 'D', ccy: 'KRW', view: 90, offset: 0, hover: -1, lines: [], tip: null, ma: [5, 20, 60, 120], bb: false, sub: 'vol', ...opts };
     function draw() {
       const { ctx, w, h } = setup(canvas);
       const up = css('--up'), down = css('--down'), grid = css('--chart-grid'), t2 = css('--text-2'), t3 = css('--text-3'), txt = css('--text'), bg = css('--surface');
@@ -24,12 +28,13 @@ const Chart = (() => {
       const n = Math.min(st.view, all.length);
       const end = Math.max(n, all.length - st.offset);
       const data = all.slice(end - n, end);
-      const mas = { 5: ma(all, 5).slice(end - n, end), 20: ma(all, 20).slice(end - n, end), 60: ma(all, 60).slice(end - n, end) };
+      const MAS = st.ma || []; const mas = {}; for (const m of MAS) mas[m] = ma(all, m).slice(end - n, end);
+      const bb = st.bb ? bbCalc(all).slice(end - n, end) : null;
       const padR = 64, padB = 22, padT = 22;
       const volH = Math.max(40, (h - padB - padT) * 0.2);
       const ph = h - padB - padT - volH - 8; const pw = w - padR;
       let hi = -Infinity, lo = Infinity, vmax = 0;
-      data.forEach((k, i) => { hi = Math.max(hi, k.h); lo = Math.min(lo, k.l); vmax = Math.max(vmax, k.v); for (const m of [5, 20, 60]) if (mas[m][i]) { hi = Math.max(hi, mas[m][i]); lo = Math.min(lo, mas[m][i]); } });
+      data.forEach((k, i) => { hi = Math.max(hi, k.h); lo = Math.min(lo, k.l); vmax = Math.max(vmax, k.v); for (const m of MAS) if (mas[m][i]) { hi = Math.max(hi, mas[m][i]); lo = Math.min(lo, mas[m][i]); } if (bb && bb[i]) { hi = Math.max(hi, bb[i].u); lo = Math.min(lo, bb[i].l); } });
       for (const L of st.lines) if (L.price) { hi = Math.max(hi, L.price); lo = Math.min(lo, L.price); }
       const pad = (hi - lo) * 0.08 || hi * 0.01; hi += pad; lo -= pad;
       const y = (p) => padT + ((hi - p) / (hi - lo)) * ph;
@@ -42,9 +47,32 @@ const Chart = (() => {
       const step = Math.ceil(n / Math.max(2, Math.floor(pw / 90)));
       for (let i = 0; i < n; i += step) { const xx = Math.round(x(i)) + 0.5; if (xx < 26 || xx > pw - 20) continue; ctx.beginPath(); ctx.moveTo(xx, padT); ctx.lineTo(xx, h - padB); ctx.stroke(); ctx.fillText(fmtT(data[i].t, st.tf), xx, h - padB + 6); }
       // volume
-      const vy0 = h - padB;
-      data.forEach((k, i) => { const vh = vmax ? (k.v / vmax) * volH : 0; ctx.fillStyle = k.c >= k.o ? up : down; ctx.globalAlpha = 0.45; ctx.fillRect(x(i) - bw / 2, vy0 - vh, bw, vh); });
-      ctx.globalAlpha = 1;
+      const vy0 = h - padB, vTop = vy0 - volH;
+      ctx.fillStyle = t3; ctx.font = font(10, 600); ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      if (st.sub === 'rsi') {
+        const r = rsiCalc(all).slice(end - n, end); const yr = (v) => vTop + (1 - v / 100) * volH;
+        ctx.strokeStyle = grid; for (const lv of [30, 70]) { ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, yr(lv)); ctx.lineTo(pw, yr(lv)); ctx.stroke(); ctx.setLineDash([]); ctx.fillText(String(lv), pw + 8, yr(lv) - 6); }
+        ctx.strokeStyle = '#B48CFF'; ctx.lineWidth = 1.4; ctx.beginPath(); let s0 = false; r.forEach((v, i) => { if (v == null) return; s0 ? ctx.lineTo(x(i), yr(v)) : (ctx.moveTo(x(i), yr(v)), (s0 = true)); }); ctx.stroke(); ctx.lineWidth = 1;
+        const lr = r[r.length - 1]; ctx.fillStyle = t2; ctx.fillText('RSI(14) ' + (lr != null ? lr.toFixed(1) : '-'), 4, vTop + 2);
+      } else if (st.sub === 'macd') {
+        const M = macdCalc(all); const m = M.m.slice(end - n, end), sg = M.sig.slice(end - n, end), hs = M.hist.slice(end - n, end);
+        let mx = 0; [...m, ...sg, ...hs].forEach((v) => { if (v != null) mx = Math.max(mx, Math.abs(v)); }); mx = mx || 1;
+        const ym = (v) => vTop + volH / 2 - (v / mx) * (volH / 2);
+        ctx.strokeStyle = grid; ctx.beginPath(); ctx.moveTo(0, ym(0)); ctx.lineTo(pw, ym(0)); ctx.stroke();
+        hs.forEach((v, i) => { if (v == null) return; ctx.fillStyle = v >= 0 ? up : down; ctx.globalAlpha = 0.5; ctx.fillRect(x(i) - bw / 2, Math.min(ym(0), ym(v)), bw, Math.abs(ym(v) - ym(0))); }); ctx.globalAlpha = 1;
+        for (const [arr, col] of [[m, '#F5B94A'], [sg, '#5B9BFF']]) { ctx.strokeStyle = col; ctx.lineWidth = 1.3; ctx.beginPath(); let s1 = false; arr.forEach((v, i) => { if (v == null) return; s1 ? ctx.lineTo(x(i), ym(v)) : (ctx.moveTo(x(i), ym(v)), (s1 = true)); }); ctx.stroke(); }
+        ctx.lineWidth = 1; ctx.fillStyle = t2; ctx.fillText('MACD(12,26,9)', 4, vTop + 2);
+      } else {
+        data.forEach((k, i) => { const vh = vmax ? (k.v / vmax) * volH : 0; ctx.fillStyle = k.c >= k.o ? up : down; ctx.globalAlpha = 0.45; ctx.fillRect(x(i) - bw / 2, vy0 - vh, bw, vh); });
+        ctx.globalAlpha = 1; ctx.fillStyle = t2; ctx.fillText('거래량', 4, vTop + 2);
+      }
+      if (bb) {
+        ctx.fillStyle = css('--brand'); ctx.globalAlpha = 0.07; ctx.beginPath(); let st0 = -1;
+        bb.forEach((b, i) => { if (!b) return; if (st0 < 0) { st0 = i; ctx.moveTo(x(i), y(b.u)); } else ctx.lineTo(x(i), y(b.u)); });
+        for (let i = bb.length - 1; i >= 0; i--) if (bb[i]) ctx.lineTo(x(i), y(bb[i].l));
+        ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+        for (const key of ['u', 'l']) { ctx.strokeStyle = '#7FB3FF'; ctx.lineWidth = 1; ctx.beginPath(); let s2 = false; bb.forEach((b, i) => { if (!b) return; s2 ? ctx.lineTo(x(i), y(b[key])) : (ctx.moveTo(x(i), y(b[key])), (s2 = true)); }); ctx.stroke(); }
+      }
       // candles
       data.forEach((k, i) => {
         const c = k.c > k.o ? up : k.c < k.o ? down : t2; ctx.strokeStyle = c; ctx.fillStyle = c;
@@ -52,8 +80,8 @@ const Chart = (() => {
         const top = y(Math.max(k.o, k.c)), bot = y(Math.min(k.o, k.c)); ctx.fillRect(x(i) - bw / 2, top, bw, Math.max(1, bot - top));
       });
       // MA
-      const mcol = { 5: '#F5B94A', 20: css('--brand'), 60: '#B48CFF' };
-      for (const m of [5, 20, 60]) { ctx.strokeStyle = mcol[m]; ctx.lineWidth = 1.2; ctx.beginPath(); let s = false; mas[m].forEach((v, i) => { if (v == null) return; s ? ctx.lineTo(x(i), y(v)) : (ctx.moveTo(x(i), y(v)), (s = true)); }); ctx.stroke(); }
+      const mcol = { 5: '#F5B94A', 20: css('--brand'), 60: '#B48CFF', 120: '#5BC0DE' };
+      for (const m of MAS) { ctx.strokeStyle = mcol[m]; ctx.lineWidth = 1.2; ctx.beginPath(); let s = false; mas[m].forEach((v, i) => { if (v == null) return; s ? ctx.lineTo(x(i), y(v)) : (ctx.moveTo(x(i), y(v)), (s = true)); }); ctx.stroke(); }
       ctx.lineWidth = 1;
       // 리딩 라인 (진입/목표/손절)
       for (const L of st.lines) {
@@ -74,7 +102,7 @@ const Chart = (() => {
       }
       if (st.tip) {
         const chg = hv.c - (data[hi_ - 1] || hv).c;
-        st.tip.innerHTML = `<span>${fmtT(hv.t, st.tf === 'm' ? 'm' : 'D')}${st.tf === 'm' ? '' : ''}</span><span>시 <b>${nice(hv.o, st.ccy)}</b></span><span>고 <b class="up">${nice(hv.h, st.ccy)}</b></span><span>저 <b class="down">${nice(hv.l, st.ccy)}</b></span><span>종 <b class="${U.cls(chg)}">${nice(hv.c, st.ccy)}</b></span><span>량 <b>${U.compact(hv.v)}</b></span><span style="color:#F5B94A">MA5</span><span style="color:${css('--brand')}">MA20</span><span style="color:#B48CFF">MA60</span>`;
+        st.tip.innerHTML = `<span>${fmtT(hv.t, st.tf === 'm' ? 'm' : 'D')}${st.tf === 'm' ? '' : ''}</span><span>시 <b>${nice(hv.o, st.ccy)}</b></span><span>고 <b class="up">${nice(hv.h, st.ccy)}</b></span><span>저 <b class="down">${nice(hv.l, st.ccy)}</b></span><span>종 <b class="${U.cls(chg)}">${nice(hv.c, st.ccy)}</b></span><span>량 <b>${U.compact(hv.v)}</b></span>${MAS.map((m) => `<span style="color:${mcol[m]}">MA${m}</span>`).join('')}${bb ? '<span style="color:#7FB3FF">BB(20,2)</span>' : ''}`;
       }
       st._geom = { cw, n, pw };
     }

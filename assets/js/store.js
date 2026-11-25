@@ -167,6 +167,8 @@ const Store = (() => {
         save(); ev.emit('change'); return c;
       },
       async cancelCash(id) { const u = needUser(); const c = db.cashflows.find((x) => x.id === id && x.userId === u.id); if (!c || c.status !== 'pending') throw new Error('취소할 수 없습니다.'); c.status = 'cancelled'; c.processedAt = new Date().toISOString(); save(); ev.emit('change'); },
+      async watchGroups() { const u = needUser(); db.wg = db.wg || {}; return JSON.parse(JSON.stringify(db.wg[u.id] || [{ id: 'g1', name: '관심종목', codes: [...(u.watch || [])] }])); },
+      async saveWatchGroups(groups) { const u = needUser(); db.wg = db.wg || {}; const g = (groups || []).slice(0, 20).map((x, i) => ({ id: String(x.id || 'g' + (i + 1)).slice(0, 24), name: String(x.name || '그룹').slice(0, 20), codes: [...new Set((x.codes || []).map(String))].slice(0, 100) })); db.wg[u.id] = g; u.watch = [...new Set(g.flatMap((x) => x.codes))].slice(0, 200); save(); ev.emit('change'); return g; },
       async toggleWatch(code) { const u = needUser(); u.watch = u.watch || []; u.watch = u.watch.includes(code) ? u.watch.filter((c) => c !== code) : [...u.watch, code]; save(); ev.emit('change'); return u.watch; },
       async updateProfile(p) { const u = needUser(); for (const k of ['name', 'phone', 'email']) if (p[k] !== undefined) u[k] = String(p[k]).slice(0, 60); save(); ev.emit('change'); return pubUser(u); },
       async changePassword(oldPw, newPw) { const u = needUser(); if (u.pw !== (await U.sha256(u.username + ':' + oldPw))) throw new Error('현재 비밀번호가 올바르지 않습니다.'); if ((newPw || '').length < 6) throw new Error('새 비밀번호는 6자 이상입니다.'); u.pw = await U.sha256(u.username + ':' + newPw); save(); },
@@ -256,6 +258,8 @@ const Store = (() => {
       requestCash: mut((type, amount, memo) => call('requestCash', { type, amount, memo })),
       cancelCash: mut((id) => call('cancelCash', { id })),
       toggleWatch: mut((code) => call('toggleWatch', { code })),
+      watchGroups: () => call('watchGroups'),
+      saveWatchGroups: mut((groups) => call('saveWatchGroups', { groups })),
       updateProfile: mut((p) => call('updateProfile', p)),
       changePassword: (o, n) => call('changePassword', { oldPw: o, newPw: n }),
       resetAccount: mut(() => call('resetAccount')),

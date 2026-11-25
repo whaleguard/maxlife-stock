@@ -69,7 +69,7 @@ function quotes(): array {
   return $q;
 }
 function quote(string $code): ?array { $q = quotes(); return $q['items'][$code] ?? null; }
-function is_live(): bool { $q = quotes(); return ($q['source'] ?? '') === 'KIS' && count($q['items'] ?? []) >= 5; }
+function is_live(): bool { $q = quotes(); return (($q['status'] ?? '') === 'LIVE' || ($q['source'] ?? '') === 'KIS') && count($q['items'] ?? []) >= 5; }
 function fx(): float { return (float)(quotes()['fx'] ?? 1400); }
 function to_krw(float $v, string $ccy): float { return $ccy === 'USD' ? $v * fx() : $v; }
 function tick_kr(float $p): int { return $p < 2000 ? 1 : ($p < 5000 ? 5 : ($p < 20000 ? 10 : ($p < 50000 ? 50 : ($p < 200000 ? 100 : ($p < 500000 ? 500 : 1000))))); }
@@ -136,7 +136,7 @@ function sellable(string $uid, string $code, ?string $excludeOrder = null): int 
 // ── 체결 엔진 ──
 function validate_order(array $user, array $o, ?string $excludeOrder = null): ?string {
   $st = settings();
-  if (!is_live()) return '실시세 연결 후 주문할 수 있습니다. (관리자: KIS API 연결 필요)';
+  if (!is_live()) return '시세를 불러오는 중입니다. 잠시 후 다시 주문해 주세요.';
   $q = quote($o['code']); if (!$q) return '종목을 찾을 수 없습니다.';
   if (in_array($o['code'], $st['overrides']['hidden'] ?? [], true)) return '거래가 중지된 종목입니다.';
   if ($user['status'] === 'suspended') return '정지된 계정은 주문할 수 없습니다.';

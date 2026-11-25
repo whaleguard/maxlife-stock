@@ -14,9 +14,15 @@ if (!row('SELECT id FROM mls_users WHERE username=?', [$a['username']])) {
   q("INSERT INTO mls_users (id,username,pw,name,role,status,cash,initial,watch,created_at) VALUES (?,?,?,?,'admin','active',0,0,'[]',NOW())", [uid('u'), $a['username'], password_hash($a['password'], PASSWORD_DEFAULT), $a['name']]);
   echo "관리자 계정 생성: {$a['username']}\n";
 }
+foreach ((cfg('demo_users') ?: []) as [$un, $pw, $nm, $role]) {
+  if (!row('SELECT id FROM mls_users WHERE username=?', [$un])) {
+    q("INSERT INTO mls_users (id,username,pw,name,role,status,cash,initial,watch,created_at) VALUES (?,?,?,?,?,'active',10000000,10000000,?,NOW())", [uid('u'), $un, password_hash($pw, PASSWORD_DEFAULT), $nm, $role, json_encode(['005930','000660','NVDA','AAPL','035420'])]);
+    echo "데모 계정 생성: $un\n";
+  }
+}
 if (!row("SELECT k FROM mls_kv WHERE k='settings'")) { save_settings([]); echo "기본 설정 저장\n"; }
-q("INSERT IGNORE INTO mls_notices (id,title,body,pinned,at) VALUES (?,?,?,1,NOW())", [uid('n'), 'MAX라이프 주식 모의투자 오픈 안내', '가입 시 가상 예수금이 지급됩니다. 실제 시세 기준으로 체결되며 실제 돈은 오가지 않습니다.']);
+q("INSERT IGNORE INTO mls_notices (id,title,body,pinned,at) VALUES (?,?,?,1,NOW())", [uid('n'), 'MAX라이프 주식 오픈 안내', '가입 시 예수금 1,000만 원이 지급됩니다. 국내·미국 전 종목 실제 시세 기준으로 체결됩니다.']);
 @mkdir(cfg('cache_dir'), 0775, true);
 file_put_contents($lock, date('c'));
 echo "설치 완료. 보안을 위해 config.php 의 admin.password 를 지우고, 관리자 페이지에서 비밀번호를 변경하세요.\n";
-echo is_live() ? "실시세: 연결됨\n" : "실시세: 미연결 (GitHub Secrets 에 KIS 키 등록 후 Actions 실행 필요 — 그 전까지 주문 불가)\n";
+echo is_live() ? "시세: 연결됨 (" . count(quotes()['items']) . "종목)\n" : "시세: 연결 실패 — quotes_url 확인\n";
