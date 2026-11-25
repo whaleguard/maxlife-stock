@@ -400,7 +400,9 @@
     if (!Market.quote(code)) code = '005930';
     const q0 = Market.quote(code); const ccy = q0.currency;
     const pre = JSON.parse(sessionStorage.getItem('mls.prefill') || 'null'); sessionStorage.removeItem('mls.prefill');
-    const O = { cond: 'le', trig: 0, side: pre && pre.code === code ? pre.side : 'buy', type: 'limit', price: pre && pre.code === code && pre.price ? pre.price : q0.price, qty: 1, tf: 'D' };
+    const O = { cond: 'le', trig: 0, side: pre && pre.code === code ? pre.side : 'buy', type: 'limit', price: pre && pre.code === code && pre.price ? pre.price : 0, qty: 1, tf: 'D' };
+    // 기본 주문가: 매수는 매도1호가, 매도는 매수1호가 (바로 체결되는 가격)
+    const bestFor = (side) => (side === 'sell' ? Market.bestBid(code) : Market.bestAsk(code)) || q0.price; let autoPx = !O.price; if (autoPx) O.price = bestFor(O.side);
     main.innerHTML = `
       ${marketBanner()}
       <div class="trade">
@@ -457,20 +459,20 @@
     syncInd();
     $('#sTabs').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; bottomTab = b.dataset.v; $$('#sTabs button').forEach((x) => x.classList.toggle('on', x === b)); renderBottom(); };
     // 주문 패널 이벤트
-    $$('.order-side button').forEach((b) => (b.onclick = () => { O.side = b.dataset.side; syncForm(); }));
+    $$('.order-side button').forEach((b) => (b.onclick = () => { O.side = b.dataset.side; if (autoPx) O.price = bestFor(O.side); syncForm(); }));
     $('#oType').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; O.type = b.dataset.v; if (O.type === 'stop' && !O.trig) { const q = Market.quote(code); O.trig = ccy === 'USD' ? +(q.price * (O.side === 'sell' ? 0.95 : 1.05)).toFixed(2) : U.roundTick(q.price * (O.side === 'sell' ? 0.95 : 1.05), 'KRW'); O.cond = O.side === 'sell' ? 'le' : 'ge'; } syncForm(); };
     $('#oCond').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; O.cond = b.dataset.v; syncForm(); };
     $$('[data-t]').forEach((b) => (b.onclick = () => { O.trig = U.stepPrice(O.trig || Market.quote(code).price, ccy, +b.dataset.t); syncForm(); }));
     $('#oTrigPct').onclick = (e) => { const b = e.target.closest('[data-tp]'); if (!b) return; const q = Market.quote(code); const v = q.price * (1 + +b.dataset.tp / 100); O.trig = ccy === 'USD' ? +v.toFixed(2) : U.roundTick(v, 'KRW'); O.cond = +b.dataset.tp < 0 ? 'le' : 'ge'; syncForm(); };
     $('#oTrig').addEventListener('change', (e) => { const v = parseFloat(e.target.value.replace(/,/g, '')); if (v > 0) O.trig = ccy === 'USD' ? +v.toFixed(2) : U.roundTick(v, 'KRW'); syncForm(); });
-    $$('[data-p]').forEach((b) => (b.onclick = () => { O.price = U.stepPrice(O.price || Market.quote(code).price, ccy, +b.dataset.p); syncForm(); }));
+    $$('[data-p]').forEach((b) => (b.onclick = () => { autoPx = false; O.price = U.stepPrice(O.price || Market.quote(code).price, ccy, +b.dataset.p); syncForm(); }));
     $$('[data-q]').forEach((b) => (b.onclick = () => { O.qty = Math.max(1, (O.qty || 0) + +b.dataset.q); syncForm(); }));
-    $('#oPrice').addEventListener('change', (e) => { const v = parseFloat(e.target.value.replace(/,/g, '')); O.price = v > 0 ? U.roundTick(v, ccy) : Market.quote(code).price; syncForm(); });
+    $('#oPrice').addEventListener('change', (e) => { autoPx = false; const v = parseFloat(e.target.value.replace(/,/g, '')); O.price = v > 0 ? U.roundTick(v, ccy) : Market.quote(code).price; syncForm(); });
     $('#oQty').addEventListener('input', (e) => { O.qty = Math.max(0, parseInt(e.target.value.replace(/[^0-9]/g, ''), 10) || 0); updSum(); });
     $('#oQty').addEventListener('change', () => syncForm());
     $('#oAmt').addEventListener('input', (e) => { const a = parseInt(e.target.value.replace(/[^0-9]/g, ''), 10) || 0; e.target.value = a ? n0(a) : ''; const pk = Market.toKrw(unitPrice(), ccy) * (1 + Engine.feeRate(S.st, ccy)); O.qty = pk ? Math.floor(a / pk) : 0; $('#oQty').value = O.qty; updSum(); });
     $('#oPct').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; O.qty = Math.max(1, Math.floor(maxQty() * +b.dataset.r)); syncForm(); };
-    $('#sBook').onclick = (e) => { const r = e.target.closest('[data-px]'); if (!r) return; O.price = +r.dataset.px; O.type = 'limit'; syncForm(); };
+    $('#sBook').onclick = (e) => { const r = e.target.closest('[data-px]'); if (!r) return; autoPx = false; O.price = +r.dataset.px; O.type = 'limit'; syncForm(); };
     $('#oSubmit').onclick = submit;
     function unitPrice() { const q = Market.quote(code); if (O.type === 'stop') return O.trig || q.price; return O.type === 'market' ? (O.side === 'buy' ? Market.bestAsk(code) : Market.bestBid(code)) : O.price || q.price; }
     function maxQty() {
@@ -518,7 +520,7 @@
         const r = await Store.placeOrder(input);
         if (r.fill) chime();
         if (r.fill) U.toast(`체결 완료 · ${q.name} ${n0(r.fill.qty)}주 @ ${px(r.fill.price, ccy)}`);
-        else U.toast(O.type === 'stop' ? `감시주문 등록 · ${px(input.triggerPrice, ccy)} ${O.cond === 'ge' ? '이상' : '이하'} 도달 시 시장가 ${O.side === 'buy' ? '매수' : '매도'}` : `주문 접수 · 지정가 ${px(input.price, ccy)} 미체결 대기`);
+        else U.toast(O.type === 'stop' ? `감시주문 등록 · ${px(input.triggerPrice, ccy)} ${O.cond === 'ge' ? '이상' : '이하'} 도달 시 시장가 ${O.side === 'buy' ? '매수' : '매도'}` : `주문 접수 · 지정가 ${px(input.price, ccy)} 미체결 — ${O.side === 'buy' ? '매도호가가 이 가격 이하' : '매수호가가 이 가격 이상'}로 오면 자동 체결됩니다${(ccy === 'USD' ? /미국 장 마감/ : /국내 장 마감/).test(statusLine()) ? ' (장 마감 중: 다음 장에서 체결)' : ''}`);
         if (bottomTab !== 'open' && !r.fill) { bottomTab = 'open'; $$('#sTabs button').forEach((x) => x.classList.toggle('on', x.dataset.v === 'open')); }
       } catch (e) { U.toast(e.message, true); }
     }
