@@ -25,7 +25,16 @@
 
 `data` 브랜치는 매번 단일 커밋으로 덮어써서 저장소 용량이 늘지 않습니다. 수동 실행: **Actions → 시세 수집 → Run workflow** (mode: `all`).
 
-## 운영 모드 서버 설치 (Cafe24 / VPS, PHP 8+ · MySQL)
+## 운영 DB (Supabase · 연결됨)
+
+회원·주문·체결·입출금·리딩은 Supabase 프로젝트 `maxlife-stock` 에 저장되어 모든 기기와 관리자 화면이 같은 데이터를 봅니다.
+
+- 설치: `supabase/schema.sql` 전체를 Supabase SQL Editor 에서 실행 (여러 번 실행해도 안전)
+- 테이블은 외부 접근이 잠겨 있고, 모든 요청은 `mls_api()` 함수 하나로 처리 (비밀번호는 bcrypt)
+- 시세: Supabase 가 pg_cron 으로 5분마다 `data` 브랜치 quotes.json 을 직접 가져와 체결에 사용
+- 앱 연결: `assets/js/config.js` 의 `SUPABASE_URL` · `SUPABASE_KEY`(공개 키)
+
+## (참고) PHP 서버 설치 (Cafe24 / VPS, PHP 8+ · MySQL)
 
 1. `server/` 폴더를 웹 서버에 업로드
 2. `server/config.sample.php` → `server/config.php` 로 복사 후 DB 정보·허용 도메인·관리자 계정 입력

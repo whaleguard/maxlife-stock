@@ -6,8 +6,8 @@ window.MLS_CONFIG = {
   // 예: 'https://stock.maxdaylife.com/server/api.php'
   API_BASE: '',
   // Supabase 운영 DB (설정되면 회원·주문이 서버에 저장되어 모든 기기·관리자와 공유됨)
-  SUPABASE_URL: '',
-  SUPABASE_KEY: '',
+  SUPABASE_URL: 'https://iejssgbspxwdmofbxwlt.supabase.co',
+  SUPABASE_KEY: 'sb_publishable_GOuzqp0JFFBAL0tm4RkLaw_EBFdbsvM',
   // 시세 데이터 (GitHub Actions 가 data 브랜치에 5분마다 갱신)
   DATA_URLS: [
     'https://raw.githubusercontent.com/whaleguard/maxlife-stock/data',
