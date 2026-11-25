@@ -113,7 +113,8 @@
       factors: F, summary: lines.join(' '), news: sen.hits, at: new Date().toISOString(),
     };
   }
-  function fmt(x, ccy) { if (x == null || !isFinite(x)) return '-'; return ccy === 'USD' ? '$' + x.toFixed(2) : Math.round(x).toLocaleString('ko-KR') + '원'; }
+  function tickKR(p) { return p < 2000 ? 1 : p < 5000 ? 5 : p < 20000 ? 10 : p < 50000 ? 50 : p < 200000 ? 100 : p < 500000 ? 500 : 1000; }
+  function fmt(x, ccy) { if (x == null || !isFinite(x)) return '-'; if (ccy === 'USD') return '$' + x.toFixed(2); const t = tickKR(x); return (Math.round(x / t) * t).toLocaleString('ko-KR') + '원'; }
   function fmtN(x) { return Math.round(x).toLocaleString('ko-KR'); }
   return { analyze, sentiment, rsi, sma, ema };
 });

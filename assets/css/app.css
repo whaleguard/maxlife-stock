@@ -553,3 +553,5 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border: 1px soli
 .md-login { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
 .md-login > div { background: var(--brand-soft); }
 @media (max-width: 760px) { .md-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); } .md-login { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.md-login { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.md-login b { white-space: normal; word-break: break-all; font-size: 13px; }

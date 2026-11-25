@@ -347,7 +347,7 @@
         <div class="md-sum">${(() => { const X = A.sum[u.id] || {}; const L = X.last || {}; const dep = X.dep || 0, wd = X.wd || 0; return [
           ['총 충전', won(dep), `${b.cashflows.filter((c) => c.type === 'deposit' && c.status === 'approved').length}회`], ['총 출금', won(wd), `${b.cashflows.filter((c) => c.type === 'withdraw' && c.status === 'approved').length}회`],
           ['보유 주식 평가', won(v.evalKrw), `${v.holdings.length}종목`], ['실현손익', `<span class="${cls(v.realized)}">${signedWon(v.realized)}</span>`, '매도 확정분'],
-          ['평가손익', `<span class="${cls(v.pnl)}">${signedWon(v.pnl)}</span>`, '보유 종목'], ['총 손익', `<span class="${cls(v.netPnl)}">${signedWon(v.netPnl)}</span>`, pct(v.netPct)],
+          ['출금가능금액', won(v.withdrawable), `주문 대기 ${won(v.reserved)}`], ['총 손익', `<span class="${cls(v.netPnl)}">${signedWon(v.netPnl)}</span>`, pct(v.netPct)],
           ['거래대금', won(X.vol || 0), `${b.fills.length}건 체결`], ['수수료·세금', won(X.fee || 0), '누적 납부'],
           ['AI 구독', X.ai ? esc(X.ai.plan) : '없음', X.ai ? U.date(X.ai.endsAt) + '까지' : '-'], ['MAX 버프', v.loan ? `${v.buff.mult}배 · ${won(v.loan)}` : '없음', v.loan ? `담보비율 ${v.ratio.toFixed(1)}%` : '-'],
         ].map(([k, val, sub]) => `<div><small>${k}</small><b>${val}</b><em>${sub}</em></div>`).join('') + `</div><div class="md-login"><div><small>최근 접속</small><b>${L.at ? U.dt(L.at) : u.lastLogin ? U.dt(u.lastLogin) : '-'}</b></div><div><small>접속 IP</small><b>${esc(L.ip || '-')}</b></div><div><small>지역</small><b>${esc(geo(L) || (L.ip ? '확인 중' : '-'))}</b></div><div><small>통신사</small><b>${esc(L.isp || '-')}</b></div><div><small>기기 · 브라우저</small><b>${esc(device(L.ua))}</b></div><div><small>30일 접속 · IP 수</small><b>${X.logins30 || 0}회 · ${X.ips || 0}개</b></div>`; })()}</div>

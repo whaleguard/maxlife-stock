@@ -732,7 +732,7 @@
       type: (t) => { const b = $(`#oType [data-v="${t}"]`); if (b) b.click(); },
       submit: () => submit(),
       price: (n) => { if (O.type === 'market') return; autoPx = false; O.price = U.stepPrice(O.price || Market.quote(code).price, ccy, n); syncForm(); },
-      qty: (n) => { O.qty = Math.max(1, (O.qty || 0) + n); syncForm(); },
+      qty: (n) => { O.qty = Math.max(1, (O.qty || 0) + n); syncForm(); $('#oQty').value = O.qty; },
       pct: (r) => { O.qty = Math.max(1, Math.floor(maxQty() * r)); syncForm(); },
       tf: (v) => { const b = $(`#sTf [data-v="${v}"]`); if (b) b.click(); },
       tab: (v) => { const b = $(`#sTabs [data-v="${v}"]`); if (b) b.click(); },
