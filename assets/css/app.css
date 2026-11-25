@@ -445,3 +445,5 @@ td.ck input, th.ck input { width: 16px; height: 16px; accent-color: var(--brand)
 .sw span::after { content: ''; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: .2s; }
 .sw input:checked + span { background: var(--brand); }
 .sw input:checked + span::after { transform: translateX(18px); }
+.amt-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; }
+.amt-row .input { flex: 1; height: 34px; text-align: right; font-size: 13px; }

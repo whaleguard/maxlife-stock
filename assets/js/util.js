@@ -70,8 +70,10 @@ const U = (() => {
   // Toast / Modal
   function toast(msg, err) {
     let box = $('.toasts'); if (!box) { box = document.createElement('div'); box.className = 'toasts'; document.body.appendChild(box); }
+    for (const o of box.children) if (o.textContent === msg) { o.remove(); }
     const t = document.createElement('div'); t.className = 'toast' + (err ? ' err' : ''); t.textContent = msg; box.appendChild(t);
-    setTimeout(() => t.remove(), 2600);
+    while (box.children.length > 3) box.firstChild.remove();
+    setTimeout(() => t.remove(), 3200);
   }
   function modal({ title, body, foot, size, onMount }) {
     const bg = document.createElement('div'); bg.className = 'modal-bg';

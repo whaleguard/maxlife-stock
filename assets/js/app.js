@@ -78,6 +78,8 @@
     window.addEventListener('hashchange', route);
     route();
     Market.on('update', onMarket);
+    setInterval(() => { if (!document.hidden || Store.mode === 'server') onMarket(); }, 15000);
+    if (S.user.role === 'admin' && Store.mode === 'server') StaffPoll.start();
     Store.on('change', async () => { await reload(); S.page && S.page.data && S.page.data(); });
   }
   async function reload() {
@@ -99,7 +101,7 @@
       for (const f of mine) U.toast(`[체결] ${f.name} ${f.side === 'buy' ? '매수' : '매도'} ${n0(f.qty)}주 @ ${px(f.price, f.currency)}`);
       if (mine.length) { await reload(); S.page && S.page.data && S.page.data(); }
     }
-    if (Store.mode === 'server' && Date.now() - lastSync > 30000) {
+    if (Store.mode === 'server' && Date.now() - lastSync > 12000) {
       lastSync = Date.now();
       const before = { fills: S.d.fills.length, buff: (S.d.buffs || []).map((b) => b.status).join() , cash: (S.d.cashflows || []).map((c) => c.status).join(), inq: (S.d.inquiries || []).filter((q) => q.answeredAt).map((q) => q.id + q.answeredAt).join() };
       await reload();
@@ -118,9 +120,33 @@
     if (!snapDone) { snapDone = true; Store.recordSnapshot(S.v.net); }
   }
 
-  function chime() {
+  // 관리자 계정으로 사용자 화면을 보고 있을 때도 처리 요청 알림 (띵동)
+  const StaffPoll = {
+    seen: null,
+    async tick() {
+      let d; try { d = await Store.adminPoll(); } catch { return; } if (!d) return;
+      const key = (x) => x.id || x.userId; const cur = {};
+      const ev = [];
+      for (const [k, t, f, go] of [['cash', '입출금 신청', (x) => `${x.name} · ${x.type === 'deposit' ? '입금' : '출금'} ${won(x.amount)}`, 'cash'], ['buffs', 'MAX 버프 신청', (x) => `${x.name} · ${x.mult}배 ${won(x.amount)}`, 'buffs'], ['inquiries', '1:1 문의', (x) => `${x.name} · ${x.title}`, 'inq'], ['signups', '신규 가입', (x) => `${x.name} (${x.username})`, 'members'], ['liquidations', '자동 청산', (x) => `${x.name} · ${won(x.amount)}`, 'buffs'], ['danger', '담보비율 경고', (x) => `${x.name} · ${Number(x.ratio).toFixed(1)}%`, 'buffs']]) {
+        cur[k] = (d[k] || []).map(key);
+        if (this.seen) for (const x of d[k] || []) if (!this.seen[k].includes(key(x))) ev.push([t, f(x), go, k]);
+      }
+      this.seen = cur;
+      const n = (d.cash || []).length + (d.buffs || []).length + (d.inquiries || []).length;
+      const ab = $('#admLink'); if (ab) { ab.querySelector('.nbdg').hidden = !n; ab.querySelector('.nbdg').textContent = n; }
+      if (!ev.length) return;
+      chime(true);
+      for (const [t, m, go] of ev.slice(0, 3)) {
+        let w = $('#aToasts'); if (!w) { w = document.createElement('div'); w.id = 'aToasts'; w.className = 'adm-toasts'; document.body.appendChild(w); }
+        const e = document.createElement('a'); e.className = 'adm-toast'; e.href = 'admin.html#/' + go; e.innerHTML = `<span class="ic">${ICON.bell}</span><div><b>[관리자] ${esc(t)}</b><p>${esc(m)}</p></div>`;
+        w.prepend(e); setTimeout(() => e.remove(), 10000);
+      }
+    },
+    start() { this.tick(); setInterval(() => this.tick(), 10000); },
+  };
+  function chime(staff) {
     try { if (localStorage.getItem('mls.snd') === '0') return; const C = window.AudioContext || window.webkitAudioContext; if (!C) return; const ac = chime.ac || (chime.ac = new C()); if (ac.state === 'suspended') return;
-      [[1046.5, 0], [1568, 0.15]].forEach(([f, t]) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = f; const t0 = ac.currentTime + t; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.2, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.6); o.connect(g).connect(ac.destination); o.start(t0); o.stop(t0 + 0.7); });
+      (staff ? [[1318.5, 0], [987.8, 0.25]] : [[1046.5, 0], [1568, 0.15]]).forEach(([f, t]) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = f; const t0 = ac.currentTime + t; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.2, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.6); o.connect(g).connect(ac.destination); o.start(t0); o.stop(t0 + 0.7); });
     } catch {}
   }
   document.addEventListener('pointerdown', () => { try { const C = window.AudioContext || window.webkitAudioContext; if (C && !chime.ac) chime.ac = new C(); chime.ac && chime.ac.state === 'suspended' && chime.ac.resume(); } catch {} }, { once: false, passive: true });
@@ -213,7 +239,7 @@
           ${NAV.slice(0, 8).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
           <div class="sep"></div><div class="cap">MAX SERVICE</div>
           ${NAV.slice(8).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
-          ${staff ? `<div class="sep"></div><a href="admin.html">${ICON.shield}<span>${S.user.role === 'admin' ? '관리자' : 'MAX 리딩 관리'}</span></a>` : ''}
+          ${staff ? `<div class="sep"></div><a href="admin.html" id="admLink">${ICON.shield}<span>${S.user.role === 'admin' ? '관리자' : 'MAX 리딩 관리'}</span><span class="nbdg" hidden></span></a>` : ''}
         </nav>
         <div class="side-foot" id="sideFoot"></div>
       </aside>
@@ -401,7 +427,7 @@
             <div class="field"><label>주문 유형</label><div class="seg" id="oType" style="width:100%"><button data-v="limit" style="flex:1">지정가</button><button data-v="market" style="flex:1">시장가</button><button data-v="stop" style="flex:1" title="손절·익절·돌파 매매">감시주문</button></div></div>
             <div class="field" id="oStopBox" style="display:none"><label>감시 조건 <span class="dim">현재가가 이 가격에 닿으면 시장가로 자동 주문</span></label><div class="seg" id="oCond" style="width:100%;margin-bottom:8px"><button data-v="le" style="flex:1">이하로 내려가면</button><button data-v="ge" style="flex:1">이상 올라가면</button></div><div class="stepper"><button data-t="-1">−</button><input class="input" id="oTrig" inputmode="decimal"><button data-t="1">+</button></div><div class="pct-row" id="oTrigPct"><button data-tp="-5">−5%</button><button data-tp="-3">−3%</button><button data-tp="3">+3%</button><button data-tp="5">+5%</button><button data-tp="10">+10%</button></div></div>
             <div class="field" id="oPriceBox"><label>주문 가격 <span class="dim" id="oTickInfo"></span></label><div class="stepper"><button data-p="-1">−</button><input class="input" id="oPrice" inputmode="decimal"><button data-p="1">+</button></div></div>
-            <div class="field"><label>수량 <span class="dim" id="oMaxInfo"></span></label><div class="stepper"><button data-q="-1">−</button><input class="input" id="oQty" inputmode="numeric"><button data-q="1">+</button></div><div class="pct-row" id="oPct"><button data-r=".1">10%</button><button data-r=".25">25%</button><button data-r=".5">50%</button><button data-r="1">최대</button></div></div>
+            <div class="field"><label>수량 <span class="dim" id="oMaxInfo"></span></label><div class="stepper"><button data-q="-1">−</button><input class="input" id="oQty" inputmode="numeric"><button data-q="1">+</button></div><div class="amt-row"><span class="dim">금액으로</span><input class="input" id="oAmt" inputmode="numeric" placeholder="투자금액 입력 → 수량 자동 계산"><span class="dim">원</span></div><div class="pct-row" id="oPct"><button data-r=".1">10%</button><button data-r=".25">25%</button><button data-r=".5">50%</button><button data-r="1">최대</button></div></div>
             <div class="order-sum" id="oSum"></div>
             <button class="btn btn-block btn-lg" id="oSubmit"></button>
             <p class="dim" style="font-size:11px;margin-top:10px;line-height:1.6">실제 시세 기준으로 가상 계좌에서 체결됩니다.</p>
@@ -442,6 +468,7 @@
     $('#oPrice').addEventListener('change', (e) => { const v = parseFloat(e.target.value.replace(/,/g, '')); O.price = v > 0 ? U.roundTick(v, ccy) : Market.quote(code).price; syncForm(); });
     $('#oQty').addEventListener('input', (e) => { O.qty = Math.max(0, parseInt(e.target.value.replace(/[^0-9]/g, ''), 10) || 0); updSum(); });
     $('#oQty').addEventListener('change', () => syncForm());
+    $('#oAmt').addEventListener('input', (e) => { const a = parseInt(e.target.value.replace(/[^0-9]/g, ''), 10) || 0; e.target.value = a ? n0(a) : ''; const pk = Market.toKrw(unitPrice(), ccy) * (1 + Engine.feeRate(S.st, ccy)); O.qty = pk ? Math.floor(a / pk) : 0; $('#oQty').value = O.qty; updSum(); });
     $('#oPct').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; O.qty = Math.max(1, Math.floor(maxQty() * +b.dataset.r)); syncForm(); };
     $('#sBook').onclick = (e) => { const r = e.target.closest('[data-px]'); if (!r) return; O.price = +r.dataset.px; O.type = 'limit'; syncForm(); };
     $('#oSubmit').onclick = submit;
@@ -481,12 +508,15 @@
       const q = Market.quote(code);
       if (!O.qty) return U.toast('수량을 입력해 주세요.', true);
       const input = { code, side: O.side, type: O.type, price: O.type === 'limit' ? +O.price : 0, qty: O.qty, ...(O.type === 'stop' ? { triggerPrice: +O.trig, triggerCond: O.cond } : {}) };
-      const err = Engine.validate(S.d, S.st, input); if (err) return U.toast(err, true);
+      const err = Engine.validate(S.d, S.st, input);
+      if (err && /주문가능금액/.test(err)) { const go = await U.confirmBox('주문가능금액 부족', `<p style="margin:0 0 8px">${esc(err)}</p><p class="muted" style="margin:0">입출금 메뉴에서 충전하면 바로 주문할 수 있습니다.${S.user.role === 'admin' ? '<br>관리자 계정은 충전 신청이 즉시 승인됩니다.' : ''}</p>`, '충전하러 가기'); if (go) location.hash = '#/cash'; return; }
+      if (err) return U.toast(err, true);
       const p = unitPrice(); const gross = Market.toKrw(p * O.qty, ccy);
       const ok = await U.confirmBox(`${O.side === 'buy' ? '매수' : '매도'} 주문 확인`, `<dl class="kv" style="font-size:14px"><dt>종목</dt><dd>${esc(q.name)} <span class="dim">${code}</span></dd><dt>구분</dt><dd class="${O.side === 'buy' ? 'up' : 'down'}">${O.side === 'buy' ? '매수' : '매도'} · ${O.type === 'market' ? '시장가' : O.type === 'stop' ? '감시주문' : '지정가'}</dd><dt>가격</dt><dd>${O.type === 'market' ? '시장가 (약 ' + px(p, ccy) + ')' : O.type === 'stop' ? '현재가 ' + pxu(O.trig, ccy) + ' ' + (O.cond === 'ge' ? '이상' : '이하') + ' 도달 시 시장가' : pxu(O.price, ccy)}</dd><dt>수량</dt><dd>${n0(O.qty)}주</dd><dt>주문금액</dt><dd>${won(gross)}</dd></dl>`, O.type === 'stop' ? '감시주문 등록' : O.side === 'buy' ? '매수 주문' : '매도 주문', O.side === 'buy' ? 'btn-buy' : 'btn-sell');
       if (!ok) return;
       try {
         const r = await Store.placeOrder(input);
+        if (r.fill) chime();
         if (r.fill) U.toast(`체결 완료 · ${q.name} ${n0(r.fill.qty)}주 @ ${px(r.fill.price, ccy)}`);
         else U.toast(O.type === 'stop' ? `감시주문 등록 · ${px(input.triggerPrice, ccy)} ${O.cond === 'ge' ? '이상' : '이하'} 도달 시 시장가 ${O.side === 'buy' ? '매수' : '매도'}` : `주문 접수 · 지정가 ${px(input.price, ccy)} 미체결 대기`);
         if (bottomTab !== 'open' && !r.fill) { bottomTab = 'open'; $$('#sTabs button').forEach((x) => x.classList.toggle('on', x.dataset.v === 'open')); }
@@ -795,7 +825,7 @@
       const a = amt(); if (a < 10000) return U.toast('최소 10,000원 이상 입력해 주세요.', true);
       const ok = await U.confirmBox(type === 'deposit' ? '입금 신청' : '출금 신청', `<p style="font-size:15px"><b>${won(a)}</b> ${type === 'deposit' ? '입금' : '출금'}을 신청합니다.</p><p class="muted" style="margin-top:6px">${type === 'deposit' ? '충전' : '받을'} 수단: <b>${PAYN(method)}</b>${coin(method) || method === 'moa' ? ' · ' + chain : ''} ${conv(a)}</p><p class="muted" style="margin-top:8px;font-size:13px">관리자 승인 후 예수금에 반영됩니다.</p>`, '신청');
       if (!ok) return;
-      try { const c = await Store.requestCash(type, a, [PAYN(method) + (coin(method) || method === 'moa' ? ' · ' + chain : ''), $('#cMemo').value].filter(Boolean).join(' · '), method); $('#cAmt').value = ''; $('#cMemo').value = ''; U.toast(c.status === 'approved' ? '승인되어 즉시 반영되었습니다.' : '신청이 접수되었습니다. 승인 대기 중입니다.'); } catch (e) { U.toast(e.message, true); }
+      try { let c = await Store.requestCash(type, a, [PAYN(method) + (coin(method) || method === 'moa' ? ' · ' + chain : ''), $('#cMemo').value].filter(Boolean).join(' · '), method); if (c.status === 'pending' && S.user.role === 'admin') { await Store.processCash(c.id, true, '관리자 즉시 승인'); c = { ...c, status: 'approved' }; await reload(); S.page && S.page.data && S.page.data(); } $('#cAmt').value = ''; $('#cMemo').value = ''; if (c.status === 'pending') chime(); U.toast(c.status === 'approved' ? '승인되어 즉시 반영되었습니다.' : '신청이 접수되었습니다. 승인 대기 중입니다.'); } catch (e) { U.toast(e.message, true); }
     };
     function conv(a) {
       if (!a) return '';
