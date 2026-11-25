@@ -1,0 +1,6 @@
+server/config.php
+server/installed.lock
+server/cache/
+.kis-token.json
+node_modules/
+.DS_Store

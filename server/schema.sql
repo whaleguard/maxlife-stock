@@ -1,0 +1,158 @@
+-- MAX라이프 주식 — 운영 모드 DB 스키마 (MySQL 5.7+/MariaDB 10.3+)
+SET NAMES utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mls_users (
+  id VARCHAR(24) PRIMARY KEY,
+  username VARCHAR(40) NOT NULL UNIQUE,
+  pw VARCHAR(255) NOT NULL,
+  name VARCHAR(60) NOT NULL,
+  role ENUM('user','instructor','admin') NOT NULL DEFAULT 'user',
+  status ENUM('active','suspended') NOT NULL DEFAULT 'active',
+  phone VARCHAR(40) DEFAULT '',
+  email VARCHAR(120) DEFAULT '',
+  cash DECIMAL(20,2) NOT NULL DEFAULT 0,
+  initial DECIMAL(20,2) NOT NULL DEFAULT 0,
+  watch TEXT,
+  created_at DATETIME NOT NULL,
+  last_login DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mls_sessions (
+  token CHAR(64) PRIMARY KEY,
+  user_id VARCHAR(24) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  INDEX (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mls_positions (
+  user_id VARCHAR(24) NOT NULL,
+  code VARCHAR(16) NOT NULL,
+  qty BIGINT NOT NULL DEFAULT 0,
+  avg DECIMAL(20,4) NOT NULL DEFAULT 0,
+  cost DECIMAL(20,2) NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mls_orders (
+  id VARCHAR(24) PRIMARY KEY,
+  user_id VARCHAR(24) NOT NULL,
+  code VARCHAR(16) NOT NULL,
+  name VARCHAR(60) NOT NULL,
+  side ENUM('buy','sell') NOT NULL,
+  type ENUM('limit','market') NOT NULL,
+  price DECIMAL(20,4) NOT NULL DEFAULT 0,
+  qty BIGINT NOT NULL,
+  filled BIGINT NOT NULL DEFAULT 0,
+  avg_fill DECIMAL(20,4) NULL,
+  status ENUM('pending','filled','cancelled','rejected') NOT NULL,
+  currency CHAR(3) NOT NULL DEFAULT 'KRW',
+  amended INT NOT NULL DEFAULT 0,
+  reason VARCHAR(120) DEFAULT '',
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NULL,
+  INDEX (user_id), INDEX (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mls_fills (
+  id VARCHAR(24) PRIMARY KEY,
+  order_id VARCHAR(24) NOT NULL,
+  user_id VARCHAR(24) NOT NULL,
+  code VARCHAR(16) NOT NULL,
+  name VARCHAR(60) NOT NULL,
+  side ENUM('buy','sell') NOT NULL,
+  price DECIMAL(20,4) NOT NULL,
+  qty BIGINT NOT NULL,
+  currency CHAR(3) NOT NULL,
+  fx DECIMAL(12,4) NOT NULL DEFAULT 1,
+  amount DECIMAL(20,2) NOT NULL,
+  fee DECIMAL(20,2) NOT NULL,
+  tax DECIMAL(20,2) NOT NULL,
+  pnl DECIMAL(20,2) NOT NULL DEFAULT 0,
+  at DATETIME NOT NULL,
+  INDEX (user_id), INDEX (at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mls_cashflows (
+  id VARCHAR(24) PRIMARY KEY,
+  user_id VARCHAR(24) NOT NULL,
+  type ENUM('deposit','withdraw') NOT NULL,
+  amount DECIMAL(20,2) NOT NULL,
+  memo VARCHAR(200) DEFAULT '',
+  admin_memo VARCHAR(200) DEFAULT '',
+  status ENUM('pending','approved','rejected','cancelled') NOT NULL,
+  at DATETIME NOT NULL,
+  processed_at DATETIME NULL,
+  processed_by VARCHAR(40) DEFAULT '',
+  INDEX (user_id), INDEX (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mls_posts (
+  id VARCHAR(24) PRIMARY KEY,
+  author_id VARCHAR(24) NOT NULL,
+  author_name VARCHAR(60) NOT NULL,
+  kind ENUM('trade','lesson') NOT NULL DEFAULT 'trade',
+  title VARCHAR(200) NOT NULL,
+  body TEXT,
+  code VARCHAR(16) DEFAULT '',
+  side VARCHAR(8) DEFAULT '',
+  entry DECIMAL(20,4) DEFAULT 0,
+  target DECIMAL(20,4) DEFAULT 0,
+  stop DECIMAL(20,4) DEFAULT 0,
+  result VARCHAR(12) DEFAULT '',
+  result_pct DECIMAL(10,2) DEFAULT 0,
+  video VARCHAR(300) DEFAULT '',
+  image VARCHAR(300) DEFAULT '',
+  at DATETIME NOT NULL,
+  updated_at DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mls_comments (
+  id VARCHAR(24) PRIMARY KEY,
+  post_id VARCHAR(24) NOT NULL,
+  user_id VARCHAR(24) NOT NULL,
+  name VARCHAR(60) NOT NULL,
+  text VARCHAR(500) NOT NULL,
+  at DATETIME NOT NULL,
+  INDEX (post_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mls_likes (
+  post_id VARCHAR(24) NOT NULL,
+  user_id VARCHAR(24) NOT NULL,
+  PRIMARY KEY (post_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mls_notices (
+  id VARCHAR(24) PRIMARY KEY,
+  title VARCHAR(200) NOT NULL,
+  body TEXT,
+  pinned TINYINT(1) NOT NULL DEFAULT 0,
+  at DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mls_snapshots (
+  user_id VARCHAR(24) NOT NULL,
+  d DATE NOT NULL,
+  total DECIMAL(20,2) NOT NULL,
+  PRIMARY KEY (user_id, d)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mls_logins (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(24) NOT NULL,
+  at DATETIME NOT NULL,
+  INDEX (at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mls_kv (
+  k VARCHAR(40) PRIMARY KEY,
+  v MEDIUMTEXT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mls_audit (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  at DATETIME NOT NULL,
+  by_user VARCHAR(40) NOT NULL,
+  action VARCHAR(40) NOT NULL,
+  detail VARCHAR(500) DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

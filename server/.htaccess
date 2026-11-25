@@ -1,0 +1,10 @@
+Options -Indexes
+<FilesMatch "^(config\.php|config\.sample\.php|lib\.php|schema\.sql|installed\.lock)$">
+  Require all denied
+</FilesMatch>
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTP:Authorization} .
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+  RewriteRule ^cache/ - [F,L]
+</IfModule>
