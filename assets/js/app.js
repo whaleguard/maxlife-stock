@@ -36,6 +36,33 @@
     },
   };
 
+  // ── 알림센터 (체결·입출금·버프·문의 답변·쪽지·공지) ──
+  const Notif = {
+    key: () => 'mls.seen.' + (S.user ? S.user.id : ''),
+    seen() { try { return localStorage.getItem(this.key()) || ''; } catch { return ''; } },
+    mark() { try { localStorage.setItem(this.key(), new Date().toISOString()); } catch {} },
+    list() {
+      if (!S.d) return [];
+      const E = [];
+      for (const f of S.d.fills || []) E.push({ at: f.at, t: '체결', m: `${f.name} ${f.side === 'buy' ? '매수' : '매도'} ${n0(f.qty)}주 @ ${px(f.price, f.currency)}`, go: '#/history' });
+      for (const c of S.d.cashflows || []) if (c.processedAt && c.status !== 'cancelled') E.push({ at: c.processedAt, t: c.type === 'deposit' ? '입금' : '출금', m: `${won(c.amount)} ${c.type === 'deposit' ? '입금' : '출금'} ${c.status === 'approved' ? '승인' : '반려'}${c.adminMemo ? ' · ' + c.adminMemo : ''}`, go: '#/my/cash', bad: c.status === 'rejected' });
+      for (const b of S.d.buffs || []) { if (b.approvedAt) E.push({ at: b.approvedAt, t: 'MAX 버프', m: `${b.mult}배 승인 · ${won(b.amount)} 지급`, go: '#/buff' }); if (b.closedAt && b.status !== 'cancelled') E.push({ at: b.closedAt, t: 'MAX 버프', m: b.status === 'liquidated' ? '담보비율 미달로 자동 청산되었습니다' : b.status === 'repaid' ? '상환 완료' : b.status === 'rejected' ? '신청 반려' + (b.adminMemo ? ' · ' + b.adminMemo : '') : b.status, go: '#/buff', bad: b.status === 'liquidated' || b.status === 'rejected' }); }
+      for (const q of S.d.inquiries || []) if (q.answeredAt) E.push({ at: q.answeredAt, t: q.fromAdmin ? '쪽지' : '문의 답변', m: q.title, go: '#/help' });
+      for (const n of S.notices || []) E.push({ at: n.at, t: '공지', m: n.title, go: '#/lead' });
+      return E.filter((e) => e.at).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40);
+    },
+    render() {
+      const L = this.list(); const sn = this.seen(); const un = L.filter((e) => e.at > sn).length;
+      const bn = $('#bellN'); if (bn) { bn.hidden = !un; bn.textContent = un > 9 ? '9+' : un; }
+      const pop = $('#notifPop'); if (pop && !pop.classList.contains('hidden')) pop.innerHTML = `<div class="np-h"><b>알림</b><a href="#/help">고객센터</a></div>${L.map((e) => `<a class="np-i ${e.at > sn ? 'new' : ''}" href="${e.go}"><span class="tag ${e.bad ? 'tag-sell' : 'tag-no'}">${e.t}</span><span class="np-m">${esc(e.m)}</span><small>${U.ago(e.at)}</small></a>`).join('') || '<div class="empty">알림이 없습니다</div>'}`;
+    },
+  };
+  document.addEventListener('click', (e) => {
+    const bb = e.target.closest('#bellBtn'); const pop = $('#notifPop'); if (!pop) return;
+    if (bb) { pop.classList.toggle('hidden'); Notif.render(); if (!pop.classList.contains('hidden')) setTimeout(() => { Notif.mark(); const bn = $('#bellN'); if (bn) bn.hidden = true; }, 1500); return; }
+    if (!e.target.closest('#notifPop') || e.target.closest('a')) pop.classList.add('hidden');
+  });
+
   // ── 부트 ──
   async function boot() {
     root.innerHTML = `<div style="min-height:100vh;display:grid;place-items:center">${U.logo()}</div>`;
@@ -74,19 +101,29 @@
     }
     if (Store.mode === 'server' && Date.now() - lastSync > 30000) {
       lastSync = Date.now();
-      const before = { fills: S.d.fills.length, buff: (S.d.buffs || []).map((b) => b.status).join() , cash: (S.d.cashflows || []).map((c) => c.status).join() };
+      const before = { fills: S.d.fills.length, buff: (S.d.buffs || []).map((b) => b.status).join() , cash: (S.d.cashflows || []).map((c) => c.status).join(), inq: (S.d.inquiries || []).filter((q) => q.answeredAt).map((q) => q.id + q.answeredAt).join() };
       await reload();
       const nf = S.d.fills.length - before.fills;
       if (nf > 0) for (const f of S.d.fills.slice().sort((a, b) => b.at.localeCompare(a.at)).slice(0, nf)) U.toast(`[체결] ${f.name} ${f.side === 'buy' ? '매수' : '매도'} ${n0(f.qty)}주 @ ${px(f.price, f.currency)}`);
       const nb = (S.d.buffs || []).map((b) => b.status).join();
       if (nb !== before.buff) { const b = (S.d.buffs || [])[0]; if (b) U.toast(b.status === 'active' ? `MAX 버프 ${b.mult}배가 승인되어 ${won(b.amount)}이 지급되었습니다.` : b.status === 'liquidated' ? 'MAX 버프 담보비율이 기준 아래로 내려가 자동 청산되었습니다.' : b.status === 'rejected' ? 'MAX 버프 신청이 반려되었습니다.' : 'MAX 버프 상태가 변경되었습니다.', b.status === 'liquidated' || b.status === 'rejected'); }
-      if ((S.d.cashflows || []).map((c) => c.status).join() !== before.cash) U.toast('입출금 신청이 처리되었습니다.');
+      const nc = (S.d.cashflows || []).map((c) => c.status).join() !== before.cash; if (nc) U.toast('입출금 신청이 처리되었습니다.');
+      const ni = (S.d.inquiries || []).filter((q) => q.answeredAt).map((q) => q.id + q.answeredAt).join() !== before.inq;
+      if (ni) { const q = (S.d.inquiries || []).filter((x) => x.answeredAt).sort((a, b) => b.answeredAt.localeCompare(a.answeredAt))[0]; if (q) U.toast(q.fromAdmin ? `[쪽지] ${q.title}` : `[문의 답변] ${q.title}`); }
+      if (nf > 0 || nb !== before.buff || nc || ni) chime();
       S.v = Engine.valuate(S.d, S.st);
-      if (nf > 0 || nb !== before.buff) { S.page && S.page.data && S.page.data(); }
+      if (nf > 0 || nb !== before.buff || nc || ni) { S.page && S.page.data && S.page.data(); }
     }
     if (S.v.loan && S.v.ratio < (S.st.buffWarn || 140) && Date.now() - lastWarn > 600000) { lastWarn = Date.now(); U.toast(`담보비율 주의 · 현재 ${S.v.ratio.toFixed(1)}% (청산 기준 ${S.v.maintain}%)`, true); }
     if (!snapDone) { snapDone = true; Store.recordSnapshot(S.v.net); }
   }
+
+  function chime() {
+    try { if (localStorage.getItem('mls.snd') === '0') return; const C = window.AudioContext || window.webkitAudioContext; if (!C) return; const ac = chime.ac || (chime.ac = new C()); if (ac.state === 'suspended') return;
+      [[1046.5, 0], [1568, 0.15]].forEach(([f, t]) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = f; const t0 = ac.currentTime + t; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.2, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.6); o.connect(g).connect(ac.destination); o.start(t0); o.stop(t0 + 0.7); });
+    } catch {}
+  }
+  document.addEventListener('pointerdown', () => { try { const C = window.AudioContext || window.webkitAudioContext; if (C && !chime.ac) chime.ac = new C(); chime.ac && chime.ac.state === 'suspended' && chime.ac.resume(); } catch {} }, { once: false, passive: true });
 
   // ── 인증 ──
   function renderAuth(mode = 'login') {
@@ -154,7 +191,7 @@
   // ── 셸 ──
   const NAV = [
     ['home', '홈', ICON.home], ['market', '시세·순위', ICON.grid], ['screen', '조건검색', ICON.search], ['watch', '관심종목', ICON.star], ['stock/005930', '종목·주문', ICON.chart], ['balance', '잔고', ICON.wallet], ['history', '거래내역', ICON.list],
-    ['cash', '입출금', ICON.bank], ['lead', 'MAX 리딩', ICON.lead], ['buff', 'MAX 버프', ICON.shield], ['rank', '투자 수익 랭킹', ICON.trophy], ['my', '마이페이지', ICON.user],
+    ['cash', '입출금', ICON.bank], ['lead', 'MAX 리딩', ICON.lead], ['buff', 'MAX 버프', ICON.shield], ['rank', '투자 수익 랭킹', ICON.trophy], ['help', '고객센터', ICON.doc], ['my', '마이페이지', ICON.user],
   ];
   function renderShell() {
     const staff = S.user.role === 'admin' || S.user.role === 'instructor';
@@ -165,6 +202,7 @@
         <div class="ticker" id="ticker"></div>
         <div class="top-actions">
           <div class="search">${ICON.search}<input id="q" placeholder="종목명·코드 검색" autocomplete="off"><div class="search-results hidden" id="qr"></div></div>
+          <button class="icon-btn bell" id="bellBtn" title="알림">${ICON.bell}<span class="bdg" id="bellN" hidden></span></button><div class="notif-pop hidden" id="notifPop"></div>
           <button class="icon-btn" id="themeBtn" title="다크·화이트 전환">${theme.get() === 'dark' ? ICON.sun : ICON.moon}</button>
           <button class="user-chip" id="userBtn"><span class="avatar">${esc(S.user.name.slice(0, 1))}</span><span class="nm">${esc(S.user.name)}</span></button>
         </div>
@@ -228,6 +266,7 @@
     const ix = Market.state.indices;
     t.innerHTML = ['KOSPI', 'KOSDAQ', 'NASDAQ', 'SPX'].filter((k) => ix[k]).map((k) => `<span class="ix" data-ix="${k}" style="cursor:pointer"><b>${k === 'SPX' ? 'S&P500' : k}</b><span class="v ${cls(ix[k].change)}">${U.n2(ix[k].price)}</span><span class="${cls(ix[k].change)}">${pct(ix[k].changePct)}</span></span>`).join('');
     const sf = $('#sideFoot'); if (sf) sf.innerHTML = statusLine(true);
+    Notif.render();
   }
   function statusLine(short) {
     const s = Market.state;
@@ -255,7 +294,7 @@
   function route() {
     const h = location.hash.replace(/^#\/?/, '') || 'home';
     const [name, arg] = h.split('/');
-    const pages = { home: Home, market: MarketPage, screen: Screen, buff: Buff, watch: Watch, stock: Stock, balance: Balance, history: History, cash: Cash, lead: Lead, rank: Rank, my: My, menu: Menu };
+    const pages = { home: Home, help: Help, market: MarketPage, screen: Screen, buff: Buff, watch: Watch, stock: Stock, balance: Balance, history: History, cash: Cash, lead: Lead, rank: Rank, my: My, menu: Menu };
     const P = pages[name] || Home;
     S.page && S.page.destroy && S.page.destroy();
     $$('.nav a, .tabbar a').forEach((a) => a.classList.toggle('active', a.dataset.r === name));
@@ -982,6 +1021,27 @@
     return { data: draw, tick: () => { if (Date.now() - t > 10000) { t = Date.now(); draw(); } } };
   }
 
+  // ═════════ 고객센터 (1:1 문의 · 쪽지) ═════════
+  function Help(main) {
+    const CAT = { cash: '입출금', buff: 'MAX 버프', order: '주문·체결', account: '계정·등급', lead: 'MAX 리딩', etc: '기타', notice: '운영 쪽지' };
+    main.innerHTML = `${head('고객센터', '궁금한 점을 1:1로 문의하면 관리자가 답변합니다. 운영 쪽지도 여기에서 확인합니다.')}
+      <div class="grid g-main" style="margin-bottom:16px"><section class="panel"><div class="panel-h"><h3>1:1 문의하기</h3></div><div class="panel-b">
+        <div class="field"><label>분류</label><select class="input" id="hqC">${Object.entries(CAT).filter(([k]) => k !== 'notice').map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select></div>
+        <div class="field"><label>제목</label><input class="input" id="hqT" maxlength="100" placeholder="예: USDT 충전 신청이 아직 승인되지 않았어요"></div>
+        <div class="field"><label>내용</label><textarea class="input" id="hqB" rows="6" maxlength="3000" placeholder="신청 시각, 금액, 종목 등 자세히 적어주시면 빠르게 확인합니다."></textarea></div>
+        <button class="btn btn-brand btn-block btn-lg" id="hqGo">문의 등록</button></div></section>
+      <section class="panel"><div class="panel-h"><h3>자주 묻는 질문</h3></div><div class="panel-b faq">${[['충전은 어떻게 하나요?', '입출금 메뉴에서 계좌이체·카드·MOA 토큰·USDT·USDC·USD1·MAX 포인트 중 수단을 고르고 신청하면 관리자 승인 후 예수금에 반영됩니다.'], ['MAX 버프는 무엇인가요?', '순자산의 1~3배를 지원받아 더 크게 투자하는 신용 기능입니다. 담보비율이 등급별 청산 기준 아래로 내려가면 보유 종목이 자동 매도되어 상환됩니다.'], ['감시주문은 어떻게 쓰나요?', '종목 주문 화면에서 「감시주문」을 고르고 가격과 조건(이하·이상)을 정하면, 현재가가 그 가격에 닿을 때 시장가로 자동 매수·매도됩니다. 손절·익절·돌파 매수에 씁니다.'], ['등급은 어떻게 올라가나요?', '거래 실적과 운영 정책에 따라 관리자가 조정합니다. 등급이 높을수록 버프 한도가 크고 이자율이 낮습니다.'], ['시세는 실시간인가요?', '국내·미국 전 종목 시세가 장중 5분 간격으로 갱신됩니다.']].map(([q, a]) => `<details><summary>${q}</summary><p class="muted">${a}</p></details>`).join('')}</div></section></div>
+      <section class="panel"><div class="panel-h"><h3>내 문의 · 쪽지</h3></div><div class="panel-b flush" id="hqL"></div></section>`;
+    $('#hqGo').onclick = async () => { const t = $('#hqT').value.trim(); if (!t) return U.toast('제목을 입력해 주세요.', true); try { await Store.createInquiry($('#hqC').value, t, $('#hqB').value); $('#hqT').value = ''; $('#hqB').value = ''; U.toast('문의가 등록되었습니다. 답변이 달리면 알림으로 알려드립니다.'); } catch (e) { U.toast(e.message, true); } };
+    function data() {
+      const L = S.d.inquiries || [];
+      $('#hqL').innerHTML = L.length ? L.map((q) => `<div class="inq ${q.fromAdmin ? 'msg' : ''}"><div class="inq-h"><span class="tag ${q.fromAdmin ? 'tag-brand' : 'tag-no'}">${CAT[q.category] || '기타'}</span><b>${esc(q.title)}</b><span class="tag ${q.status === 'open' ? 'tag-wait' : 'tag-ok'}">${q.fromAdmin ? '쪽지' : q.status === 'open' ? '답변 대기' : q.status === 'answered' ? '답변 완료' : '종료'}</span><small class="dim">${U.dt(q.createdAt)}</small></div>${q.body ? `<p class="muted" style="white-space:pre-wrap;margin:8px 0 0">${esc(q.body)}</p>` : ''}${q.answer ? `<div class="inq-a"><b>${q.fromAdmin ? '운영팀' : '답변'}</b> <small class="dim">${q.answeredAt ? U.dt(q.answeredAt) : ''}</small><p style="white-space:pre-wrap;margin:6px 0 0">${esc(q.answer)}</p></div>` : ''}</div>`).join('') : '<div class="empty">문의 내역이 없습니다</div>';
+      if (L.some((q) => !q.readByUser)) Store.readInquiries().catch(() => {});
+    }
+    data();
+    return { data };
+  }
+
   // ═════════ 마이페이지 ═════════
   function My(main) {
     let tab = (location.hash.split('/')[2]) || 'home', per = 'month';
@@ -1046,10 +1106,11 @@
         const np = $('#nPerm'); if (np) np.onclick = () => Notification.requestPermission().then(draw);
       } else {
         el.innerHTML = `<div class="grid g-2 stack">
-          <section class="panel"><div class="panel-h"><h3>화면 테마</h3></div><div class="panel-b"><div class="theme-pick"><button data-th="dark" class="${theme.get() === 'dark' ? 'on' : ''}"><span class="tp tp-dark"></span><b>다크</b></button><button data-th="light" class="${theme.get() === 'light' ? 'on' : ''}"><span class="tp tp-light"></span><b>화이트</b></button></div><div class="setting-row" style="margin-top:12px"><div><b>시세 상태</b><small>${statusLine()}</small></div><span></span></div></div></section>
+          <section class="panel"><div class="panel-h"><h3>화면 테마</h3></div><div class="panel-b"><div class="theme-pick"><button data-th="dark" class="${theme.get() === 'dark' ? 'on' : ''}"><span class="tp tp-dark"></span><b>다크</b></button><button data-th="light" class="${theme.get() === 'light' ? 'on' : ''}"><span class="tp tp-light"></span><b>화이트</b></button></div><div class="setting-row" style="margin-top:12px"><div><b>시세 상태</b><small>${statusLine()}</small></div><span></span></div><div class="setting-row"><div><b>알림 소리</b><small>체결·입출금 처리·버프·문의 답변 시 알림음</small></div><label class="sw"><input type="checkbox" id="mySnd" ${(() => { try { return localStorage.getItem('mls.snd') !== '0'; } catch { return true; } })() ? 'checked' : ''}><span></span></label></div></div></section>
           <section class="panel"><div class="panel-h"><h3>비밀번호 변경</h3></div><div class="panel-b"><form id="pwF"><div class="field"><label>현재 비밀번호</label><input class="input" type="password" name="o" autocomplete="current-password"></div><div class="field"><label>새 비밀번호 (6자 이상)</label><input class="input" type="password" name="n" autocomplete="new-password"></div><div class="field"><label>새 비밀번호 확인</label><input class="input" type="password" name="n2" autocomplete="new-password"></div><button class="btn btn-brand">변경</button></form></div></section>
           <section class="panel"><div class="panel-h"><h3>거래 조건</h3></div><div class="panel-b"><dl class="kv"><dt>국내 수수료</dt><dd>${S.st.feeKr}%</dd><dt>국내 매도 세금</dt><dd>${S.st.taxKr}%</dd><dt>미국 수수료</dt><dd>${S.st.feeUs}%</dd><dt>적용 환율</dt><dd>${U.n2(Market.fx())}원</dd><dt>장외시간 체결</dt><dd>${S.st.enforceHours ? '불가 (실제 장시간만)' : '허용'}</dd></dl></div></section>
           <section class="panel"><div class="panel-h"><h3>계좌</h3></div><div class="panel-b"><p class="muted" style="font-size:13px;margin-bottom:10px">계좌를 초기화하면 보유종목·주문·거래내역이 모두 삭제되고 예수금이 ${won(S.st.initialCash)}으로 다시 지급됩니다.${v.loan ? ' (버프 사용 중에는 먼저 상환해 주세요)' : ''}</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-danger" id="rstBtn" ${v.loan ? 'disabled' : ''}>계좌 초기화</button><button class="btn" id="outBtn">로그아웃</button>${u.role !== 'user' ? '<a class="btn" href="admin.html">관리자 페이지</a>' : ''}</div></div></section></div>`;
+        { const ms = $('#mySnd', el); if (ms) ms.onchange = () => { try { localStorage.setItem('mls.snd', ms.checked ? '1' : '0'); } catch {} if (ms.checked) chime(); }; }
         $$('[data-th]', el).forEach((b) => (b.onclick = () => { theme.set(b.dataset.th); const tb = $('#themeBtn'); if (tb) tb.innerHTML = theme.get() === 'dark' ? ICON.sun : ICON.moon; draw(); }));
         $('#pwF').onsubmit = async (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); if (f.n !== f.n2) return U.toast('새 비밀번호가 일치하지 않습니다.', true); try { await Store.changePassword(f.o, f.n); e.target.reset(); U.toast('비밀번호가 변경되었습니다.'); } catch (er) { U.toast(er.message, true); } };
         $('#rstBtn').onclick = async () => { if (await U.confirmBox('계좌 초기화', '<p>정말 초기화할까요? 되돌릴 수 없습니다.</p>', '초기화', 'btn-danger')) { await Store.resetAccount(); U.toast('계좌가 초기화되었습니다.'); } };

@@ -17,7 +17,7 @@
     if (!A.me) return login();
     if (A.me.role === 'user') { root.innerHTML = `<div class="empty" style="padding:100px 20px">관리자 권한이 필요합니다.<br><a class="btn" style="margin-top:16px" href="index.html">사용자 화면으로</a></div>`; return; }
     await reload();
-    shell();
+    shell(); Poll.start();
     window.addEventListener('hashchange', route); route();
     Store.on('change', async () => { await reload(); A.page && A.page.data && A.page.data(); });
     let t = 0; Market.on('update', async () => { if (Date.now() - t < 3000) return; t = Date.now(); if (Store.mode === 'local') { const f = await Store.matchAll(); if (f.length) await reload(); } A.page && A.page.tick && A.page.tick(); });
@@ -37,14 +37,14 @@
   const val = (b) => Engine.valuate(b, A.st);
   const ROLE = { user: '이용자', instructor: 'MAX 리딩', admin: '관리자' };
 
-  const NAV_ADMIN = [['dash', '대시보드', ICON.chart], ['members', '회원관리', ICON.users], ['cash', '입출금 승인', ICON.bank], ['buffs', 'MAX 버프', ICON.shield], ['grades', '등급 관리', ICON.trophy], ['lead', 'MAX 리딩·공지', ICON.lead], ['stocks', '종목·시세', ICON.list], ['settings', '수수료·설정', ICON.gear]];
+  const NAV_ADMIN = [['dash', '대시보드', ICON.chart], ['members', '회원관리', ICON.users], ['cash', '입출금 승인', ICON.bank], ['buffs', 'MAX 버프', ICON.shield], ['inq', '1:1 문의', ICON.doc], ['grades', '등급 관리', ICON.trophy], ['lead', 'MAX 리딩·공지', ICON.lead], ['stocks', '종목·시세', ICON.list], ['settings', '수수료·설정', ICON.gear]];
   const NAV_INST = [['lead', '리딩·공지', ICON.lead]];
   function shell() {
     const nav = A.me.role === 'admin' ? NAV_ADMIN : NAV_INST;
     root.innerHTML = `<div class="app admin">
       <header class="topbar"><a href="#/${nav[0][0]}">${U.logo()}</a><span class="badge-mode">${A.me.role === 'admin' ? 'ADMIN' : 'MAX 리딩'}</span><div class="ticker" id="tk"></div>
-        <div class="top-actions"><a class="btn btn-sm hide-m" href="index.html">사용자 화면</a><button class="icon-btn" id="th">${ICON.sun}</button><button class="user-chip" id="out" title="로그아웃"><span class="avatar">${esc(A.me.name.slice(0, 1))}</span><span class="nm">${esc(A.me.name)}</span></button></div></header>
-      <aside class="sidebar"><nav class="nav"><div class="cap">${A.me.role === 'admin' ? 'ADMIN CONSOLE' : 'MAX 리딩'}</div>${nav.map(([r, l, i]) => `<a href="#/${r}" data-r="${r}">${i}<span>${l}</span>${r === 'cash' ? '<span class="tag tag-wait" id="pendBadge" style="margin-left:auto"></span>' : ''}</a>`).join('')}<div class="sep"></div><a href="index.html">${ICON.home}<span>사용자 화면</span></a></nav><div class="side-foot" id="sf"></div></aside>
+        <div class="top-actions"><a class="btn btn-sm hide-m" href="index.html">사용자 화면</a>${A.me.role === 'admin' ? `<button class="icon-btn bell" id="aBell" title="알림">${ICON.bell}<span class="bdg" id="aBellN" hidden></span></button><div class="notif-pop hidden" id="aPop"></div><button class="icon-btn" id="aSnd" title="알림 소리"></button>` : ''}<button class="icon-btn" id="th">${ICON.sun}</button><button class="user-chip" id="out" title="로그아웃"><span class="avatar">${esc(A.me.name.slice(0, 1))}</span><span class="nm">${esc(A.me.name)}</span></button></div></header>
+      <aside class="sidebar"><nav class="nav"><div class="cap">${A.me.role === 'admin' ? 'ADMIN CONSOLE' : 'MAX 리딩'}</div>${nav.map(([r, l, i]) => `<a href="#/${r}" data-r="${r}">${i}<span>${l}</span>${['cash', 'buffs', 'inq', 'members'].includes(r) ? `<span class="nbdg" id="nb-${r}" hidden></span>` : ''}</a>`).join('')}<div class="sep"></div><a href="index.html">${ICON.home}<span>사용자 화면</span></a></nav><div class="side-foot" id="sf"></div></aside>
       <main class="main" id="main"></main>
       <nav class="tabbar" style="grid-template-columns:repeat(${Math.min(5, nav.length + 1)},1fr)">${nav.slice(0, 4).map(([r, l, i]) => `<a href="#/${r}" data-r="${r}">${i}${l.split('·')[0]}</a>`).join('')}<a href="index.html">${ICON.home}사용자</a></nav>
     </div>`;
@@ -57,11 +57,91 @@
     if (tk) tk.innerHTML = ['KOSPI', 'KOSDAQ', 'NASDAQ', 'SPX'].filter((k) => ix[k]).map((k) => `<span class="ix"><b>${k === 'SPX' ? 'S&P500' : k}</b><span class="v ${cls(ix[k].change)}">${U.n2(ix[k].price)}</span><span class="${cls(ix[k].change)}">${pct(ix[k].changePct)}</span></span>`).join('');
     const s = Market.state; const sf = $('#sf');
     if (sf) sf.innerHTML = s.status === 'LIVE' ? `<span class="brand">●</span> 시세 연동<br>${U.dt(s.updatedAt)}` : `<span style="color:var(--warn)">●</span> 시세 불러오는 중`;
-    const pb = $('#pendBadge'); if (pb) { const n = A.flows.filter((f) => f.status === 'pending').length; pb.textContent = n || ''; pb.style.display = n ? '' : 'none'; }
+    Poll.badges();
   }
+
+  // ═════ 실시간 알림 (띵동) ═════
+  const SND_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>';
+  const SND_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 9h4l5-4v14l-5-4H4zM17 9l5 6M22 9l-5 6"/></svg>';
+  const Poll = {
+    d: null, seen: null, ac: null, timer: 0, log: [],
+    on() { try { return localStorage.getItem('mls.adm.snd') !== '0'; } catch { return true; } },
+    ctx() { if (!this.ac) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; this.ac = new C(); } if (this.ac.state === 'suspended') this.ac.resume().catch(() => {}); return this.ac; },
+    ding(kind) {
+      if (!this.on()) return; const ac = this.ctx(); if (!ac) return;
+      const notes = kind === 'danger' ? [[880, 0], [660, 0.18], [880, 0.36], [660, 0.54]] : [[1318.5, 0], [987.8, 0.22]];
+      for (const [f, t] of notes) { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.value = f; const t0 = ac.currentTime + t; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.35, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.9); o.connect(g).connect(ac.destination); o.start(t0); o.stop(t0 + 1); }
+    },
+    desk(title, body) { try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification(title, { body, tag: 'mls-adm-' + title }); } catch {} },
+    sndBtn() { const b = $('#aSnd'); if (!b) return; const on = this.on(); b.innerHTML = on ? SND_ON : SND_OFF; b.title = on ? '알림 소리 켜짐 (클릭 시 끄기)' : '알림 소리 꺼짐 (클릭 시 켜기)'; b.classList.toggle('muted-ic', !on); },
+    badges() {
+      const d = this.d; const set = (k, n) => { const e = $('#nb-' + k); if (e) { e.hidden = !n; e.textContent = n > 99 ? '99+' : n; } };
+      const cash = d ? d.cash.length : A.flows.filter((f) => f.status === 'pending').length;
+      set('cash', cash); set('buffs', d ? d.buffs.length + d.danger.length : 0); set('inq', d ? d.inquiries.length : 0); set('members', d ? d.signups.length : 0);
+      const tot = d ? d.cash.length + d.buffs.length + d.inquiries.length + d.danger.length : cash;
+      const bn = $('#aBellN'); if (bn) { bn.hidden = !tot; bn.textContent = tot > 99 ? '99+' : tot; }
+      document.title = (tot ? `(${tot}) ` : '') + 'MAX라이프 주식 · 관리자';
+    },
+    pop() {
+      const p = $('#aPop'); if (!p || p.classList.contains('hidden')) return; const d = this.d || { cash: [], buffs: [], inquiries: [], signups: [], liquidations: [], danger: [] };
+      const it = (go, tag, tc, m, at) => `<a class="np-i new" href="${go}"><span class="tag ${tc}">${tag}</span><span class="np-m">${m}</span>${at ? `<small>${U.ago(at)}</small>` : '<small></small>'}</a>`;
+      const rows = [
+        ...d.danger.map((x) => it('#/buffs', '담보 위험', 'tag-sell', `${esc(x.name)} · 담보비율 ${Number(x.ratio).toFixed(1)}% (청산 ${x.maintain}%)`)),
+        ...d.cash.map((x) => it('#/cash', x.type === 'deposit' ? '입금 신청' : '출금 신청', x.type === 'deposit' ? 'tag-buy' : 'tag-sell', `${esc(x.name)} · ${won(x.amount)} · ${PAYN(x.method)}`, x.at)),
+        ...d.buffs.map((x) => it('#/buffs', '버프 신청', 'tag-brand', `${esc(x.name)} · ${x.mult}배 · ${won(x.amount)}`, x.at)),
+        ...d.inquiries.map((x) => it('#/inq', '1:1 문의', 'tag-wait', `${esc(x.name)} · ${esc(x.title)}`, x.at)),
+        ...d.liquidations.map((x) => it('#/buffs', '자동 청산', 'tag-sell', `${esc(x.name)} · ${won(x.amount)}`, x.at)),
+        ...d.signups.map((x) => it('#/members', '신규 가입', 'tag-ok', `${esc(x.name)} (${esc(x.username)})`, x.at)),
+      ];
+      p.innerHTML = `<div class="np-h"><b>처리할 알림</b><span class="dim" style="font-size:11px">10초마다 확인</span></div>${rows.join('') || '<div class="empty">새 알림이 없습니다</div>'}${'Notification' in window && Notification.permission === 'default' ? '<button class="btn btn-sm btn-block" id="aDesk" style="margin:10px;width:calc(100% - 20px)">바탕화면 알림 켜기</button>' : ''}`;
+      const dk = $('#aDesk'); if (dk) dk.onclick = () => Notification.requestPermission().then(() => this.pop());
+    },
+    async tick() {
+      let d; try { d = await Store.adminPoll(); } catch { return; }
+      if (!d) return; this.d = d;
+      const ids = (k) => (d[k] || []).map((x) => x.id || x.userId);
+      const cur = { cash: ids('cash'), buffs: ids('buffs'), inquiries: ids('inquiries'), signups: ids('signups'), liquidations: ids('liquidations'), danger: ids('danger') };
+      if (this.seen) {
+        const nw = (k) => (d[k] || []).filter((x) => !this.seen[k].includes(x.id || x.userId));
+        const ev = [];
+        for (const x of nw('cash')) ev.push(['cash', `${x.type === 'deposit' ? '입금' : '출금'} 신청`, `${x.name} · ${won(x.amount)} · ${PAYN(x.method)}`, '#/cash']);
+        for (const x of nw('buffs')) ev.push(['buffs', 'MAX 버프 신청', `${x.name} · ${x.mult}배 · ${won(x.amount)}`, '#/buffs']);
+        for (const x of nw('inquiries')) ev.push(['inq', '1:1 문의 접수', `${x.name} · ${x.title}`, '#/inq']);
+        for (const x of nw('signups')) ev.push(['members', '신규 가입', `${x.name} (${x.username})`, '#/members']);
+        for (const x of nw('liquidations')) ev.push(['danger', '자동 청산 발생', `${x.name} · 버프 ${won(x.amount)} 청산`, '#/buffs']);
+        for (const x of nw('danger')) ev.push(['danger', '담보비율 경고', `${x.name} · ${Number(x.ratio).toFixed(1)}% (청산 기준 ${x.maintain}%)`, '#/buffs']);
+        if (ev.length) {
+          this.ding(ev.some((e) => e[0] === 'danger') ? 'danger' : 'new');
+          for (const [, t, m, go] of ev.slice(0, 4)) this.toast(t, m, go);
+          if (ev.length > 4) this.toast('새 알림', `외 ${ev.length - 4}건`, '#/dash');
+          this.desk(ev[0][1] + (ev.length > 1 ? ` 외 ${ev.length - 1}건` : ''), ev[0][2]);
+          reload().then(() => { A.page && A.page.data && A.page.data(); });
+        }
+      }
+      this.seen = cur; this.badges(); this.pop();
+    },
+    toast(t, m, go) {
+      let w = $('#aToasts'); if (!w) { w = document.createElement('div'); w.id = 'aToasts'; w.className = 'adm-toasts'; document.body.appendChild(w); }
+      const e = document.createElement('a'); e.className = 'adm-toast'; e.href = go; e.innerHTML = `<span class="ic">${ICON.bell}</span><div><b>${esc(t)}</b><p>${esc(m)}</p></div><button class="x" aria-label="닫기">×</button>`;
+      e.querySelector('.x').onclick = (ev) => { ev.preventDefault(); e.remove(); };
+      e.onclick = () => setTimeout(() => e.remove(), 50);
+      w.prepend(e); setTimeout(() => e.classList.add('out'), 9000); setTimeout(() => e.remove(), 9600);
+    },
+    start() {
+      if (A.me.role !== 'admin') return;
+      this.sndBtn();
+      $('#aSnd').onclick = () => { const on = !this.on(); try { localStorage.setItem('mls.adm.snd', on ? '1' : '0'); } catch {} this.sndBtn(); if (on) { this.ctx(); this.ding('new'); U.toast('알림 소리를 켰습니다.'); } };
+      $('#aBell').onclick = (e) => { e.stopPropagation(); $('#aPop').classList.toggle('hidden'); this.pop(); };
+      document.addEventListener('click', (e) => { const p = $('#aPop'); if (p && !e.target.closest('#aPop')) p.classList.add('hidden'); });
+      // 브라우저 자동재생 정책: 첫 클릭 시 오디오 활성화
+      const unlock = () => { this.ctx(); document.removeEventListener('pointerdown', unlock); };
+      document.addEventListener('pointerdown', unlock);
+      this.tick(); this.timer = setInterval(() => this.tick(), 10000);
+    },
+  };
   function route() {
     const r = location.hash.replace(/^#\/?/, '') || (A.me.role === 'admin' ? 'dash' : 'lead');
-    const pages = A.me.role === 'admin' ? { dash: Dash, members: Members, cash: CashAdm, buffs: BuffAdm, grades: Grades, lead: LeadAdm, stocks: Stocks, settings: Settings } : { lead: LeadAdm };
+    const pages = A.me.role === 'admin' ? { dash: Dash, members: Members, cash: CashAdm, buffs: BuffAdm, inq: InqAdm, grades: Grades, lead: LeadAdm, stocks: Stocks, settings: Settings } : { lead: LeadAdm };
     const P = pages[r] || Object.values(pages)[0];
     $$('.nav a, .tabbar a').forEach((a) => a.classList.toggle('active', a.dataset.r === r));
     A.page && A.page.destroy && A.page.destroy();
@@ -80,6 +160,7 @@
         <section class="panel"><div class="panel-h"><h3>일별 매매 추이 (최근 14일)</h3><span class="dim" style="font-size:12px"><span class="up">■</span> 매수 <span class="down">■</span> 매도</span></div><div class="panel-b"><div class="bar-chart"><canvas id="dBar"></canvas></div></div></section>
         <section class="panel"><div class="panel-h"><h3>승인 대기</h3><a class="dim" href="#/cash" style="font-size:12px">전체</a></div><div class="panel-b flush" id="dPend"></div></section>
       </div>
+      <section class="panel" style="margin-bottom:16px"><div class="panel-h"><h3>운영 수익</h3><span class="dim" style="font-size:12px">수수료 · 거래세 · 버프 이자 (최근 30일 일별)</span></div><div class="panel-b"><div class="grid g-4" id="dRev" style="margin-bottom:14px"></div><div class="bar-chart"><canvas id="dRevBar"></canvas></div></div></section>
       <div class="grid g-2 stack">
         <section class="panel"><div class="panel-h"><h3>회원 보유 상위 종목</h3></div><div class="panel-b flush" id="dTop"></div></section>
         <section class="panel"><div class="panel-h"><h3>최근 체결</h3></div><div class="panel-b flush" id="dFills"></div></section>
@@ -113,6 +194,16 @@
       const rf = fills.slice().sort((a, b) => b.at.localeCompare(a.at)).slice(0, 10);
       $('#dFills').innerHTML = rf.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>시각</th><th class="l">회원</th><th class="l">종목</th><th>구분</th><th>금액</th></tr></thead><tbody>${rf.map((f) => `<tr><td class="dim">${U.dt(f.at)}</td><td class="l">${esc(uname(f.userId))}</td><td class="l">${esc(f.name)}</td><td><span class="tag ${f.side === 'buy' ? 'tag-buy' : 'tag-sell'}">${f.side === 'buy' ? '매수' : '매도'}</span></td><td>${won(f.amount)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">체결 내역이 없습니다</div>';
       $('#dT').textContent = ('시세 ') + U.time(Date.now()) + ' 기준';
+      rev();
+    }
+    let revAt = 0, R = null;
+    async function rev() {
+      if (!R || Date.now() - revAt > 60000) { revAt = Date.now(); try { R = await Store.revenue(); } catch { R = R || null; } }
+      if (!R || !$('#dRev')) return; const T = R.total;
+      $('#dRev').innerHTML = stat('누적 매매 수수료', won(T.fee), '체결 시 부과', 'brand') + stat('누적 거래세', won(T.tax), '매도 시 부과') + stat('MAX 버프 이자', won(T.interest), `사용 중 지원금 ${compact(T.loan)}원`) + stat('총 운영 수익', won(T.fee + T.tax + T.interest), `누적 거래대금 ${compact(T.volume)}원`, 'brand');
+      const days = []; for (let i = 29; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(dayKey(d)); }
+      const m = Object.fromEntries((R.daily || []).map((x) => [x.d, x]));
+      Chart.bars($('#dRevBar'), { labels: days.map((d) => d.slice(5).replace('-', '.')), series: [{ values: days.map((d) => (m[d] ? m[d].fee : 0)), color: Chart.css('--brand') }, { values: days.map((d) => (m[d] ? m[d].tax : 0)), color: Chart.css('--warn') }] });
     }
     data();
     let t = 0;
@@ -125,6 +216,30 @@
     }));
   }
 
+  // ═════ 1:1 문의 ═════
+  function InqAdm(main) {
+    const CAT = { cash: '입출금', buff: 'MAX 버프', order: '주문·체결', account: '계정·등급', lead: 'MAX 리딩', etc: '기타', notice: '운영 쪽지' };
+    const F = { st: 'open', q: '' }; let L = [];
+    main.innerHTML = `${head('1:1 문의', '이용자 문의에 답변하면 이용자 화면 알림으로 바로 전달됩니다.', '<button class="btn btn-sm btn-brand" id="iqMsg">전체 쪽지 보내기</button>')}
+      <section class="panel"><div class="panel-b"><div class="filters"><div class="seg" id="iqS">${[['open', '답변 대기'], ['answered', '답변 완료'], ['closed', '종료'], ['msg', '보낸 쪽지'], ['all', '전체']].map(([k, n]) => `<button data-s="${k}" class="${k === F.st ? 'on' : ''}">${n}</button>`).join('')}</div><div class="search" style="flex:1;min-width:180px">${ICON.search}<input id="iqQ" placeholder="닉네임·제목·내용 검색" style="width:100%"></div></div></div><div class="panel-b flush" id="iqL"><div class="empty">불러오는 중…</div></div></section>`;
+    $$('#iqS button').forEach((b) => (b.onclick = () => { F.st = b.dataset.s; $$('#iqS button').forEach((x) => x.classList.toggle('on', x === b)); draw(); }));
+    $('#iqQ').oninput = (e) => { F.q = e.target.value.trim().toLowerCase(); draw(); };
+    $('#iqMsg').onclick = () => location.hash = '#/members';
+    function draw() {
+      const R = L.filter((q) => (F.st === 'all' || (F.st === 'msg' ? q.fromAdmin : !q.fromAdmin && q.status === F.st)) && (!F.q || [q.name, q.username, q.title, q.body].join(' ').toLowerCase().includes(F.q)));
+      // 단체 쪽지는 한 건으로 묶어서 표시
+      const G = {}; const R2 = []; for (const q of R) { if (!q.fromAdmin) { R2.push(q); continue; } const k = q.title + '|' + q.answer + '|' + String(q.createdAt).slice(0, 16); if (G[k]) { G[k].n++; continue; } G[k] = Object.assign({}, q, { n: 1 }); R2.push(G[k]); }
+      R.length = 0; R.push(...R2.map((q) => (q.fromAdmin && q.n > 1 ? Object.assign(q, { name: `${q.n}명에게 발송`, username: '' }) : q)));
+      $('#iqL').innerHTML = R.length ? R.map((q) => `<div class="inq"><div class="inq-h"><span class="tag ${q.fromAdmin ? 'tag-brand' : 'tag-no'}">${CAT[q.category] || '기타'}</span><b>${esc(q.title)}</b><span class="tag ${q.status === 'open' ? 'tag-wait' : 'tag-ok'}">${q.fromAdmin ? '쪽지' : q.status === 'open' ? '답변 대기' : q.status === 'answered' ? '답변 완료' : '종료'}</span><small class="dim">${esc(q.name || '')} ${esc(q.username || '')} · ${U.dt(q.createdAt)}</small></div>${q.body ? `<p class="muted" style="white-space:pre-wrap;margin:8px 0 0">${esc(q.body)}</p>` : ''}${q.answer && !q.fromAdmin ? `<div class="inq-a"><b>답변</b> <small class="dim">${esc(q.answeredBy || '')} ${q.answeredAt ? U.dt(q.answeredAt) : ''}</small><p style="white-space:pre-wrap;margin:6px 0 0">${esc(q.answer)}</p></div>` : ''}${q.fromAdmin && q.answer ? `<p style="white-space:pre-wrap;margin:8px 0 0">${esc(q.answer)}</p>` : ''}${!q.fromAdmin ? `<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">${q.status !== 'closed' ? `<button class="btn btn-sm btn-brand" data-ans="${q.id}">${q.answer ? '답변 수정' : '답변하기'}</button><button class="btn btn-sm" data-cls="${q.id}">종료</button>` : ''}<button class="btn btn-sm btn-ghost" data-mem="${q.userId}">회원 정보</button></div>` : ''}</div>`).join('') : '<div class="empty">해당 문의가 없습니다</div>';
+      $$('[data-ans]', main).forEach((b) => (b.onclick = () => { const q = L.find((x) => x.id === b.dataset.ans); U.modal({ title: '문의 답변', body: `<div class="inq" style="padding:0 0 12px"><b>${esc(q.title)}</b><p class="muted" style="white-space:pre-wrap">${esc(q.body || '')}</p></div><div class="field"><label>답변</label><textarea class="input" id="anB" rows="7" maxlength="3000">${esc(q.answer || '')}</textarea></div>`, foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="anOk">답변 등록</button>', onMount: (m, close) => { $('#anOk', m).onclick = async () => { try { await Store.answerInquiry(q.id, $('#anB', m).value); close(); U.toast('답변을 등록했습니다. 이용자에게 알림이 전달됩니다.'); load(); } catch (e) { U.toast(e.message, true); } }; } }); }));
+      $$('[data-cls]', main).forEach((b) => (b.onclick = async () => { try { await Store.closeInquiry(b.dataset.cls); U.toast('종료했습니다.'); load(); } catch (e) { U.toast(e.message, true); } }));
+      $$('[data-mem]', main).forEach((b) => (b.onclick = () => memberDetail(b.dataset.mem)));
+    }
+    async function load() { try { L = await Store.adminInquiries(); } catch (e) { L = []; } draw(); }
+    load();
+    return { data: load };
+  }
+
   // ═════ 회원관리 ═════
   function Members(main) {
     const F = { q: '', status: 'all', role: 'all', sort: 'join' };
@@ -135,20 +250,32 @@
         <select class="input" id="mr"><option value="all">전체 권한</option><option value="user">이용자</option><option value="instructor">MAX 리딩</option><option value="admin">관리자</option></select>
         <select class="input" id="mo"><option value="join">가입순</option><option value="ret">수익률순</option><option value="asset">자산순</option><option value="trade">거래순</option><option value="login">최근접속순</option></select>
         <button class="btn btn-sm" id="mcsv">CSV 내보내기</button>
-      </div></div><div class="panel-b flush" id="mList"></div></section>`;
+      </div><div class="bulk-bar"><span id="mSel" class="muted">선택 0명</span><button class="btn btn-sm btn-brand" id="mMsg">${ICON.bell} 쪽지 보내기</button><button class="btn btn-sm" id="mPay">일괄 지급·차감</button><span class="dim" style="font-size:12px">선택이 없으면 쪽지는 전체 이용자에게 발송됩니다</span></div></div><div class="panel-b flush" id="mList"></div></section>`;
     $('#mq').oninput = (e) => { F.q = e.target.value.trim().toLowerCase(); data(); };
     $('#ms').onchange = (e) => { F.status = e.target.value; data(); };
     $('#mr').onchange = (e) => { F.role = e.target.value; data(); };
     $('#mo').onchange = (e) => { F.sort = e.target.value; data(); };
-    let rows = [];
+    let rows = []; const SEL = new Set();
+    const selTxt = () => { $('#mSel').textContent = `선택 ${SEL.size}명`; };
+    $('#mMsg').onclick = () => {
+      const ids = [...SEL]; const who = ids.length ? `선택한 ${ids.length}명` : '전체 이용자';
+      U.modal({ title: '쪽지 보내기', body: `<p class="muted" style="margin-top:0">받는 사람: <b>${who}</b> · 이용자 알림과 고객센터에 표시됩니다.</p><div class="field"><label>제목</label><input class="input" id="smT" maxlength="100" placeholder="예: 이번 주 MAX 리딩 일정 안내"></div><div class="field"><label>내용</label><textarea class="input" id="smB" rows="6" maxlength="3000"></textarea></div>`, foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="smOk">발송</button>', onMount: (m, close) => { $('#smOk', m).onclick = async () => { const t = $('#smT', m).value.trim(); if (!t) return U.toast('제목을 입력해 주세요.', true); try { await Store.sendMessage(t, $('#smB', m).value, ids.length ? ids : null); close(); U.toast(`${who}에게 쪽지를 보냈습니다.`); } catch (e) { U.toast(e.message, true); } }; } });
+    };
+    $('#mPay').onclick = () => {
+      const ids = [...SEL]; if (!ids.length) return U.toast('지급할 회원을 먼저 선택해 주세요.', true);
+      U.modal({ title: '일괄 지급·차감', body: `<p class="muted" style="margin-top:0">선택한 <b>${ids.length}명</b>의 예수금을 한 번에 조정합니다. 차감은 음수로 입력하세요.</p><div class="field"><label>금액 (원)</label><input class="input" id="bcA" inputmode="numeric" placeholder="예: 1000000 / -500000"></div><div class="field"><label>사유 (입출금 내역에 표시)</label><input class="input" id="bcM" value="이벤트 지급"></div>`, foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="bcOk">실행</button>', onMount: (m, close) => { $('#bcOk', m).onclick = async () => { const a = Number(String($('#bcA', m).value).replace(/[^0-9.-]/g, '')); if (!a) return U.toast('금액을 입력해 주세요.', true); try { await Store.bulkCash(ids, a, $('#bcM', m).value); close(); SEL.clear(); selTxt(); U.toast(`${ids.length}명에게 ${won(a)} 반영했습니다.`); } catch (e) { U.toast(e.message, true); } }; } });
+    };
     function data() {
       rows = A.bundles.filter((b) => b.user.role !== 'admin' || F.role === 'admin').map((b) => ({ b, u: b.user, v: val(b) }));
       if (F.role === 'admin') rows.push(...A.users.filter((u) => u.role === 'admin').map((u) => ({ b: null, u, v: null })));
       rows = rows.filter(({ u }) => (F.status === 'all' || u.status === F.status) && (F.role === 'all' || u.role === F.role) && (!F.q || [u.name, u.username, u.phone, u.email].join(' ').toLowerCase().includes(F.q)));
       const s = { join: (a, b) => b.u.createdAt.localeCompare(a.u.createdAt), ret: (a, b) => (b.v ? b.v.netPct : -1e9) - (a.v ? a.v.netPct : -1e9), asset: (a, b) => (b.v ? b.v.net : 0) - (a.v ? a.v.net : 0), trade: (a, b) => (b.b ? b.b.fills.length : 0) - (a.b ? a.b.fills.length : 0), login: (a, b) => String(b.u.lastLogin || '').localeCompare(String(a.u.lastLogin || '')) };
       rows.sort(s[F.sort]);
-      $('#mList').innerHTML = rows.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>회원</th><th>등급</th><th>권한</th><th>상태</th><th>순자산</th><th>수익률</th><th class="hide-m">버프·담보비율</th><th class="hide-m">예수금</th><th class="hide-m">보유</th><th class="hide-m">체결</th><th class="hide-m">가입일</th><th class="hide-m">최근접속</th></tr></thead><tbody>${rows.map(({ u, v, b }) => `<tr class="click" data-u="${u.id}"><td><div class="sname"><b>${esc(u.name)}</b><small>${esc(u.username)}${u.phone ? ' · ' + esc(u.phone) : ''}</small></div></td><td>${esc(GRADE(u.grade).name)}${u.cardTier ? ' <span class="tag card-' + u.cardTier + '">' + CARD[u.cardTier] + '</span>' : ''}</td><td>${ROLE[u.role]}</td><td><span class="tag ${u.status === 'active' ? 'tag-ok' : 'tag-sell'}">${u.status === 'active' ? '정상' : '정지'}</span></td><td>${v ? won(v.net) : '-'}</td><td class="${v ? cls(v.netPct) : ''}"><b>${v ? pct(v.netPct) : '-'}</b></td><td class="hide-m">${v && v.loan ? `${v.buff.mult}배 · <b style="color:${v.ratio < v.maintain ? 'var(--up)' : v.ratio < (A.st.buffWarn || 140) ? 'var(--warn)' : 'var(--ok)'}">${v.ratio.toFixed(1)}%</b>` : '-'}</td><td class="hide-m">${v ? won(v.cash) : '-'}</td><td class="hide-m">${v ? v.holdings.length : '-'}</td><td class="hide-m">${b ? b.fills.length : '-'}</td><td class="hide-m dim">${U.date(u.createdAt)}</td><td class="hide-m dim">${u.lastLogin ? U.ago(u.lastLogin) : '-'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">조건에 맞는 회원이 없습니다</div>';
-      $$('[data-u]', main).forEach((r) => (r.onclick = () => memberDetail(r.dataset.u)));
+      $('#mList').innerHTML = rows.length ? `<div class="table-wrap"><table class="t"><thead><tr><th class="ck"><input type="checkbox" id="mAll"></th><th>회원</th><th>등급</th><th>권한</th><th>상태</th><th>순자산</th><th>수익률</th><th class="hide-m">버프·담보비율</th><th class="hide-m">예수금</th><th class="hide-m">보유</th><th class="hide-m">체결</th><th class="hide-m">가입일</th><th class="hide-m">최근접속</th></tr></thead><tbody>${rows.map(({ u, v, b }) => `<tr class="click" data-u="${u.id}"><td class="ck">${u.role === 'user' ? `<input type="checkbox" data-ck="${u.id}" ${SEL.has(u.id) ? 'checked' : ''}>` : ''}</td><td><div class="sname"><b>${esc(u.name)}</b><small>${esc(u.username)}${u.phone ? ' · ' + esc(u.phone) : ''}</small></div></td><td>${esc(GRADE(u.grade).name)}${u.cardTier ? ' <span class="tag card-' + u.cardTier + '">' + CARD[u.cardTier] + '</span>' : ''}</td><td>${ROLE[u.role]}</td><td><span class="tag ${u.status === 'active' ? 'tag-ok' : 'tag-sell'}">${u.status === 'active' ? '정상' : '정지'}</span></td><td>${v ? won(v.net) : '-'}</td><td class="${v ? cls(v.netPct) : ''}"><b>${v ? pct(v.netPct) : '-'}</b></td><td class="hide-m">${v && v.loan ? `${v.buff.mult}배 · <b style="color:${v.ratio < v.maintain ? 'var(--up)' : v.ratio < (A.st.buffWarn || 140) ? 'var(--warn)' : 'var(--ok)'}">${v.ratio.toFixed(1)}%</b>` : '-'}</td><td class="hide-m">${v ? won(v.cash) : '-'}</td><td class="hide-m">${v ? v.holdings.length : '-'}</td><td class="hide-m">${b ? b.fills.length : '-'}</td><td class="hide-m dim">${U.date(u.createdAt)}</td><td class="hide-m dim">${u.lastLogin ? U.ago(u.lastLogin) : '-'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">조건에 맞는 회원이 없습니다</div>';
+      $$('[data-u]', main).forEach((r) => (r.onclick = (e) => { if (e.target.closest('.ck')) return; memberDetail(r.dataset.u); }));
+      $$('[data-ck]', main).forEach((c) => (c.onchange = () => { c.checked ? SEL.add(c.dataset.ck) : SEL.delete(c.dataset.ck); selTxt(); }));
+      const all = $('#mAll'); if (all) { const us = rows.filter((r) => r.u.role === 'user').map((r) => r.u.id); all.checked = us.length && us.every((id) => SEL.has(id)); all.onchange = () => { us.forEach((id) => (all.checked ? SEL.add(id) : SEL.delete(id))); data(); }; }
+      selTxt();
     }
     $('#mcsv').onclick = () => {
       const lines = [['닉네임', '아이디', '권한', '상태', '연락처', '총자산', '수익률(%)', '예수금', '보유종목수', '체결수', '가입일', '최근접속'].join(',')];
