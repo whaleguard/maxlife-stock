@@ -334,7 +334,19 @@ const Market = (() => {
       extHours: kr ? '장전 08:30~08:40 · 장후 15:40~16:00 · 단일가 16:00~18:00' : `프리 ${toK(240)}~${toK(570)} · 애프터 ${toK(960)}~${toK(1200)} (한국시간)` };
   }
   function setHolidays(h) { holidays = Array.isArray(h) ? h : []; }
+  // 특정 세션까지 남은 시간 (분) — 주말·휴장일 건너뜀. 진행 중이면 0
+  function sesInfo(mk, code) {
+    const kr = mk === 'KR'; const T = kr ? SES_KR : SES_US; const row = T.find((x) => x[2] === code); if (!row) return null;
+    const t = kr ? kst() : nyNow(); const hm = t.getHours() * 60 + t.getMinutes();
+    const isWork = (d) => { const dy = d.getDay(); const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; return dy >= 1 && dy <= 5 && !(kr && holidays.includes(ymd)); };
+    const toK = (m) => (kr ? hhmm(m) : hhmm(m + (usDST(kst()) ? 13 * 60 : 14 * 60)));
+    const base = { name: row[3], from: toK(row[0]), to: toK(row[1]) };
+    if (isWork(t) && hm >= row[0] && hm < row[1]) return { ...base, active: true, inMin: 0, endIn: row[1] - hm };
+    let add = 0; const d = new Date(t);
+    if (!(isWork(t) && hm < row[0])) { for (let i = 0; i < 15; i++) { d.setDate(d.getDate() + 1); add += 1440; if (isWork(d)) break; } }
+    return { ...base, active: false, inMin: add + row[0] - hm, days: Math.floor((add + row[0] - hm) / 1440) };
+  }
 
-  const api = { init, refresh, on: ev.on, info, aiPicks, indexCandles, quote, list, allMeta, meta, book, bestAsk, bestBid, ticks, candles, fx, toKrw, session, setHolidays, setOverrides, isUS, setLiveProvider, isRealtime, rtPoll, get rtOk() { return RT.ok; }, get state() { return state; }, get universe() { return universe; } };
+  const api = { init, refresh, on: ev.on, info, aiPicks, indexCandles, quote, list, allMeta, meta, book, bestAsk, bestBid, ticks, candles, fx, toKrw, session, sesInfo, setHolidays, setOverrides, isUS, setLiveProvider, isRealtime, rtPoll, get rtOk() { return RT.ok; }, get state() { return state; }, get universe() { return universe; } };
   return api;
 })();

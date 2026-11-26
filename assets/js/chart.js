@@ -2,6 +2,7 @@
 const Chart = (() => {
   const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   function setup(canvas) {
+    if (!canvas || !canvas.isConnected) { const c = document.createElement('canvas'); c.width = c.height = 1; return { ctx: c.getContext('2d'), w: 0, h: 0 }; }
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); }

@@ -33,7 +33,8 @@ const Engine = (() => {
     const flows = (d.cashflows || []).filter((c) => c.status === 'approved');
     const deposits = flows.filter((c) => c.type === 'deposit').reduce((s, c) => s + c.amount, 0);
     const withdrawals = flows.filter((c) => c.type === 'withdraw').reduce((s, c) => s + c.amount, 0);
-    const principal = (d.user.initial || 0) + deposits - withdrawals;
+    const conv = d.user.convKrw || 0; // 코인 지갑(USDT)으로 옮긴 원화 — 주식 계좌 원금에서 제외
+    const principal = (d.user.initial || 0) + deposits - withdrawals - conv;
     const total = cash + evalKrw;
     const realized = (d.fills || []).reduce((s, f) => s + (f.pnl || 0), 0);
     const pendingWithdraw = (d.cashflows || []).filter((c) => c.status === 'pending' && c.type === 'withdraw').reduce((s, c) => s + c.amount, 0);
@@ -49,7 +50,7 @@ const Engine = (() => {
       cash, reserved, orderable: Math.max(0, cash - reserved - pendingWithdraw), withdrawable: Math.max(0, cash - reserved - pendingWithdraw),
       evalKrw, costKrw, pnl: evalKrw - costKrw, pnlPct: costKrw ? ((evalKrw - costKrw) / costKrw) * 100 : 0,
       total, principal, totalPnl: total - principal, totalPct: principal ? ((total - principal) / principal) * 100 : 0,
-      realized, holdings, sellLock, deposits, withdrawals,
+      realized, holdings, sellLock, deposits, withdrawals, conv,
     };
   }
 

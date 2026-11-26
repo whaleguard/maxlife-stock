@@ -15,6 +15,13 @@
   const CARD = { white: '화이트', blue: '블루', red: '레드', black: '블랙' };
 
   // ── 가격 알림 (회원별 · 이 기기) ──
+  document.addEventListener('change', (e) => { if (e.target.matches && e.target.matches('[data-noconf]')) { try { localStorage.setItem('mls.noconf', e.target.checked ? '1' : '0'); } catch {} } });
+  // 최근 본 종목 (이 브라우저)
+  const Recent = {
+    get() { try { return JSON.parse(localStorage.getItem('mls.recent') || '[]').filter((c) => Market.quote(c)); } catch { return []; } },
+    add(code) { try { const L = [code, ...this.get().filter((c) => c !== code)].slice(0, 12); localStorage.setItem('mls.recent', JSON.stringify(L)); } catch {} },
+    clear() { try { localStorage.removeItem('mls.recent'); } catch {} },
+  };
   const Alerts = {
     key: () => 'mls.alerts.' + (S.user ? S.user.id : ''),
     list() { try { return JSON.parse(localStorage.getItem(this.key()) || '[]'); } catch { return []; } },
@@ -246,6 +253,7 @@
   }, true);
   if (IS_APP) document.documentElement.classList.add('is-app');
 
+  function demoBoxHtml() { const L = window.MLS_CONFIG.DEMO_ACCOUNTS || []; return L.length ? `<div class="demo-box"><b style="color:var(--text)">테스트 계정</b> <span class="dim">· 누르면 바로 입력됩니다</span>${L.map((a, i) => `<button type="button" class="demo-acc" data-demo="${i}"><span>${esc(a.label)}</span><code>${esc(a.id)}</code> / <code>${esc(a.pw)}</code></button>`).join('')}</div>` : ''; }
   // ═════════ PC 프로그램 다운로드 ═════════
   const REL = 'https://github.com/whaleguard/maxlife-stock/releases/latest/download/';
   function Download(main) {
@@ -287,7 +295,7 @@
             <button class="btn btn-brand btn-block btn-lg" style="margin-top:8px">로그인</button>
           </form>
           <div class="auth-switch">아직 계정이 없으신가요? <button data-sw="signup">회원가입</button></div>
-          ${Store.mode === 'local' ? `<div class="demo-box"><b style="color:var(--text)">데모 계정</b><br>이용자 <code>demo</code> / <code>demo1234</code><br>MAX 리딩 <code>teacher</code> / <code>teacher1234</code><br>관리자 <code>admin</code> / <code>admin1234</code></div>` : (window.MLS_CONFIG.DEMO_ACCOUNTS || []).length ? `<div class="demo-box"><b style="color:var(--text)">테스트 계정</b> <span class="dim">· 누르면 바로 입력됩니다</span>${window.MLS_CONFIG.DEMO_ACCOUNTS.map((a, i) => `<button type="button" class="demo-acc" data-demo="${i}"><span>${esc(a.label)}</span><code>${esc(a.id)}</code> / <code>${esc(a.pw)}</code></button>`).join('')}</div>` : ''}
+          ${Store.mode === 'local' ? `<div class="demo-box"><b style="color:var(--text)">데모 계정</b><br>이용자 <code>demo</code> / <code>demo1234</code><br>MAX 리딩 <code>teacher</code> / <code>teacher1234</code><br>관리자 <code>admin</code> / <code>admin1234</code></div>` : `<div id="demoBox">${demoBoxHtml()}</div>`}
         ` : `
           <h1>회원가입</h1><p class="sub">가입 즉시 예수금 ${won(S.st.initialCash)}이 지급됩니다.</p>
           <form id="authF">
@@ -304,7 +312,10 @@
       </div></div>
     </div>`;
     $('[data-sw]').onclick = (e) => renderAuth(e.target.dataset.sw);
-    $$('[data-demo]').forEach((b) => (b.onclick = () => { const a = window.MLS_CONFIG.DEMO_ACCOUNTS[+b.dataset.demo]; const f = $('#authF'); f.username.value = a.id; f.pw.value = a.pw; f.querySelector('.btn-brand').focus(); }));
+    const bindDemo = () => $$('[data-demo]').forEach((b) => (b.onclick = () => { const a = window.MLS_CONFIG.DEMO_ACCOUNTS[+b.dataset.demo]; const f = $('#authF'); if (!f || !a) return; f.username.value = a.id; f.pw.value = a.pw; f.querySelector('.btn-brand').focus(); }));
+    bindDemo();
+    // 테스트 계정 목록은 관리자 설정(서버)에서 받아옴
+    if (Store.mode !== 'local' && Store.publicInfo) Store.publicInfo().then((d) => { if (d && Array.isArray(d.demoAccounts)) { window.MLS_CONFIG.DEMO_ACCOUNTS = d.demoAccounts; const box = $('#demoBox'); if (box) { box.innerHTML = demoBoxHtml(); bindDemo(); } } }).catch(() => {});
     $$('[data-terms]').forEach((b) => (b.onclick = (e) => { e.preventDefault(); termsModal(b.dataset.terms); }));
     $('#authF').onsubmit = async (e) => {
       e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
@@ -399,7 +410,12 @@
   function bindSearch(input, box, onPick) {
     const show = () => {
       const k = input.value.trim().toLowerCase();
-      if (!k) { box.classList.add('hidden'); return; }
+      if (!k) {
+        const R = Recent.get().slice(0, 8);
+        if (!R.length || document.activeElement !== input) { box.classList.add('hidden'); return; }
+        box.innerHTML = `<div class="sr-h">최근 본 종목</div>` + R.map((c) => { const q = Market.quote(c); return `<button data-c="${q.code}"><span><b>${esc(q.name)}</b> <small class="dim">${q.code} · ${q.market}</small></span><span class="${cls(q.change)}">${px(q.price, q.currency)} <small>${pct(q.changePct)}</small></span></button>`; }).join('');
+        box.classList.remove('hidden'); return;
+      }
       const res = Market.list((q) => q.name.toLowerCase().includes(k) || q.code.toLowerCase().includes(k)).slice(0, 12);
       box.innerHTML = res.length ? res.map((q) => `<button data-c="${q.code}"><span><b>${esc(q.name)}</b> <small class="dim">${q.code} · ${q.market}</small></span><span class="${cls(q.change)}">${px(q.price, q.currency)} <small>${pct(q.changePct)}</small></span></button>`).join('') : '<div class="empty">검색 결과가 없습니다</div>';
       box.classList.remove('hidden');
@@ -462,7 +478,7 @@
     let mk = 'ALL', rk = 'value';
     main.innerHTML = `
       <div class="home-grid">
-      <div class="home-notice" id="hNotice"></div><div class="home-sessions">${marketBanner()}</div>
+      <div class="home-notice" id="hNotice"></div>${todoStrip()}<div class="home-sessions">${marketBanner()}</div>
         <section class="panel home-assets"><div class="panel-b hero-asset" id="hAsset"></div><div id="hBuff"></div></section>
         <div class="home-market"><section class="panel"><div class="panel-h"><h3>시장 지수</h3><span class="dim" style="font-size:12px" id="hTime"></span></div><div class="panel-b flush slist" id="hIdx"></div></section><div id="hBrd"></div></div>
         <section class="panel home-ranking"><div class="panel-h"><h3>실시간 랭킹</h3><div class="home-ranking-filters"><div class="seg" id="hMk"><button data-v="ALL" class="on">전체</button><button data-v="KR">국내</button><button data-v="US">미국</button></div><div class="seg" id="hRk"><button data-v="value" class="on">거래대금</button><button data-v="up">급등</button><button data-v="down">급락</button></div></div></div><div class="panel-b flush"><div class="table-wrap"><table class="t"><thead><tr><th>종목</th><th>현재가</th><th>등락률</th><th class="hide-m">거래량</th><th class="hide-m">거래대금</th></tr></thead><tbody id="hRank"></tbody></table></div></div></section>
@@ -488,7 +504,7 @@
       const hb = $('#hBuff'); if (hb) hb.innerHTML = v.loan ? `<div class="panel-b" style="border-top:1px solid var(--border)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>MAX 버프 ${v.buff.mult}배 사용 중 · 지원금 ${won(v.loan)}</b><a class="btn btn-sm" href="#/buff">관리</a></div>${gauge(v)}</div>` : '';
       $('#hAsset').innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
-          <div><div class="stat"><div class="k">${v.loan ? '순자산 (버프 차감)' : '총 자산'}</div></div><div class="v num home-total-v">${won(v.net)}</div><div class="${cls(v.netPnl)}" style="font-weight:600;margin-top:2px">${signedWon(v.netPnl)} (${pct(v.netPct)})<span class="dim" style="font-weight:500;margin-left:6px">누적 수익</span></div></div>
+          <div><div class="stat"><div class="k">${v.loan ? '순자산 (버프 차감)' : '총 자산'}</div></div><div class="v num home-total-v">${won(v.net)}</div><div class="${cls(v.netPnl)}" style="font-weight:600;margin-top:2px">${signedWon(v.netPnl)} (${pct(v.netPct)})<span class="dim" style="font-weight:500;margin-left:6px">누적 수익</span></div>${v.conv > 0 ? `<a class="dim" href="#/futures/BTC" style="display:block;font-size:12px;margin-top:4px">코인 지갑으로 옮긴 ${won(Math.round(v.conv))}은 코인 선물 계좌에 따로 있습니다 →</a>` : ''}</div>
           <div style="display:flex;gap:8px"><a class="btn btn-sm" href="#/cash">입출금</a><a class="btn btn-sm btn-brand" href="#/stock/005930">주문하기</a></div>
         </div>
         ${(S.d.snapshots || []).length >= 2 ? '<div class="home-performance"><canvas id="hSpark" style="width:100%;height:100%"></canvas></div>' : '<div class="home-performance is-empty">거래 기록이 이틀 이상 쌓이면 자산 추이 그래프가 표시됩니다</div>'}
@@ -519,6 +535,7 @@
 
   // ═════════ 종목·주문 ═════════
   function Stock(main, code) {
+    Recent.add(code);
     code = code || '005930';
     if (!Market.quote(code)) code = '005930';
     const q0 = Market.quote(code); const ccy = q0.currency;
@@ -531,13 +548,14 @@
       <div class="trade">
         <div class="col-chart">
           <section class="panel">
+            ${(() => { const R = Recent.get().filter((c) => c !== code).slice(0, 8); return R.length ? `<div class="rc-bar"><span class="dim">최근</span>${R.map((c) => { const q2 = Market.quote(c); return `<a href="#/stock/${c}" class="rc-chip"><b>${esc(q2.name)}</b><span class="${cls(q2.changePct)}">${pct(q2.changePct)}</span></a>`; }).join('')}</div>` : ''; })()}
             <div class="quote-head" id="sHead"></div>
             <div class="q-sum" id="sSum"></div>
             <div class="chart-tools"><select class="input sm mu-sel" id="sMu" title="분봉 단위" style="display:none">${[1, 3, 5, 10, 15, 30, 60].map((x) => `<option value="${x}">${x}분</option>`).join('')}</select><div class="seg" id="sTf"><button data-v="m">분</button><button data-v="D" class="on">일</button><button data-v="W">주</button><button data-v="M">월</button></div><div class="seg" id="sMa" title="이동평균선"><button data-v="5" class="on">5</button><button data-v="20" class="on">20</button><button data-v="60" class="on">60</button><button data-v="120" class="on">120</button></div><div class="seg" id="sInd"><button data-v="bb">볼린저</button><button data-v="ichi" title="일목균형표: 전환선·기준선·구름대">일목</button></div><div class="seg" id="sSub"><button data-v="vol" class="on">거래량</button><button data-v="rsi">RSI</button><button data-v="macd">MACD</button><button data-v="stoch" title="스토캐스틱 슬로우 (14,3,3)">스토캐스틱</button></div><button class="btn btn-sm btn-ghost" id="sEasy" title="이동평균 20일·거래량만 보는 간편 차트">간편 차트</button><div class="seg draw-seg" id="sDraw" title="차트 그리기"><button data-v="h" title="차트를 누른 가격에 수평선">수평선</button><button data-v="t" title="두 점을 눌러 추세선">추세선</button><button data-v="x" title="그린 선 모두 지우기">지우기</button></div><button class="btn btn-sm btn-ghost" id="sFull" title="차트 전체화면">전체화면</button><span class="dim" style="font-size:11px" id="sCSrc"></span></div>
             <div class="chart-box"><div class="chart-tip" id="sTip"></div><canvas id="sChart"></canvas></div>
           </section>
           <section class="panel" style="margin-top:16px">
-            <div class="tabs" id="sTabs"><span class="tab-grp">주문</span><button data-v="open" class="on">미체결</button><button data-v="pos">보유현황</button><button data-v="fills">체결내역</button><span class="tab-grp">종목정보</span><button data-v="daily">일별시세</button><button data-v="info">종목정보</button><button data-v="deal">투자자</button><button data-v="news">뉴스·리포트</button><button data-v="disc">공시</button><span class="tab-grp">분석</span><button data-v="ai" class="ai-tab">AI 분석</button><button data-v="alert">가격알림</button></div>
+            <div class="tabs" id="sTabs"><button data-v="ai" class="ai-tab on">AI 분석</button><span class="tab-grp">주문</span><button data-v="open">미체결</button><button data-v="pos">보유현황</button><button data-v="fills">체결내역</button><span class="tab-grp">종목정보</span><button data-v="daily">일별시세</button><button data-v="info">종목정보</button><button data-v="deal">투자자</button><button data-v="news">뉴스·리포트</button><button data-v="disc">공시</button><span class="tab-grp">알림</span><button data-v="alert">가격알림</button></div>
             <div id="sBottom"></div>
           </section>
         </div>
@@ -570,7 +588,7 @@
     main.classList.add('has-orderbar');
     $$('[data-mo]').forEach((b) => (b.onclick = () => { O.side = b.dataset.mo; if (autoPx) O.price = bestFor(O.side); syncForm(); $('#orderPanel').scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
     const chart = Chart.candle($('#sChart'), { ccy, tip: $('#sTip'), view: window.innerWidth < 760 ? 50 : 90 });
-    let bottomTab = 'open';
+    let bottomTab = 'ai';
     async function loadChart() {
       const r = await Market.candles(code, O.tf);
       let data = r.data; const mu = +(localStorage.getItem('mls.mu') || 1);
@@ -618,7 +636,7 @@
     $('#sInd').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; IND[b.dataset.v] = !IND[b.dataset.v]; syncInd(); };
     $('#sSub').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; IND.sub = b.dataset.v; syncInd(); };
     syncInd();
-    $('#sTabs').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; bottomTab = b.dataset.v; $$('#sTabs button').forEach((x) => x.classList.toggle('on', x === b)); renderBottom(); };
+    $('#sTabs').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.v !== bottomTab) $('#sBottom').dataset.aiFor = ''; bottomTab = b.dataset.v; $$('#sTabs button').forEach((x) => x.classList.toggle('on', x === b)); renderBottom(); };
     // 주문 패널 이벤트
     $$('.order-side button').forEach((b) => (b.onclick = () => { O.side = b.dataset.side; if (autoPx) O.price = bestFor(O.side); syncForm(); }));
     $('#oType').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; O.type = b.dataset.v; if (O.type === 'ext') { O.price = Market.quote(code).price; autoPx = false; } if (O.type === 'stop' && !O.trig) { const q = Market.quote(code); O.trig = ccy === 'USD' ? +(q.price * (O.side === 'sell' ? 0.95 : 1.05)).toFixed(2) : U.roundTick(q.price * (O.side === 'sell' ? 0.95 : 1.05), 'KRW'); O.cond = O.side === 'sell' ? 'le' : 'ge'; } syncForm(); };
@@ -717,7 +735,8 @@
       if (err && /주문가능금액/.test(err)) { const go = await U.confirmBox('주문가능금액 부족', `<p style="margin:0 0 8px">${esc(err)}</p><p class="muted" style="margin:0">입출금 메뉴에서 충전하면 바로 주문할 수 있습니다.${S.user.role === 'admin' ? '<br>관리자 계정은 충전 신청이 즉시 승인됩니다.' : ''}</p>`, '충전하러 가기'); if (go) location.hash = '#/cash'; return; }
       if (err) return U.toast(err, true);
       const p = unitPrice(); const gross = Market.toKrw(p * O.qty, ccy);
-      const ok = quick === true || await U.confirmBox(`${O.side === 'buy' ? '매수' : '매도'} 주문 확인`, `<dl class="kv" style="font-size:14px"><dt>종목</dt><dd>${esc(q.name)} <span class="dim">${code}</span></dd><dt>구분</dt><dd class="${O.side === 'buy' ? 'up' : 'down'}">${O.side === 'buy' ? '매수' : '매도'} · ${O.type === 'market' ? '시장가' : O.type === 'stop' ? '감시주문' : O.type === 'ext' ? '시간외 · ' + Market.session(q.market).label : '지정가'}</dd><dt>가격</dt><dd>${O.type === 'market' ? '시장가 (약 ' + px(p, ccy) + ')' : O.type === 'stop' ? '현재가 ' + pxu(O.trig, ccy) + ' ' + (O.cond === 'ge' ? '이상' : '이하') + ' 도달 시 시장가' : pxu(O.price, ccy)}</dd><dt>수량</dt><dd>${n0(O.qty)}주</dd><dt>주문금액</dt><dd>${won(gross)}</dd></dl>`, O.type === 'stop' ? '감시주문 등록' : O.side === 'buy' ? '매수 주문' : '매도 주문', O.side === 'buy' ? 'btn-buy' : 'btn-sell');
+      const noConf = (() => { try { return localStorage.getItem('mls.noconf') === '1'; } catch { return false; } })();
+      const ok = quick === true || noConf || await U.confirmBox(`${O.side === 'buy' ? '매수' : '매도'} 주문 확인`, `<dl class="kv" style="font-size:14px"><dt>종목</dt><dd>${esc(q.name)} <span class="dim">${code}</span></dd><dt>구분</dt><dd class="${O.side === 'buy' ? 'up' : 'down'}">${O.side === 'buy' ? '매수' : '매도'} · ${O.type === 'market' ? '시장가' : O.type === 'stop' ? '감시주문' : O.type === 'ext' ? '시간외 · ' + Market.session(q.market).label : '지정가'}</dd><dt>가격</dt><dd>${O.type === 'market' ? '시장가 (약 ' + px(p, ccy) + ')' : O.type === 'stop' ? '현재가 ' + pxu(O.trig, ccy) + ' ' + (O.cond === 'ge' ? '이상' : '이하') + ' 도달 시 시장가' : pxu(O.price, ccy)}</dd><dt>수량</dt><dd>${n0(O.qty)}주</dd><dt>주문금액</dt><dd>${won(gross)}</dd></dl><label class="check" style="margin-top:12px;font-size:12px"><input type="checkbox" data-noconf> 다음부터 확인창 없이 바로 주문 <span class="dim">(마이페이지 → 설정에서 되돌림)</span></label>`, O.type === 'stop' ? '감시주문 등록' : O.side === 'buy' ? '매수 주문' : '매도 주문', O.side === 'buy' ? 'btn-buy' : 'btn-sell');
       if (!ok) return;
       try {
         const r = await Store.placeOrder(input);
@@ -774,6 +793,8 @@
     }
     function renderBottom() {
       const el = $('#sBottom'); const q = Market.quote(code);
+      if (bottomTab === 'ai' && el.dataset.aiFor === code && el.querySelector('.ai-rep, .ai-start, .ai-gate, .empty')) return; // 시세 갱신마다 다시 분석하지 않음
+      el.dataset.aiFor = bottomTab === 'ai' ? code : '';
       if (bottomTab === 'open') {
         const os = S.d.orders.filter((o) => o.status === 'pending').sort((a, b) => b.createdAt.localeCompare(a.createdAt));
         el.innerHTML = os.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>종목</th><th>구분</th><th>주문가</th><th>수량</th><th class="hide-m">주문시각</th><th></th></tr></thead><tbody>${os.map((o) => `<tr><td><div class="sname"><b>${esc(o.name)}</b><small>${o.code}</small></div></td><td><span class="tag ${o.side === 'buy' ? 'tag-buy' : 'tag-sell'}">${o.side === 'buy' ? '매수' : '매도'}</span>${o.type === 'stop' ? ' <span class="tag tag-wait">감시</span>' : o.type === 'ext' ? ' <span class="tag tag-brand">시간외</span>' : ''}</td><td>${o.type === 'stop' ? px(o.triggerPrice, o.currency) + (o.triggerCond === 'ge' ? ' 이상' : ' 이하') : px(o.price, o.currency)}</td><td>${n0(o.qty)}</td><td class="hide-m dim">${U.dt(o.createdAt)}</td><td><button class="btn btn-sm" data-amend="${o.id}">정정</button> <button class="btn btn-sm btn-danger" data-cancel="${o.id}">취소</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">미체결 주문이 없습니다</div>';
@@ -814,8 +835,17 @@
           }));
         }).catch((e) => { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
       } else if (bottomTab === 'ai') {
-        el.innerHTML = '<div class="empty">AI가 차트·수급·뉴스를 분석하는 중…</div>';
-        AI.run(code).then((R) => { if (bottomTab !== 'ai') return; el.innerHTML = `<div style="padding:16px 20px">${AI.report(R, true)}</div>`; AI.bind(el); }).catch((e) => { if (bottomTab === 'ai') el.innerHTML = AI.gate(e.message); });
+        const runAi = () => { el.innerHTML = '<div class="empty">AI가 차트·수급·매집 흔적·공시를 분석하는 중…</div>';
+          AI.run(code).then((R) => { if (bottomTab !== 'ai') return; el.innerHTML = `<div style="padding:16px 20px">${AI.report(R, true)}</div>`; AI.bind(el, code); }).catch((e) => { if (bottomTab === 'ai') el.innerHTML = AI.gate(e.message); }); };
+        if (!S.user) { el.innerHTML = AI.gate('로그인하면 AI 분석을 볼 수 있습니다.'); }
+        else if (AI.seen(code)) runAi();
+        else AI.status().then((st) => {
+          if (bottomTab !== 'ai') return;
+          if (st && st.unlimited) return runAi();
+          const left = st ? Math.max(0, (st.limit || 0) - (st.used || 0)) : null;
+          el.innerHTML = `<div class="ai-start"><div class="ai-ic">${ICON.spark}</div><b>${esc(q.name)} AI 분석</b><p class="muted">지금 사도 되는지, 어디서 사고팔지, 손절 기준, 세력 매집 흔적, CB·유상증자 물량, AI 예측 적중률까지 한 번에 보여 드립니다.</p><button class="btn btn-brand btn-lg" id="aiRun">${ICON.spark} AI 분석 보기</button><small class="dim">${left != null ? `오늘 ${left}회 남음 · 같은 종목은 오늘 다시 봐도 차감되지 않습니다` : ''}</small></div>`;
+          $('#aiRun', el).onclick = runAi;
+        });
       } else if (bottomTab === 'deal' || bottomTab === 'news') {
         el.innerHTML = '<div class="empty">불러오는 중…</div>';
         if (q.currency !== 'KRW') { el.innerHTML = `<div class="empty">${bottomTab === 'deal' ? '투자자별 매매동향은 국내 종목에 제공됩니다.' : '뉴스·리포트는 국내 거래대금 상위 500종목에 제공됩니다.'}</div>`; return; }
@@ -1331,13 +1361,49 @@
     return { data: draw, tick: () => { if (Date.now() - t > 10000) { t = Date.now(); draw(); } } };
   }
 
+  // 홈: 지금 확인할 것 (미체결·예약·알림·입출금·담보비율)
+  function todoStrip() {
+    if (!S.user || !S.d) return '';
+    const v = S.v || {}; const open = (S.d.orders || []).filter((o) => o.status === 'pending');
+    const cash = (S.d.cashflows || []).filter((c) => c.status === 'pending'); const al = Alerts.list();
+    const items = [];
+    if (open.length) items.push(['미체결 주문', open.length + '건', '#/stock/' + open[0].code, '']);
+    if (cash.length) items.push(['입출금 승인 대기', cash.length + '건', '#/cash', '']);
+    if (v.loan) items.push(['담보비율', (v.ratio || 0).toFixed(0) + '%', '#/buff', v.ratio < (v.maintain || 130) + 20 ? 'warn' : '']);
+    if (al.length) items.push(['가격 알림', al.length + '개 대기', '#/stock/' + al[0].code, '']);
+    const hold = (v.holdings || []).slice().sort((a, b) => a.pnlPct - b.pnlPct)[0];
+    if (hold && hold.pnlPct <= -7) items.push(['손실 큰 종목', `${hold.name} ${pct(hold.pnlPct)}`, '#/ai/analyze/' + hold.code, 'warn']);
+    const R = Recent.get()[0]; if (R && Market.quote(R)) items.push(['최근 본 종목', Market.quote(R).name, '#/stock/' + R, '']);
+    if (!items.length) return '';
+    return `<div class="todo-strip">${items.map(([k, val, h, c]) => `<a class="todo ${c}" href="${h}"><small>${k}</small><b>${esc(val)}</b></a>`).join('')}</div>`;
+  }
+
   // 장 운영 현황 · 시간표
   function sesStrip() {
     const kr = Market.session('KR'), us = Market.session('US');
-    const card = (t, ss, rows) => `<div class="ses-card ${ss.open ? 'on' : ss.ext ? 'ext' : 'off'}"><div class="sc-h"><b><i></i>${t} · ${ss.label}</b>${ss.left != null ? `<span>${ss.nextLabel}까지 ${ss.left >= 60 ? Math.floor(ss.left / 60) + '시간 ' : ''}${ss.left % 60}분</span>` : ''}</div><div class="sc-t">${rows.map(([c, n, h]) => `<span class="${ss.code === c ? 'cur' : ''}"><em>${n}</em>${h}</span>`).join('')}</div></div>`;
+    const card = (t, ss, rows) => `<div class="ses-card ${ss.open ? 'on' : ss.ext ? 'ext' : 'off'}"><div class="sc-h"><b><i></i>${t} · ${ss.label}</b>${ss.left != null ? `<span>${ss.nextLabel}까지 ${ss.left >= 60 ? Math.floor(ss.left / 60) + '시간 ' : ''}${ss.left % 60}분</span>` : ''}</div><div class="sc-t">${rows.map(([c, n, h]) => `<button type="button" class="${ss.code === c ? 'cur' : ''}" data-ses="${t === '국내' ? 'KR' : 'US'}:${c}"><em>${n}</em>${h}</button>`).join('')}</div></div>`;
     const dst = us.extHours.match(/\d\d:\d\d/g) || [];
     return `<div class="ses-strip">${card('국내', kr, [['pre_close', '장전 시간외', '08:30'], ['pre_auction', '동시호가', '08:40'], ['regular', '정규장', '09:00'], ['close_auction', '마감 동시호가', '15:20'], ['post_close', '장후 시간외', '15:40'], ['single', '시간외 단일가', '16:00~18:00']])}${card('미국', us, [['pre', '프리마켓', dst[0] || ''], ['regular', '정규장', us.hours.split('~')[0]], ['after', '애프터마켓', (dst[2] || '') + (dst[3] ? '~' + dst[3] : '')]])}</div>`;
   }
+
+  // 시간표 칸을 누르면: 지금 거래 가능한지, 아니면 몇 시간 뒤 시작인지 안내
+  const SES_DESC = {
+    pre_close: '전날 종가로만 사고팔 수 있는 시간입니다.', pre_auction: '주문을 모아 두었다가 09:00에 한 가격(시가)으로 체결합니다.',
+    regular: '시장가·지정가 주문이 실시간으로 바로 체결되는 시간입니다.', close_auction: '주문을 모아 15:30에 한 가격(종가)으로 체결합니다.',
+    post_close: '오늘 종가로만 사고팔 수 있는 시간입니다.', single: '10분마다 한 번씩, 종가 ±10% 안에서 지정가로 체결됩니다.',
+    pre: '미국 정규장 전 거래 시간입니다. 지정가 주문만 가능합니다.', after: '미국 정규장 후 거래 시간입니다. 지정가 주문만 가능합니다.',
+  };
+  const leftTxt = (m) => { const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60; return (d ? d + '일 ' : '') + (h ? h + '시간 ' : '') + (d ? '' : mm + '분'); };
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-ses]'); if (!b) return;
+    const [mk, code] = b.dataset.ses.split(':'); const I = Market.sesInfo(mk, code); if (!I) return;
+    const where = mk === 'KR' ? '국내' : '미국'; const desc = SES_DESC[code] || '';
+    const live = S.st && S.st.enforceHours === false;
+    const body = I.active
+      ? `<div class="ses-pop on"><b>지금 ${where} ${esc(I.name)} 진행 중</b><p>${desc}</p><p class="dim">${I.from} ~ ${I.to} (한국시간) · ${leftTxt(I.endIn)} 뒤 종료</p></div>`
+      : `<div class="ses-pop"><b>지금은 ${where} ${esc(I.name)} 시간이 아닙니다</b><p><span class="up">${leftTxt(I.inMin)}</span> 뒤 (${I.from}, 한국시간)에 다시 이용하세요.</p><p class="dim">${desc}</p>${live ? '<p class="dim">현재 설정상 장이 닫혀 있어도 마지막 시세로 체결됩니다.</p>' : code === 'regular' ? '<p class="dim">지금 주문하면 지정가 예약주문으로 접수되어 장이 열리면 처리됩니다.</p>' : ''}</div>`;
+    U.modal({ title: `${where} · ${I.name}`, body, foot: `<button class="btn" data-x>닫기</button><a class="btn btn-brand" href="#/stock/${mk === 'KR' ? '005930' : 'NVDA'}" data-x>주문 화면으로</a>` });
+  });
 
   // ═════════ MAX AI 분석 ═════════
   const AI = {
@@ -1348,8 +1414,18 @@
       this.st = await Store.aiUse(code); // 이용 한도 확인·차감 (오늘 본 종목은 차감 안 함)
       const kr = q.currency === 'KRW' && /^[0-9A-Z]{6}$/.test(code);
       const [c, info, funding] = await Promise.all([Market.candles(code, 'D'), q.currency === 'KRW' ? Market.info(code) : Promise.resolve(null), kr && Store.funding ? Store.funding(code).catch(() => null) : Promise.resolve(null)]);
-      return AICore.analyze({ bars: c.data, price: q.price, code, name: q.name, currency: q.currency, info, funding: funding && Array.isArray(funding.docs) ? funding : null });
+      const R = AICore.analyze({ bars: c.data, price: q.price, code, name: q.name, currency: q.currency, info, funding: funding && Array.isArray(funding.docs) ? funding : null });
+      if (R && R.ok) {
+        this.mark(code);
+        const L = R.levels; const dir = R.score >= 63 ? 'up' : R.score < 45 ? 'down' : 'flat';
+        if (Store.aiPred) Store.aiPred({ code, name: q.name, currency: q.currency, dir, price: R.price, score: R.score, opinion: R.opinion, horizon: 5,
+          target: dir === 'up' ? L.target1 : dir === 'down' ? L.resist : '', stop: dir === 'up' ? L.stop : dir === 'down' ? L.support : '' }).catch(() => {});
+        try { R.acc = Store.aiStats ? await Store.aiStats(code) : null; } catch { R.acc = null; }
+      }
+      return R;
     },
+    mark(code) { try { const d = U.today ? U.today() : new Date().toISOString().slice(0, 10); const o = JSON.parse(localStorage.getItem('mls.ai.d') || '{}'); const L = o.d === d ? o.c || [] : []; if (!L.includes(code)) L.push(code); localStorage.setItem('mls.ai.d', JSON.stringify({ d, c: L })); } catch {} },
+    seen(code) { try { const d = U.today ? U.today() : new Date().toISOString().slice(0, 10); const o = JSON.parse(localStorage.getItem('mls.ai.d') || '{}'); return o.d === d && (o.c || []).includes(code); } catch { return false; } },
     gate(msg) {
       return `<div class="ai-gate"><div class="ai-ic">${ICON.spark}</div><b>${esc(msg || 'AI 분석을 이용할 수 없습니다.')}</b><p class="muted">AI 월정액을 구독하면 매일 더 많은 종목을 분석하고, 매일 갱신되는 AI 추천종목 전체를 볼 수 있습니다.${S.user.cardTier ? '' : ' MAX DAY LIFE 카드 회원은 베이직 혜택이 무료입니다.'}</p><a class="btn btn-brand" href="#/ai/sub">AI 월정액 보기</a></div>`;
     },
@@ -1359,9 +1435,10 @@
       const K = { trend: '추세', momentum: '모멘텀', supply: '수급', volume: '거래량', position: '가격 위치', value: '재무·가치', news: '뉴스·공시', flow: '매집 흔적', funding: '자금조달' };
       const deg = Math.round((R.score / 100) * 180);
       const L = R.levels, I = R.ind, c = R.currency;
-      return `<div class="ai-rep">
+      return `<div class="ai-rep" data-code="${esc(R.code)}">
         <div class="ai-top"><div class="ai-gauge" style="--d:${deg}deg"><div class="g-arc"></div><div class="g-v"><b>${R.score}</b><small>/100</small></div></div>
           <div class="ai-op"><span class="ai-badge ${R.tone}">${R.opinion}</span><h3>${esc(R.name)} <small class="dim">${R.code}</small></h3><p>${esc(R.summary)}</p></div></div>
+        ${this.verdict(R)}
         <div class="ai-bars">${Object.keys(K).filter((k) => R.max[k]).map((k) => `<div class="ai-bar"><span>${K[k]}</span><div><i style="width:${(R.scores[k] / R.max[k]) * 100}%"></i></div><b>${R.scores[k]}<small>/${R.max[k]}</small></b></div>`).join('')}</div>
         <div class="ai-lv">${[['손절 기준', L.stop, 'down'], ['1차 지지', L.support, ''], ['현재가', R.price, 'cur'], ['1차 저항', L.resist, ''], ['2차 목표', L.target2, 'up']].map(([n, v, k]) => `<div class="${k}"><small>${n}</small><b>${this.px(v, c)}</b></div>`).join('')}</div>
         <p class="dim" style="font-size:12px;margin:6px 0 14px">손익비(1차 저항까지 기대수익 ÷ 손절 시 손실) ${L.rr.toFixed(2)} · ${L.rr >= 2 ? '유리한 구간' : L.rr >= 1 ? '보통' : '불리한 구간 — 눌림 확인 후 접근'}</p>
@@ -1370,6 +1447,7 @@
           <div><h4 class="ai-h">주요 지표</h4><dl class="kv ai-kv"><dt>RSI(14)</dt><dd>${I.rsi != null ? I.rsi.toFixed(1) : '-'}</dd><dt>MACD 히스토그램</dt><dd class="${cls(I.hist || 0)}">${I.hist != null ? (I.hist > 0 ? '+' : '') + (c === 'USD' ? I.hist.toFixed(2) : n0(I.hist)) : '-'}</dd><dt>이평선 5/20/60</dt><dd>${[I.ma5, I.ma20, I.ma60].map((x) => (x ? this.px(x, c) : '-')).join(' · ')}</dd><dt>변동성(ATR)</dt><dd>${I.atrPct.toFixed(1)}%</dd><dt>거래량(5일/20일)</dt><dd>${I.volR.toFixed(2)}배</dd><dt>52주 위치</dt><dd>${(I.pos52 * 100).toFixed(0)}% (${this.px(I.lo52, c)} ~ ${this.px(I.hi52, c)})</dd><dt>수익률 5·20·60일</dt><dd>${[I.r5, I.r20, I.r60].map((x) => (x == null ? '-' : `<span class="${cls(x)}">${pct(x)}</span>`)).join(' · ')}</dd>${I.per != null ? `<dt>PER · 추정PER · PBR</dt><dd>${I.per ?? '-'} · ${I.cper ?? '-'} · ${I.pbr ?? '-'}</dd>` : ''}</dl></div>
         </div>
         ${this.deep(R)}
+        ${this.accHTML(R.acc, R)}
         ${R.news && R.news.length ? `<h4 class="ai-h" style="margin-top:14px">뉴스·리포트 감성</h4><ul class="ai-f">${R.news.map((n) => `<li class="${n.s >= 0 ? 'p' : 'n'}"><i>${n.s >= 0 ? '＋' : '－'}</i>${esc(n.t)}</li>`).join('')}</ul>` : ''}
         <div class="ai-foot">${compact ? `<a class="btn btn-sm" href="#/ai/analyze/${R.code}">전체 화면으로 보기</a>` : `<a class="btn btn-sm btn-brand" href="#/stock/${R.code}">주문 화면으로</a>`}<span class="dim">${U.dt(R.at)} 분석 · 차트(일봉)·이동평균·RSI·MACD·볼린저·거래량·외국인/기관 수급·대량거래·OBV 패턴·CB/BW/유상증자 공시·PER/PBR·뉴스/리포트 제목을 종합한 알고리즘 결과이며, 투자 권유가 아닙니다. 최종 판단과 책임은 투자자 본인에게 있습니다.</span></div>
       </div>`;
@@ -1398,13 +1476,47 @@
       }
       return h;
     },
+    // 한눈 결론: 지금 사도 되나 · 어디서 사고팔지 · 손절 · 내 보유 기준 조언 · 알림
+    verdict(R) {
+      const L = R.levels, c = R.currency, P = R.price, px = (x) => this.px(x, c), rp = (x) => ((x / P - 1) * 100);
+      const nearSup = L.support && (P - L.support) / P * 100 <= Math.max(1.5, R.ind.atrPct);
+      const v = P < L.stop ? ['매수 보류', 'down2', '손절 기준 아래에 있어 추세가 무너진 상태입니다. 다시 지지선 위로 올라오는지 확인하세요.']
+        : R.score >= 63 && L.rr >= 1.5 ? ['매수 유리', 'up2', `점수 ${R.score}점, 손익비 ${L.rr.toFixed(1)} — 기대 수익이 손실 위험보다 큽니다.`]
+        : R.score >= 55 && nearSup ? ['분할 매수 구간', 'up', '지지선 가까이 내려와 있어 나눠서 사기 좋은 자리입니다.']
+        : R.score < 45 ? ['관망', 'down', '하락 신호가 많습니다. 추세가 돌아설 때까지 기다리는 편이 안전합니다.']
+        : ['눌림 대기', 'flat', '방향이 뚜렷하지 않습니다. 지지선 근처까지 내려올 때 나눠서 접근하세요.'];
+      const neg = R.factors.filter((f) => f[0] === '-').map((f) => f[1]).concat(((R.fund && R.fund.factors) || []).filter((f) => f[0] === '-').map((f) => f[1]), ((R.flow && R.flow.factors) || []).filter((f) => f[0] === '-').map((f) => f[1])).slice(0, 3);
+      const pos = R.factors.filter((f) => f[0] === '+').map((f) => f[1]).concat(((R.flow && R.flow.factors) || []).filter((f) => f[0] === '+').map((f) => f[1])).slice(0, 3);
+      const h = (S.v && S.v.holdings || []).find((x) => x.code === R.code);
+      const mine = h ? (() => {
+        const adv = P < L.stop ? `현재가가 손절 기준(${px(L.stop)}) 아래입니다. 비중 축소를 검토하세요.` : P >= L.target1 ? `1차 목표(${px(L.target1)})에 닿았습니다. 일부 익절을 검토하세요.` : h.pnlPct < -8 ? `손실이 ${pct(h.pnlPct)}입니다. 손절 기준 ${px(L.stop)}을 지키는지 꼭 확인하세요.` : `보유 유지 구간입니다. 손절 ${px(L.stop)} · 1차 목표 ${px(L.target1)}을 기준으로 대응하세요.`;
+        return `<div class="ai-mine"><div><small>내 보유</small><b>${n0(h.qty)}주 · 평단 ${px(h.avg)}</b></div><div><small>내 수익률</small><b class="${cls(h.pnlPct)}">${pct(h.pnlPct)}</b></div><p>${esc(adv)}</p></div>`;
+      })() : '';
+      return `<div class="ai-verdict v-${v[1]}"><div class="av-h"><span class="ai-badge ${v[1]}">${v[0]}</span><p>${esc(v[2])}</p></div>
+        <div class="av-g"><div><small>매수 구간</small><b>${px(Math.min(L.support, P))} ~ ${px(P)}</b></div><div><small>1차 목표</small><b class="up">${px(L.target1)} <em>${pct(rp(L.target1))}</em></b></div><div><small>2차 목표</small><b class="up">${px(L.target2)} <em>${pct(rp(L.target2))}</em></b></div><div><small>손절 기준</small><b class="down">${px(L.stop)} <em>${pct(rp(L.stop))}</em></b></div></div>
+        ${mine}
+        <div class="av-two">${pos.length ? `<div><small class="up">좋은 점</small><ul>${pos.map((x) => `<li>${esc(x.split(' — ')[0])}</li>`).join('')}</ul></div>` : ''}${neg.length ? `<div><small class="down">조심할 점</small><ul>${neg.map((x) => `<li>${esc(x.split(' — ')[0])}</li>`).join('')}</ul></div>` : ''}</div>
+        <div class="av-act"><button class="btn btn-sm" data-alr="ge:${L.target1}">목표가 도달 알림</button><button class="btn btn-sm" data-alr="le:${L.stop}">손절가 이탈 알림</button><a class="btn btn-sm btn-brand" href="#/stock/${R.code}">주문하기</a></div></div>`;
+    },
+    // 예측 적중 기록 (이 종목)
+    accHTML(A, R) {
+      if (!A) return '';
+      const dirT = { up: '상승', down: '하락', flat: '보합' }, stT = { hit: ['적중', 'tag-ok'], miss: ['빗나감', 'tag-sell'], open: ['채점 대기', 'tag-no'] };
+      const rows = (A.recent || []).slice(0, 8);
+      return `<section class="ai-sec"><div class="ai-sec-h"><h4 class="ai-h">AI 예측 적중 기록 · ${esc(R.name)}</h4>${A.judged ? `<span class="tag ${A.rate >= 60 ? 'tag-ok' : A.rate >= 45 ? 'tag-wait' : 'tag-sell'}">적중률 ${A.rate}%</span>` : '<span class="tag tag-no">채점 대기</span>'}</div>
+        <div class="ai-chips"><div><small>예측 적중률</small><b>${A.judged ? A.rate + '%' : '-'}</b><em>${A.judged ? `${A.hit} / ${A.judged}건 적중` : '아직 채점된 예측 없음'}</em></div><div><small>예측대로 했을 때 평균 수익률</small><b class="${cls(A.avgRet || 0)}">${A.avgRet != null ? pct(+A.avgRet) : '-'}</b><em>상승 예측=매수 · 하락 예측=회피</em></div><div><small>누적 예측 수익률</small><b class="${cls(A.sumRet || 0)}">${A.sumRet != null ? pct(+A.sumRet) : '-'}</b><em>판정된 예측 합계</em></div><div><small>채점 대기</small><b>${A.open}건</b><em>5거래일 뒤 자동 채점</em></div></div>
+        ${rows.length ? `<div class="table-wrap"><table class="t ai-t"><thead><tr><th>예측일</th><th>AI 예측</th><th>기준가</th><th>목표 / 손절</th><th>결과가</th><th>수익률</th><th>판정</th></tr></thead><tbody>${rows.map((x) => `<tr><td class="dim">${String(x.day).slice(5).replace('-', '.')}</td><td><b class="${x.dir === 'up' ? 'up' : x.dir === 'down' ? 'down' : ''}">${dirT[x.dir] || '-'}</b> <small class="dim">${x.score ?? ''}점</small></td><td>${this.px(x.price, R.currency)}</td><td class="dim">${x.target ? this.px(x.target, R.currency) : '-'} / ${x.stop ? this.px(x.stop, R.currency) : '-'}</td><td>${x.result ? this.px(x.result, R.currency) : '-'}</td><td class="${cls(x.ret || 0)}">${x.ret != null ? pct(+x.ret) : x.maxUp != null ? `<small class="dim">최고 ${pct(+x.maxUp)}</small>` : '-'}</td><td><span class="tag ${(stT[x.status] || stT.open)[1]}">${(stT[x.status] || stT.open)[0]}</span></td></tr>`).join('')}</tbody></table></div>` : ''}
+        <p class="dim" style="font-size:11px;margin:8px 0 0">채점 기준: 상승 예측은 5거래일 안에 1차 목표에 닿거나 5거래일 뒤 기준가보다 오르면 적중, 손절 기준에 먼저 닿으면 빗나감. 하락 예측은 반대. 보합 예측은 ±3% 안이면 적중. 종목·날짜당 하루 1건 기록합니다.</p></section>`;
+    },
     won(x) { const a = Math.abs(x || 0); return a >= 1e12 ? (x / 1e12).toFixed(2).replace(/\.?0+$/, '') + '조' : a >= 1e8 ? n0(Math.round(x / 1e8)) + '억' : n0(x) + '원'; },
-    bind() {},
+    bind(el, code) {
+      $$('[data-alr]', el).forEach((b) => (b.onclick = () => { const [c, v] = b.dataset.alr.split(':'); const R0 = el.querySelector('.ai-rep'); const cd = code || (R0 && R0.dataset.code); if (!cd || !(+v > 0)) return; Alerts.add(cd, c, +v); U.toast(c === 'ge' ? '목표가에 닿으면 알려드립니다.' : '손절가 아래로 내려가면 알려드립니다.'); b.disabled = true; }));
+    },
   };
   function AiPage(main, sub, arg) {
-    let tab = ['picks', 'analyze', 'holdings', 'sub'].includes(sub) ? sub : 'picks'; let mk = 'kr';
+    let tab = ['picks', 'analyze', 'holdings', 'acc', 'sub'].includes(sub) ? sub : 'picks'; let mk = 'kr';
     main.innerHTML = `${head('MAX AI 분석', '차트·수급·매집 흔적·CB/BW 자금조달·재무·뉴스와 공시를 AI 알고리즘으로 분석해 종목 점수와 매매 구간을 알려드립니다.', '<span id="aiSt"></span>')}
-      <div class="tabs" id="aiTab" style="margin-bottom:16px">${[['picks', '오늘의 AI 추천종목'], ['analyze', '종목 분석'], ['holdings', '내 보유종목 진단'], ['sub', 'AI 월정액']].map(([k, n]) => `<button data-v="${k}" class="${k === tab ? 'on' : ''}">${n}</button>`).join('')}</div>
+      <div class="tabs" id="aiTab" style="margin-bottom:16px">${[['picks', '오늘의 AI 추천종목'], ['analyze', '종목 분석'], ['holdings', '내 보유종목 진단'], ['acc', 'AI 예측 적중률'], ['sub', 'AI 월정액']].map(([k, n]) => `<button data-v="${k}" class="${k === tab ? 'on' : ''}">${n}</button>`).join('')}</div>
       <div id="aiBody"></div>`;
     $('#aiTab').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; tab = b.dataset.v; history.replaceState(null, '', '#/ai/' + tab); $$('#aiTab button').forEach((x) => x.classList.toggle('on', x === b)); draw(); };
     const stLine = async (force) => { const st = await AI.status(force); const el = $('#aiSt'); if (!el || !st) return; el.innerHTML = `<span class="tag ${st.source === 'free' ? 'tag-no' : 'tag-brand'}">${esc(st.planName)}</span> <span class="dim" style="font-size:12px">오늘 ${st.used}회 사용${st.unlimited ? ' · 무제한' : ` / ${st.limit}회`}${st.endsAt ? ` · ${U.date(st.endsAt)}까지` : ''}</span>`; };
@@ -1428,6 +1540,22 @@
         bindSearch($('#aiQ'), $('#aiQr'), go);
         $$('[data-ac]').forEach((b) => (b.onclick = () => go(b.dataset.ac)));
         if (arg) one(arg);
+      } else if (tab === 'acc') {
+        el.innerHTML = '<div class="empty">불러오는 중…</div>';
+        let A = null; try { A = await Store.aiStats(''); } catch (e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+        if (!A) { el.innerHTML = '<div class="empty">운영 서버에서 제공됩니다</div>'; return; }
+        const dirT = { up: '상승', down: '하락', flat: '보합' }, stT = { hit: ['적중', 'tag-ok'], miss: ['빗나감', 'tag-sell'], open: ['채점 대기', 'tag-no'] };
+        el.innerHTML = `<div class="grid g-4" style="margin-bottom:16px">
+            <div class="stat"><div class="k">전체 예측 적중률</div><div class="v ${A.rate >= 50 ? 'up' : ''}">${A.judged ? A.rate + '%' : '-'}</div><div class="s dim">${A.hit} / ${A.judged}건 적중</div></div>
+            <div class="stat"><div class="k">예측대로 했을 때 평균 수익률</div><div class="v ${cls(A.avgRet || 0)}">${A.avgRet != null ? pct(+A.avgRet) : '-'}</div><div class="s dim">상승 예측 매수 · 하락 예측 회피</div></div>
+            <div class="stat"><div class="k">상승 예측 적중</div><div class="v">${A.upN ? Math.round((A.upHit / A.upN) * 100) + '%' : '-'}</div><div class="s dim">${A.upHit} / ${A.upN}건</div></div>
+            <div class="stat"><div class="k">채점 대기</div><div class="v">${A.open}건</div><div class="s dim">5거래일 뒤 자동 채점</div></div></div>
+          <div class="grid g-main" style="gap:16px">
+            <section class="panel"><div class="panel-h"><h3>최근 AI 예측</h3></div><div class="table-wrap"><table class="t"><thead><tr><th class="l">종목</th><th>예측일</th><th>예측</th><th>기준가</th><th>결과</th><th>수익률</th><th>판정</th></tr></thead><tbody>${(A.recent || []).map((x) => `<tr class="click" data-go="${x.code}"><td class="l"><div class="sname"><b>${esc(x.name || x.code)}</b><small>${x.code}</small></div></td><td class="dim">${String(x.day).slice(5).replace('-', '.')}</td><td class="${x.dir === 'up' ? 'up' : x.dir === 'down' ? 'down' : ''}"><b>${dirT[x.dir] || '-'}</b></td><td>${AI.px(x.price, Market.quote(x.code) ? Market.quote(x.code).currency : 'KRW')}</td><td>${x.result ? AI.px(x.result, Market.quote(x.code) ? Market.quote(x.code).currency : 'KRW') : '-'}</td><td class="${cls(x.ret || 0)}">${x.ret != null ? pct(+x.ret) : '-'}</td><td><span class="tag ${(stT[x.status] || stT.open)[1]}">${(stT[x.status] || stT.open)[0]}</span></td></tr>`).join('') || '<tr><td colspan="7" class="empty">아직 기록된 예측이 없습니다. 종목을 AI로 분석하면 그날의 예측이 기록되고 5거래일 뒤 자동으로 채점됩니다.</td></tr>'}</tbody></table></div></section>
+            <section class="panel"><div class="panel-h"><h3>종목별 적중률</h3><span class="dim" style="font-size:12px">채점 2건 이상</span></div><div class="panel-b flush">${(A.top || []).map((x) => `<a class="row ai-mini" href="#/ai/analyze/${x.code}"><div class="sname"><b>${esc(x.name || x.code)}</b><small>${x.code} · ${x.n}건</small></div><span class="${cls(x.avgRet || 0)}" style="font-size:12px;margin-right:8px">${x.avgRet != null ? pct(+x.avgRet) : ''}</span><span class="tag ${x.rate >= 60 ? 'tag-ok' : x.rate >= 45 ? 'tag-wait' : 'tag-sell'}">${x.rate}%</span></a>`).join('') || '<div class="empty">채점이 쌓이면 표시됩니다</div>'}</div></section>
+          </div>
+          <p class="dim" style="font-size:12px;margin-top:12px">상승 예측(점수 63 이상)은 5거래일 안에 1차 목표에 닿거나 5거래일 뒤 기준가보다 오르면 적중, 손절 기준에 먼저 닿으면 빗나감입니다. 하락 예측(45 미만)은 반대이고, 그 사이 점수는 보합 예측으로 ±3% 안이면 적중입니다. 과거 적중률이 앞으로의 결과를 보장하지 않습니다.</p>`;
+        $$('[data-go]', el).forEach((r) => (r.onclick = () => (location.hash = '#/stock/' + r.dataset.go)));
       } else if (tab === 'holdings') {
         const H = S.v.holdings;
         if (!H.length) { el.innerHTML = '<div class="empty">보유 종목이 없습니다.</div>'; return; }
@@ -1461,7 +1589,7 @@
     }
     async function one(code) {
       const box = $('#aiRep'); box.innerHTML = '<div class="empty">AI가 차트·수급·뉴스를 분석하는 중…</div>';
-      try { const R = await AI.run(code); box.innerHTML = AI.report(R); stLine(); } catch (e) { box.innerHTML = AI.gate(e.message); }
+      try { const R = await AI.run(code); box.innerHTML = AI.report(R); AI.bind(box, code); stLine(); } catch (e) { box.innerHTML = AI.gate(e.message); }
     }
     draw();
     return { data: () => {} };
@@ -1555,15 +1683,17 @@
         const np = $('#nPerm'); if (np) np.onclick = () => Notification.requestPermission().then(draw);
       } else {
         el.innerHTML = `<div class="grid g-2 stack">
-          <section class="panel"><div class="panel-h"><h3>화면 테마</h3></div><div class="panel-b"><div class="theme-pick"><button data-th="dark" class="${theme.get() === 'dark' ? 'on' : ''}"><span class="tp tp-dark"></span><b>다크</b></button><button data-th="light" class="${theme.get() === 'light' ? 'on' : ''}"><span class="tp tp-light"></span><b>화이트</b></button></div><div class="setting-row" style="margin-top:12px"><div><b>시세 상태</b><small>${statusLine()}</small></div><span></span></div><div class="setting-row"><div><b>음성 안내</b><small>주문 접수·체결·취소, 입출금 처리, 버프, 문의 답변을 음성으로 알려줍니다</small></div><label class="sw"><input type="checkbox" id="myVoice" ${Voice.on() ? 'checked' : ''}><span></span></label></div><div class="setting-row"><div><b>알림 소리</b><small>체결·입출금 처리·버프·문의 답변 시 알림음</small></div><label class="sw"><input type="checkbox" id="mySnd" ${(() => { try { return localStorage.getItem('mls.snd') !== '0'; } catch { return true; } })() ? 'checked' : ''}><span></span></label></div></div></section>
+          <section class="panel"><div class="panel-h"><h3>화면 테마</h3></div><div class="panel-b"><div class="theme-pick"><button data-th="dark" class="${theme.get() === 'dark' ? 'on' : ''}"><span class="tp tp-dark"></span><b>다크</b></button><button data-th="light" class="${theme.get() === 'light' ? 'on' : ''}"><span class="tp tp-light"></span><b>화이트</b></button></div><div class="setting-row" style="margin-top:12px"><div><b>시세 상태</b><small>${statusLine()}</small></div><span></span></div><div class="setting-row"><div><b>음성 안내</b><small>주문 접수·체결·취소, 입출금 처리, 버프, 문의 답변을 음성으로 알려줍니다</small></div><label class="sw"><input type="checkbox" id="myVoice" ${Voice.on() ? 'checked' : ''}><span></span></label></div><div class="setting-row"><div><b>알림 소리</b><small>체결·입출금 처리·버프·문의 답변 시 알림음</small></div><label class="sw"><input type="checkbox" id="mySnd" ${(() => { try { return localStorage.getItem('mls.snd') !== '0'; } catch { return true; } })() ? 'checked' : ''}><span></span></label></div><div class="setting-row"><div><b>주문 확인창 생략</b><small>켜면 매수·매도 버튼을 누르는 즉시 주문됩니다</small></div><label class="sw"><input type="checkbox" id="myNoConf" ${(() => { try { return localStorage.getItem('mls.noconf') === '1'; } catch { return false; } })() ? 'checked' : ''}><span></span></label></div></div></section>
           <section class="panel"><div class="panel-h"><h3>비밀번호 변경</h3></div><div class="panel-b"><form id="pwF"><div class="field"><label>현재 비밀번호</label><input class="input" type="password" name="o" autocomplete="current-password"></div><div class="field"><label>새 비밀번호 (6자 이상)</label><input class="input" type="password" name="n" autocomplete="new-password"></div><div class="field"><label>새 비밀번호 확인</label><input class="input" type="password" name="n2" autocomplete="new-password"></div><button class="btn btn-brand">변경</button></form></div></section>
           <section class="panel"><div class="panel-h"><h3>거래 조건</h3></div><div class="panel-b"><dl class="kv"><dt>국내 수수료</dt><dd>${S.st.feeKr}%</dd><dt>국내 매도 세금</dt><dd>${S.st.taxKr}%</dd><dt>미국 수수료</dt><dd>${S.st.feeUs}%</dd><dt>적용 환율</dt><dd>${U.n2(Market.fx())}원</dd><dt>장외시간 체결</dt><dd>${S.st.enforceHours ? '불가 (실제 장시간만)' : '허용'}</dd></dl></div></section>
           <section class="panel"><div class="panel-h"><h3>계좌</h3></div><div class="panel-b"><p class="muted" style="font-size:13px;margin-bottom:10px">계좌를 초기화하면 보유종목·주문·거래내역이 모두 삭제되고 예수금이 ${won(S.st.initialCash)}으로 다시 지급됩니다.${v.loan ? ' (버프 사용 중에는 먼저 상환해 주세요)' : ''}</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-danger" id="rstBtn" ${v.loan ? 'disabled' : ''}>계좌 초기화</button><button class="btn" id="outBtn">로그아웃</button>${u.role !== 'user' ? '<a class="btn" href="admin.html">관리자 페이지</a>' : ''}</div></div></section>
           ${u.role !== 'admin' ? `<section class="panel"><div class="panel-h"><h3>회원 탈퇴</h3></div><div class="panel-b"><p class="muted" style="font-size:13px;margin-bottom:10px">탈퇴하면 계좌·보유종목·주문·거래·입출금·문의·AI 구독 기록이 모두 삭제되고 되돌릴 수 없습니다.${v.loan ? ' MAX 버프를 먼저 상환해 주세요.' : ''}</p><button class="btn btn-danger" id="wdBtn" ${v.loan ? 'disabled' : ''}>회원 탈퇴</button></div></section>` : ''}</div>`;
         { const mv = $('#myVoice', el); if (mv) mv.onchange = () => { Voice.set(mv.checked); if (mv.checked) Voice.say('음성 안내를 켰습니다.'); }; }
+        { const nc = $('#myNoConf', el); if (nc) nc.onchange = () => { try { localStorage.setItem('mls.noconf', nc.checked ? '1' : '0'); } catch {} U.toast(nc.checked ? '이제 확인창 없이 바로 주문됩니다.' : '주문 전에 확인창을 띄웁니다.'); }; }
         { const ms = $('#mySnd', el); if (ms) ms.onchange = () => { try { localStorage.setItem('mls.snd', ms.checked ? '1' : '0'); } catch {} if (ms.checked) chime(); }; }
         $$('[data-th]', el).forEach((b) => (b.onclick = () => { theme.set(b.dataset.th); const tb = $('#themeBtn'); if (tb) tb.innerHTML = theme.get() === 'dark' ? ICON.sun : ICON.moon; draw(); }));
         $('#pwF').onsubmit = async (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); if (f.n !== f.n2) return U.toast('새 비밀번호가 일치하지 않습니다.', true); try { await Store.changePassword(f.o, f.n); e.target.reset(); U.toast('비밀번호가 변경되었습니다.'); } catch (er) { U.toast(er.message, true); } };
+        if (u.demo) { $$('#pwF input, #pwF button, #wdBtn', el).forEach((x) => (x.disabled = true)); const f = $('#pwF', el); if (f) f.insertAdjacentHTML('beforebegin', '<p class="dim" style="font-size:13px;margin:0 0 10px">테스트 계정은 비밀번호·정보를 바꾸거나 탈퇴할 수 없습니다.</p>'); }
         { const wd = $('#wdBtn', el); if (wd) wd.onclick = () => U.modal({ title: '회원 탈퇴', body: '<p class="muted" style="margin-top:0">모든 기록이 삭제되고 되돌릴 수 없습니다. 본인 확인을 위해 비밀번호를 입력하세요.</p><div class="field"><label>비밀번호</label><input class="input" type="password" id="wdPw" autocomplete="current-password"></div><div class="field"><label>탈퇴 사유 (선택)</label><input class="input" id="wdWhy" maxlength="100"></div>', foot: '<button class="btn" data-x>취소</button><button class="btn btn-danger" id="wdOk">탈퇴</button>', onMount: (m, close) => { $('#wdOk', m).onclick = async () => { try { await Store.deleteMe($('#wdPw', m).value, $('#wdWhy', m).value); close(); try { await Store.logout(); } catch {} U.toast('탈퇴가 완료되었습니다. 이용해 주셔서 감사합니다.'); setTimeout(() => location.reload(), 1200); } catch (e) { U.toast(e.message, true); } }; } }); }
         $('#rstBtn').onclick = async () => { if (await U.confirmBox('계좌 초기화', '<p>정말 초기화할까요? 되돌릴 수 없습니다.</p>', '초기화', 'btn-danger')) { await Store.resetAccount(); U.toast('계좌가 초기화되었습니다.'); } };
         $('#outBtn').onclick = async () => { await Store.logout(); location.hash = ''; location.reload(); };

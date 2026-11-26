@@ -44,7 +44,7 @@
     const nav = A.me.role === 'admin' ? NAV_ADMIN : NAV_INST;
     root.innerHTML = `<div class="app admin">
       <header class="topbar"><a href="#/${nav[0][0]}">${U.logo()}</a><span class="badge-mode">${A.me.role === 'admin' ? 'ADMIN' : 'MAX 리딩'}</span><div class="ticker" id="tk"></div>
-        <div class="top-actions"><a class="btn btn-sm hide-m" href="index.html">사용자 화면</a>${A.me.role === 'admin' ? `<button class="icon-btn bell" id="aBell" title="알림">${ICON.bell}<span class="bdg" id="aBellN" hidden></span></button><div class="notif-pop hidden" id="aPop"></div><button class="icon-btn" id="aSnd" title="알림 소리"></button>` : ''}<button class="icon-btn" id="th">${ICON.sun}</button><button class="user-chip" id="out" title="로그아웃"><span class="avatar">${esc(A.me.name.slice(0, 1))}</span><span class="nm">${esc(A.me.name)}</span></button></div></header>
+        ${A.me.role === 'admin' ? `<div class="search adm-q">${ICON.search}<input id="admQ" placeholder="회원 검색 (닉네임·아이디·연락처)  /" autocomplete="off"><div class="search-results hidden" id="admQr"></div></div>` : ''}<div class="top-actions"><a class="btn btn-sm hide-m" href="index.html">사용자 화면</a>${A.me.role === 'admin' ? `<button class="icon-btn bell" id="aBell" title="알림">${ICON.bell}<span class="bdg" id="aBellN" hidden></span></button><div class="notif-pop hidden" id="aPop"></div><button class="icon-btn" id="aSnd" title="알림 소리"></button>` : ''}<button class="icon-btn" id="th">${ICON.sun}</button><button class="user-chip" id="out" title="로그아웃"><span class="avatar">${esc(A.me.name.slice(0, 1))}</span><span class="nm">${esc(A.me.name)}</span></button></div></header>
       <aside class="sidebar"><nav class="nav"><div class="cap">${A.me.role === 'admin' ? 'ADMIN CONSOLE' : 'MAX 리딩'}</div>${nav.map(([r, l, i]) => `<a href="#/${r}" data-r="${r}">${i}<span>${l}</span>${['cash', 'buffs', 'inq', 'members', 'subs', 'partners', 'ops'].includes(r) ? `<span class="nbdg" id="nb-${r}" hidden></span>` : ''}</a>`).join('')}<div class="sep"></div><a href="index.html">${ICON.home}<span>사용자 화면</span></a></nav><div class="side-foot" id="sf"></div></aside>
       <main class="main" id="main"></main>
       <nav class="tabbar" style="grid-template-columns:repeat(${Math.min(5, nav.length + 1)},1fr)">${nav.slice(0, 4).map(([r, l, i]) => `<a href="#/${r}" data-r="${r}">${i}${l.split('·')[0]}</a>`).join('')}<a href="index.html">${ICON.home}사용자</a></nav>
@@ -445,8 +445,14 @@
       $('#caS').innerHTML = stat('승인 대기', p.length + '건', won(p.reduce((s, c) => s + c.amount, 0)), p.length ? 'brand' : '') + stat('오늘 입금 승인', won(ap.filter((c) => c.type === 'deposit').reduce((s, c) => s + c.amount, 0)), ap.filter((c) => c.type === 'deposit').length + '건', 'up') + stat('오늘 출금 승인', won(ap.filter((c) => c.type === 'withdraw').reduce((s, c) => s + c.amount, 0)), ap.filter((c) => c.type === 'withdraw').length + '건', 'down') + stat('자동 승인', A.st.autoApprove ? '사용 중' : '미사용', '<a class="brand" href="#/settings">설정 변경</a>');
       const st = { pending: ['대기', 'tag-wait'], approved: ['승인', 'tag-ok'], rejected: ['반려', 'tag-sell'], cancelled: ['회원취소', 'tag-no'] };
       const rows = all.filter((c) => (f === 'all' || c.status === f) && (ty === 'all' || c.type === ty));
-      $('#caL').innerHTML = rows.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>신청일시</th><th class="l">회원</th><th>구분</th><th>수단</th><th>금액</th><th class="hide-m">현재 예수금</th><th class="l hide-m">메모</th><th>상태</th><th></th></tr></thead><tbody>${rows.map((c) => { const bd = A.bundles.find((b) => b.user.id === c.userId); return `<tr><td class="dim">${U.dt(c.at)}</td><td class="l"><div class="sname"><b>${esc(c.name || '')}</b><small>${esc(c.username || '')}</small></div></td><td><span class="tag ${c.type === 'deposit' ? 'tag-buy' : 'tag-sell'}">${c.type === 'deposit' ? '입금' : '출금'}</span></td><td>${PAYN(c.method)}</td><td><b>${won(c.amount)}</b></td><td class="hide-m">${bd ? won(bd.user.cash) : '-'}</td><td class="l hide-m muted">${esc(c.memo || '')}${c.adminMemo ? ` · <span class="dim">${esc(c.adminMemo)}</span>` : ''}</td><td><span class="tag ${st[c.status][1]}">${st[c.status][0]}</span>${c.processedBy ? `<div class="dim" style="font-size:11px">${esc(c.processedBy)} · ${U.dt(c.processedAt)}</div>` : ''}</td><td>${c.status === 'pending' ? `<button class="btn btn-sm btn-brand" data-ap="${c.id}">승인</button> <button class="btn btn-sm" data-rj="${c.id}">반려</button>` : ''}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">해당 신청이 없습니다</div>';
+      const pendRows = rows.filter((c) => c.status === 'pending');
+      $('#caL').innerHTML = (pendRows.length >= 2 ? `<div class="bulk-bar"><span>대기 <b>${pendRows.length}</b>건 · ${won(pendRows.reduce((t, c) => t + c.amount, 0))}</span><button class="btn btn-sm btn-brand" id="caAll">대기 건 일괄 승인</button></div>` : '') + (rows.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>신청일시</th><th class="l">회원</th><th>구분</th><th>수단</th><th>금액</th><th class="hide-m">현재 예수금</th><th class="l hide-m">메모</th><th>상태</th><th></th></tr></thead><tbody>${rows.map((c) => { const bd = A.bundles.find((b) => b.user.id === c.userId); return `<tr><td class="dim">${U.dt(c.at)}</td><td class="l"><div class="sname"><b>${esc(c.name || '')}</b><small>${esc(c.username || '')}</small></div></td><td><span class="tag ${c.type === 'deposit' ? 'tag-buy' : 'tag-sell'}">${c.type === 'deposit' ? '입금' : '출금'}</span></td><td>${PAYN(c.method)}</td><td><b>${won(c.amount)}</b></td><td class="hide-m">${bd ? won(bd.user.cash) : '-'}</td><td class="l hide-m muted">${esc(c.memo || '')}${c.adminMemo ? ` · <span class="dim">${esc(c.adminMemo)}</span>` : ''}</td><td><span class="tag ${st[c.status][1]}">${st[c.status][0]}</span>${c.processedBy ? `<div class="dim" style="font-size:11px">${esc(c.processedBy)} · ${U.dt(c.processedAt)}</div>` : ''}</td><td>${c.status === 'pending' ? `<button class="btn btn-sm btn-brand" data-ap="${c.id}">승인</button> <button class="btn btn-sm" data-rj="${c.id}">반려</button>` : ''}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">해당 신청이 없습니다</div>');
       bindApprove(main);
+      const ca = $('#caAll'); if (ca) ca.onclick = async () => {
+        if (!(await U.confirmBox('일괄 승인', `<p>대기 중인 ${pendRows.length}건(${won(pendRows.reduce((t, c) => t + c.amount, 0))})을 모두 승인합니다.</p>`, '모두 승인'))) return;
+        let ok = 0, ng = 0; ca.disabled = true; for (const c of pendRows) { try { await Store.processCash(c.id, true); ok++; } catch { ng++; } }
+        U.toast(`${ok}건 승인${ng ? ` · ${ng}건 실패` : ''}`, !!ng); reload && reload();
+      };
     }
     data();
     return { data };
@@ -590,6 +596,7 @@
           <div class="setting-row"><div><b>MOA 토큰 원화 가격</b><small>0 이면 "시세 연동 예정"으로 표시 · 원화 기준 신청</small></div><input class="input" data-k="moaKrw" value="${s.moaKrw || 0}" inputmode="decimal" style="text-align:right"></div>
           <div class="setting-row"><div><b>MAX 포인트 1P 가치 (원)</b><small>충전 시 포인트 환산 기준</small></div><input class="input" data-k="maxpKrw" value="${s.maxpKrw || 1}" inputmode="decimal" style="text-align:right"></div>
         </div></section>
+        ${Store.mode !== 'local' ? `<section class="panel"><div class="panel-h"><h3>테스트 계정</h3><span class="dim" style="font-size:12px">로그인 화면에 표시 · 비밀번호·정보 변경, 탈퇴, 정지, 삭제 불가</span></div><div class="panel-b" id="demoAcc"><div class="empty">불러오는 중…</div></div></section>` : ''}
         <section class="panel"><div class="panel-h"><h3>데이터</h3></div><div class="panel-b">
           <p class="muted" style="font-size:13px;margin-bottom:12px">현재 모드: <b style="color:var(--text)">${Store.mode === 'local' ? '데모 모드 (브라우저 저장)' : '운영 모드 (서버 DB)'}</b>${Store.mode === 'local' ? '<br>여러 기기에서 회원 데이터를 공유하려면 server/ 폴더를 PHP 서버에 올리고 config.js 의 API_BASE 를 설정하세요.' : ''}</p>
           <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="exp">전체 데이터 백업 (JSON)</button>${Store.mode === 'local' ? '<button class="btn btn-danger" id="rst">데모 데이터 초기화</button>' : ''}</div>
@@ -599,12 +606,37 @@
       { const hs = $('#holSave'); if (hs) hs.onclick = async () => { const L = $('#hol').value.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean); const bad = L.filter((x) => !/^\d{4}-\d{2}-\d{2}$/.test(x)); if (bad.length) return U.toast('날짜 형식을 확인하세요: ' + bad[0], true); try { await Store.saveSettings({ krHolidays: L }); Market.setHolidays(L); U.toast('휴장일을 저장했습니다.'); } catch (e) { U.toast(e.message, true); } }; }
       $$('[data-b]', main).forEach((c) => (c.onchange = async () => { await Store.saveSettings({ [c.dataset.b]: c.checked }); U.toast('저장되었습니다.'); }));
       $$('[data-pm]', main).forEach((c) => (c.onchange = async () => { const pm = { ...(A.st.payMethods || {}) }; pm[c.dataset.pm] = c.checked; await Store.saveSettings({ payMethods: pm }); U.toast('저장되었습니다.'); }));
+      const demoBox = $('#demoAcc');
+      const demoDraw = async () => {
+        if (!demoBox) return; let L = []; try { L = await Store.demoList(); } catch (e) { demoBox.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+        demoBox.innerHTML = `<p class="muted" style="font-size:13px;margin:0 0 10px">여기 등록한 계정은 이용자 로그인 화면에 아이디·비밀번호가 그대로 보입니다. 누구나 들어와 써 볼 수 있게 비밀번호·정보 변경, 탈퇴, 주문 비밀번호 설정이 막히고, 관리자도 정지·권한·등급 변경·삭제를 할 수 없습니다.</p>
+          ${L.length ? `<div class="table-wrap"><table class="t"><thead><tr><th class="l">표시 이름</th><th class="l">아이디</th><th class="l">비밀번호</th><th>최근 접속</th><th></th></tr></thead><tbody>${L.map((a) => `<tr><td class="l"><b>${esc(a.label)}</b></td><td class="l"><code>${esc(a.id)}</code>${a.exists ? '' : ' <span class="tag tag-sell">계정 없음</span>'}</td><td class="l"><code>${esc(a.pw)}</code></td><td class="dim">${a.lastSeen ? U.dt(a.lastSeen) : '-'}</td><td><button class="btn btn-sm" data-dm="${esc(a.id)}">목록에서 빼기</button> <button class="btn btn-sm btn-danger" data-dmx="${esc(a.id)}">계정까지 삭제</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty" style="padding:12px">등록된 테스트 계정이 없습니다</div>'}
+          <div class="divider"></div><b style="font-size:13px">테스트 계정 추가</b>
+          <div class="grid g-4 stack" style="gap:8px;margin-top:8px"><input class="input" id="dmL" placeholder="표시 이름 (예: 체험용 1)" maxlength="20"><input class="input" id="dmI" placeholder="아이디 (영문·숫자 3~20자)" maxlength="20" autocomplete="off"><input class="input" id="dmP" placeholder="비밀번호 (4자 이상)" maxlength="40" autocomplete="off"><button class="btn btn-brand" id="dmAdd">추가</button></div>
+          <p class="dim" style="font-size:12px;margin:6px 0 0">없는 아이디면 새 계정을 만들고, 이미 있는 아이디면 그 계정의 비밀번호가 맞을 때 테스트 계정으로 지정합니다.</p>`;
+        $('#dmAdd', demoBox).onclick = async () => { try { await Store.demoAdd({ label: $('#dmL', demoBox).value, id: $('#dmI', demoBox).value, pw: $('#dmP', demoBox).value }); U.toast('테스트 계정을 추가했습니다. 로그인 화면에 바로 표시됩니다.'); demoDraw(); } catch (e) { U.toast(e.message, true); } };
+        $$('[data-dm]', demoBox).forEach((b) => (b.onclick = async () => { if (!(await U.confirmBox('테스트 계정 해제', `<p><b>${esc(b.dataset.dm)}</b>를 로그인 화면 목록에서 빼고 일반 계정으로 돌립니다. 계정과 거래 기록은 남습니다.</p>`))) return; try { await Store.demoRemove(b.dataset.dm, false); U.toast('목록에서 뺐습니다.'); demoDraw(); } catch (e) { U.toast(e.message, true); } }));
+        $$('[data-dmx]', demoBox).forEach((b) => (b.onclick = async () => { if (!(await U.confirmBox('테스트 계정 삭제', `<p><b>${esc(b.dataset.dmx)}</b> 계정과 거래 기록을 모두 삭제합니다. 되돌릴 수 없습니다.</p>`))) return; try { await Store.demoRemove(b.dataset.dmx, true); U.toast('삭제했습니다.'); demoDraw(); } catch (e) { U.toast(e.message, true); } }));
+      };
+      demoDraw();
       $('#exp').onclick = async () => { const j = await Store.exportDB(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([typeof j === 'string' ? j : JSON.stringify(j)], { type: 'application/json' })); a.download = `maxlife-backup-${U.today()}.json`; a.click(); };
       const r = $('#rst'); if (r) r.onclick = async () => { if (await U.confirmBox('데모 초기화', '<p>모든 회원·거래 데이터를 지우고 데모 데이터로 다시 시작합니다.</p>', '초기화', 'btn-danger')) { await Store.resetDemo(); location.href = 'admin.html'; } };
     }
     data();
     return { data };
   }
+
+  // 상단 회원 검색 (어느 화면에서든 / 키)
+  document.addEventListener('keydown', (e) => { if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { const q = $('#admQ'); if (q) { e.preventDefault(); q.focus(); } } });
+  document.addEventListener('input', (e) => {
+    if (e.target.id !== 'admQ') return; const k = e.target.value.trim().toLowerCase(); const box = $('#admQr'); if (!box) return;
+    if (!k) { box.classList.add('hidden'); return; }
+    const L = (A.users || []).filter((u) => [u.name, u.username, u.phone, u.email].some((x) => String(x || '').toLowerCase().includes(k))).slice(0, 10);
+    box.innerHTML = L.length ? L.map((u) => `<button data-qu="${u.id}"><span><b>${esc(u.name)}</b> <small class="dim">${esc(u.username)} · ${ROLE[u.role] || u.role}</small></span><small class="dim">${esc(u.phone || '')}</small></button>`).join('') : '<div class="sr-h">검색 결과 없음</div>';
+    box.classList.remove('hidden');
+  });
+  document.addEventListener('mousedown', (e) => { const b = e.target.closest('[data-qu]'); if (b) { e.preventDefault(); const q = $('#admQ'); if (q) { q.value = ''; q.blur(); } $('#admQr').classList.add('hidden'); memberDetail(b.dataset.qu); } else if (!e.target.closest('.adm-q')) { const r = $('#admQr'); if (r) r.classList.add('hidden'); } });
+  document.addEventListener('keydown', (e) => { if (e.target.id === 'admQ' && e.key === 'Enter') { const b = $('#admQr [data-qu]'); if (b) { e.target.value = ''; e.target.blur(); $('#admQr').classList.add('hidden'); memberDetail(b.dataset.qu); } } if (e.target.id === 'admQ' && e.key === 'Escape') { e.target.value = ''; e.target.blur(); $('#admQr').classList.add('hidden'); } });
 
   window.ADM_CORE = { A, head, stat, Poll, reload, memberDetail: (id) => memberDetail(id), val, GRADE, ROLE, PAYN, dayKey };
   boot().catch((e) => { console.error(e); root.innerHTML = `<div class="empty" style="padding:80px 20px">관리자 화면을 시작하지 못했습니다: ${esc(e.message)}</div>`; });

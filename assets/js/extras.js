@@ -34,7 +34,7 @@
 
   // 팝업 (오늘 하루 보지 않기)
   async function popups() {
-    const d = await PUB.get(); const L = (d.popups || []).filter((p) => ls.get('mls.pp.' + p.id) !== today());
+    const d = await PUB.get(); const ss = (k) => { try { return sessionStorage.getItem(k); } catch { return null; } }; const L = (d.popups || []).filter((p) => ls.get('mls.pp.' + p.id) !== today() && !ss('mls.pps.' + p.id));
     const show = (i) => {
       const p = L[i]; if (!p) return;
       U.modal({ title: p.title, body: `${p.image ? `<img src="${esc(p.image)}" alt="" style="width:100%;border-radius:8px;margin-bottom:12px">` : ''}<div style="line-height:1.7">${esc(p.body || '').replace(/\n/g, '<br>')}</div>`,
@@ -42,7 +42,7 @@
         onMount: (m, close) => {
           const next = () => setTimeout(() => show(i + 1), 250);
           $('#ppNo', m).onclick = () => { ls.set('mls.pp.' + p.id, today()); close(); next(); };
-          $$('[data-x]', m).forEach((b) => b.addEventListener('click', next));
+          $$('[data-x]', m).forEach((b) => b.addEventListener('click', () => { try { sessionStorage.setItem('mls.pps.' + p.id, '1'); } catch {} next(); }));
           const g = $('#ppGo', m); if (g) g.addEventListener('click', () => { close(); });
         } });
     };

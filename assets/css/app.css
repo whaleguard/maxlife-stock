@@ -465,10 +465,10 @@ td.ck input, th.ck input { width: 16px; height: 16px; accent-color: var(--brand)
 .ses-card.ext .sc-h b i { background: var(--warn); }
 .ses-card .sc-h span { color: var(--text-2); }
 .ses-card .sc-t { display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; }
-.ses-card .sc-t span { flex: 1 0 auto; padding: 6px 8px; border-radius: 6px; background: var(--surface-2); font-size: 11px; color: var(--text-3); text-align: center; white-space: nowrap; }
-.ses-card .sc-t span em { display: block; font-style: normal; font-weight: 600; color: var(--text-2); font-size: 12px; }
-.ses-card .sc-t span.cur { background: var(--brand-soft); color: var(--brand); outline: 1px solid var(--brand); }
-.ses-card .sc-t span.cur em { color: var(--brand); }
+.ses-card .sc-t :is(span,button) { flex: 1 0 auto; padding: 6px 8px; border-radius: 6px; background: var(--surface-2); font-size: 11px; color: var(--text-3); text-align: center; white-space: nowrap; }
+.ses-card .sc-t :is(span,button) em { display: block; font-style: normal; font-weight: 600; color: var(--text-2); font-size: 12px; }
+.ses-card .sc-t :is(span,button).cur { background: var(--brand-soft); color: var(--brand); outline: 1px solid var(--brand); }
+.ses-card .sc-t :is(span,button).cur em { color: var(--brand); }
 @media (max-width: 760px) { .ses-strip { grid-template-columns: 1fr; } }
 .ses-strip > * { min-width: 0; }
 /* 단축키 */
@@ -739,7 +739,7 @@ body { font-variant-numeric: tabular-nums lining-nums; line-height: 1.45; }
 .seg button.on { font-weight: 700; }
 
 /* 홈 배치: 왼쪽 자산·랭킹 / 오른쪽 시장·관심·보유·리딩 */
-.home-grid { display: grid; grid-template-columns: minmax(0, 2.05fr) minmax(0, 1fr); grid-template-areas: "notice notice" "sessions sessions" "assets market" "ranking rail"; align-items: start; gap: 16px; }
+.home-grid { display: grid; grid-template-columns: minmax(0, 2.05fr) minmax(0, 1fr); grid-template-areas: "notice notice" "todo todo" "sessions sessions" "assets market" "ranking rail"; align-items: start; gap: 16px; }
 .home-grid > *, .home-market > *, .home-rail > * { min-width: 0; }
 .home-notice { grid-area: notice; } .home-notice:empty { display: none; }
 .home-sessions { grid-area: sessions; } .home-sessions > * { margin-bottom: 0 !important; }
@@ -756,7 +756,7 @@ body { font-variant-numeric: tabular-nums lining-nums; line-height: 1.45; }
 .home-assets-meta .v { font-size: 18px !important; font-weight: 700; }
 .home-market .slist .row { min-height: 52px; }
 @media (max-width: 1023px) {
-  .home-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "notice" "sessions" "assets" "watchlist" "ranking" "market" "holdings" "reading"; gap: 12px; }
+  .home-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "notice" "todo" "sessions" "assets" "watchlist" "ranking" "market" "holdings" "reading"; gap: 12px; }
   .home-rail { display: contents; } .home-watchlist { grid-area: watchlist; } .home-holdings { grid-area: holdings; } .home-reading { grid-area: reading; }
   .home-assets-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -769,7 +769,7 @@ body { font-variant-numeric: tabular-nums lining-nums; line-height: 1.45; }
 @media (max-width: 599px) {
   .home-ranking-filters .seg { flex: 1 1 100%; } .home-ranking-filters .seg button { white-space: nowrap; padding: 0 6px; }
   .ses-card .sc-t { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; overflow: visible; }
-  .ses-card .sc-t span { min-width: 0; }
+  .ses-card .sc-t :is(span,button) { min-width: 0; }
 }
 
 /* 검수 수정 */
@@ -833,3 +833,38 @@ html:not([lang="ko"]) .tabbar a span, html:not([lang="ko"]) .tabbar a { word-bre
 html:not([lang="ko"]) .side a, html:not([lang="ko"]) .side-nav a { line-height: 1.25; }
 @media (max-width: 760px) { .adm-lang.in-top { margin-right: 2px; } .adm-lang.in-top button { padding: 5px 6px; } }
 @media (min-width: 761px) { html:not([lang="ko"]) .app.admin { grid-template-columns: 208px 1fr; } html:not([lang="ko"]) .app.admin .sidebar .nav a { white-space: nowrap; } }
+
+.ses-card .sc-t button { font: inherit; color: inherit; border: 0; cursor: pointer; }
+.ses-pop b { display: block; font-size: 16px; margin-bottom: 8px; } .ses-pop p { margin: 6px 0; line-height: 1.6; } .ses-pop .up { font-weight: 800; font-size: 18px; }
+
+/* AI 결론 카드 */
+.ai-verdict { margin: 4px 0 14px; padding: 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); }
+.ai-verdict.v-up2, .ai-verdict.v-up { border-color: color-mix(in srgb, var(--up) 45%, transparent); } .ai-verdict.v-down2, .ai-verdict.v-down { border-color: color-mix(in srgb, var(--down) 45%, transparent); }
+.av-h { display: flex; gap: 10px; align-items: center; } .av-h p { margin: 0; font-size: 14px; line-height: 1.5; } .av-h .ai-badge { flex: 0 0 auto; font-size: 14px; }
+.av-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 6px; margin-top: 12px; }
+.av-g > div { padding: 9px 10px; border-radius: 8px; background: var(--surface); min-width: 0; } .av-g small { display: block; font-size: 11px; color: var(--text-3); } .av-g b { display: block; font-size: 14px; margin-top: 2px; line-height: 1.35; word-break: keep-all; } .av-g em { display: block; font-style: normal; font-size: 11px; font-weight: 600; opacity: .85; }
+.ai-mine { display: grid; grid-template-columns: auto auto 1fr; gap: 6px 16px; align-items: center; margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--brand) 10%, transparent); border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent); }
+.ai-mine small { display: block; font-size: 11px; color: var(--text-3); } .ai-mine b { font-size: 14px; } .ai-mine p { margin: 0; font-size: 13px; line-height: 1.5; }
+.av-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; } .av-two small { font-weight: 700; font-size: 12px; } .av-two ul { margin: 4px 0 0; padding-left: 16px; font-size: 13px; line-height: 1.6; color: var(--text); }
+.av-act { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+.ai-start { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 28px 20px; } .ai-start p { max-width: 520px; margin: 0; line-height: 1.6; } .ai-start .ai-ic svg { width: 32px; height: 32px; color: var(--brand); }
+@media (max-width: 760px) { .av-g { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ai-mine { grid-template-columns: 1fr 1fr; } .ai-mine p { grid-column: 1 / -1; } .av-two { grid-template-columns: 1fr; } }
+
+.rc-bar { display: flex; gap: 6px; align-items: center; overflow-x: auto; padding: 10px 16px 0; scrollbar-width: none; } .rc-bar::-webkit-scrollbar { display: none; }
+.rc-bar > .dim { font-size: 11px; flex: 0 0 auto; }
+.rc-chip { flex: 0 0 auto; display: inline-flex; gap: 6px; align-items: center; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; white-space: nowrap; }
+.rc-chip:hover { border-color: var(--brand); } .rc-chip b { font-weight: 600; }
+.sr-h { padding: 8px 12px 4px; font-size: 11px; color: var(--text-3); }
+
+.todo-strip { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 12px; scrollbar-width: none; } .todo-strip::-webkit-scrollbar { display: none; }
+.todo { flex: 0 0 auto; min-width: 120px; padding: 10px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); }
+.todo small { display: block; font-size: 11px; color: var(--text-3); } .todo b { display: block; font-size: 14px; margin-top: 2px; white-space: nowrap; }
+.todo:hover { border-color: var(--brand); } .todo.warn { border-color: color-mix(in srgb, var(--warn, #f5b94a) 60%, transparent); } .todo.warn b { color: var(--warn, #f5b94a); }
+
+.adm-q { flex: 0 1 300px; margin-left: 12px; position: relative; } .adm-q input { width: 100%; }
+.bulk-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--brand) 8%, transparent); font-size: 13px; }
+@media (max-width: 760px) { .adm-q { flex: 1 1 auto; margin-left: 6px; min-width: 0; } .adm-q input { font-size: 13px; } }
+
+.home-grid > .todo-strip { grid-area: todo; margin: 0; }
+@media (max-width: 760px) { .adm-q { display: none; } .adm-lang.in-top button { padding: 4px 5px; font-size: 10px; white-space: nowrap; } }
+.adm-lang button { white-space: nowrap; }
