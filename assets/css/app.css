@@ -806,3 +806,16 @@ body { font-variant-numeric: tabular-nums lining-nums; line-height: 1.45; }
 .ind-c i { position: absolute; inset: 0; opacity: calc(var(--a) * .16); } .ind-c i.u { background: var(--up); } .ind-c i.d { background: var(--down); }
 .pin-in { letter-spacing: .5em; font-size: 20px; text-align: center; font-weight: 800; }
 .fin-t td, .fin-t th { white-space: nowrap; }
+
+/* AI 매집·자금조달 분석 */
+.ai-sec { margin-top: 16px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.ai-sec-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; } .ai-sec-h .ai-h { margin: 0; }
+.ai-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; margin-bottom: 10px; }
+.ai-chips > div { padding: 9px 10px; border-radius: 8px; background: var(--surface-2); min-width: 0; }
+.ai-chips small { display: block; font-size: 11px; color: var(--text-3); } .ai-chips b { display: block; font-size: 14px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ai-chips em { display: block; font-style: normal; font-size: 11px; color: var(--text-3); }
+.ai-t { margin-top: 10px; font-size: 12px; } .ai-t td, .ai-t th { white-space: nowrap; }
+.ai-ev { margin-top: 10px; font-size: 12px; } .ai-ev summary { cursor: pointer; color: var(--brand); font-weight: 600; }
+.ai-ev ul { list-style: none; margin: 8px 0 0; padding: 0; } .ai-ev li { display: flex; gap: 8px; align-items: baseline; padding: 5px 0; border-bottom: 1px dashed var(--border); line-height: 1.5; } .ai-ev li .dim { flex: 0 0 76px; } .ai-ev li .tag { flex: 0 0 auto; }
+.ai-note { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--warn, #f5b94a) 10%, transparent); border: 1px solid color-mix(in srgb, var(--warn, #f5b94a) 35%, transparent); font-size: 12px; }
+.ai-note p { margin: 4px 0 0; line-height: 1.6; color: var(--text-2); }
+@media (max-width: 760px) { .ai-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ai-sec { padding: 12px 10px; } .ai-ev li { flex-wrap: wrap; } .ai-ev li .dim { flex-basis: auto; } }

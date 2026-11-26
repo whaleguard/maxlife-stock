@@ -1346,8 +1346,9 @@
     async run(code) {
       const q = Market.quote(code); if (!q) throw new Error('종목을 찾을 수 없습니다.');
       this.st = await Store.aiUse(code); // 이용 한도 확인·차감 (오늘 본 종목은 차감 안 함)
-      const [c, info] = await Promise.all([Market.candles(code, 'D'), q.currency === 'KRW' ? Market.info(code) : Promise.resolve(null)]);
-      return AICore.analyze({ bars: c.data, price: q.price, code, name: q.name, currency: q.currency, info });
+      const kr = q.currency === 'KRW' && /^[0-9A-Z]{6}$/.test(code);
+      const [c, info, funding] = await Promise.all([Market.candles(code, 'D'), q.currency === 'KRW' ? Market.info(code) : Promise.resolve(null), kr && Store.funding ? Store.funding(code).catch(() => null) : Promise.resolve(null)]);
+      return AICore.analyze({ bars: c.data, price: q.price, code, name: q.name, currency: q.currency, info, funding: funding && Array.isArray(funding.docs) ? funding : null });
     },
     gate(msg) {
       return `<div class="ai-gate"><div class="ai-ic">${ICON.spark}</div><b>${esc(msg || 'AI 분석을 이용할 수 없습니다.')}</b><p class="muted">AI 월정액을 구독하면 매일 더 많은 종목을 분석하고, 매일 갱신되는 AI 추천종목 전체를 볼 수 있습니다.${S.user.cardTier ? '' : ' MAX DAY LIFE 카드 회원은 베이직 혜택이 무료입니다.'}</p><a class="btn btn-brand" href="#/ai/sub">AI 월정액 보기</a></div>`;
@@ -1355,28 +1356,54 @@
     px(x, ccy) { return ccy === 'USD' ? '$' + (+x).toFixed(2) : n0(U.roundTick(x, 'KRW')) + '원'; },
     report(R, compact) {
       if (!R || !R.ok) return `<div class="empty">${esc((R && R.reason) || '분석할 수 없습니다.')}</div>`;
-      const K = { trend: '추세', momentum: '모멘텀', supply: '수급', volume: '거래량', position: '가격 위치', value: '재무·가치', news: '뉴스·공시' };
+      const K = { trend: '추세', momentum: '모멘텀', supply: '수급', volume: '거래량', position: '가격 위치', value: '재무·가치', news: '뉴스·공시', flow: '매집 흔적', funding: '자금조달' };
       const deg = Math.round((R.score / 100) * 180);
       const L = R.levels, I = R.ind, c = R.currency;
       return `<div class="ai-rep">
         <div class="ai-top"><div class="ai-gauge" style="--d:${deg}deg"><div class="g-arc"></div><div class="g-v"><b>${R.score}</b><small>/100</small></div></div>
           <div class="ai-op"><span class="ai-badge ${R.tone}">${R.opinion}</span><h3>${esc(R.name)} <small class="dim">${R.code}</small></h3><p>${esc(R.summary)}</p></div></div>
-        <div class="ai-bars">${Object.keys(K).map((k) => `<div class="ai-bar"><span>${K[k]}</span><div><i style="width:${(R.scores[k] / R.max[k]) * 100}%"></i></div><b>${R.scores[k]}<small>/${R.max[k]}</small></b></div>`).join('')}</div>
+        <div class="ai-bars">${Object.keys(K).filter((k) => R.max[k]).map((k) => `<div class="ai-bar"><span>${K[k]}</span><div><i style="width:${(R.scores[k] / R.max[k]) * 100}%"></i></div><b>${R.scores[k]}<small>/${R.max[k]}</small></b></div>`).join('')}</div>
         <div class="ai-lv">${[['손절 기준', L.stop, 'down'], ['1차 지지', L.support, ''], ['현재가', R.price, 'cur'], ['1차 저항', L.resist, ''], ['2차 목표', L.target2, 'up']].map(([n, v, k]) => `<div class="${k}"><small>${n}</small><b>${this.px(v, c)}</b></div>`).join('')}</div>
         <p class="dim" style="font-size:12px;margin:6px 0 14px">손익비(1차 저항까지 기대수익 ÷ 손절 시 손실) ${L.rr.toFixed(2)} · ${L.rr >= 2 ? '유리한 구간' : L.rr >= 1 ? '보통' : '불리한 구간 — 눌림 확인 후 접근'}</p>
         <div class="grid g-2 stack" style="gap:14px">
           <div><h4 class="ai-h">판단 근거</h4><ul class="ai-f">${R.factors.map(([t, x]) => `<li class="${t === '+' ? 'p' : 'n'}"><i>${t === '+' ? '▲' : '▼'}</i>${esc(x)}</li>`).join('') || '<li>특이 신호 없음</li>'}</ul></div>
           <div><h4 class="ai-h">주요 지표</h4><dl class="kv ai-kv"><dt>RSI(14)</dt><dd>${I.rsi != null ? I.rsi.toFixed(1) : '-'}</dd><dt>MACD 히스토그램</dt><dd class="${cls(I.hist || 0)}">${I.hist != null ? (I.hist > 0 ? '+' : '') + (c === 'USD' ? I.hist.toFixed(2) : n0(I.hist)) : '-'}</dd><dt>이평선 5/20/60</dt><dd>${[I.ma5, I.ma20, I.ma60].map((x) => (x ? this.px(x, c) : '-')).join(' · ')}</dd><dt>변동성(ATR)</dt><dd>${I.atrPct.toFixed(1)}%</dd><dt>거래량(5일/20일)</dt><dd>${I.volR.toFixed(2)}배</dd><dt>52주 위치</dt><dd>${(I.pos52 * 100).toFixed(0)}% (${this.px(I.lo52, c)} ~ ${this.px(I.hi52, c)})</dd><dt>수익률 5·20·60일</dt><dd>${[I.r5, I.r20, I.r60].map((x) => (x == null ? '-' : `<span class="${cls(x)}">${pct(x)}</span>`)).join(' · ')}</dd>${I.per != null ? `<dt>PER · 추정PER · PBR</dt><dd>${I.per ?? '-'} · ${I.cper ?? '-'} · ${I.pbr ?? '-'}</dd>` : ''}</dl></div>
         </div>
+        ${this.deep(R)}
         ${R.news && R.news.length ? `<h4 class="ai-h" style="margin-top:14px">뉴스·리포트 감성</h4><ul class="ai-f">${R.news.map((n) => `<li class="${n.s >= 0 ? 'p' : 'n'}"><i>${n.s >= 0 ? '＋' : '－'}</i>${esc(n.t)}</li>`).join('')}</ul>` : ''}
-        <div class="ai-foot">${compact ? `<a class="btn btn-sm" href="#/ai/analyze/${R.code}">전체 화면으로 보기</a>` : `<a class="btn btn-sm btn-brand" href="#/stock/${R.code}">주문 화면으로</a>`}<span class="dim">${U.dt(R.at)} 분석 · 차트(일봉)·이동평균·RSI·MACD·볼린저·거래량·외국인/기관 수급·PER/PBR·뉴스/리포트 제목을 종합한 알고리즘 결과이며, 투자 권유가 아닙니다. 최종 판단과 책임은 투자자 본인에게 있습니다.</span></div>
+        <div class="ai-foot">${compact ? `<a class="btn btn-sm" href="#/ai/analyze/${R.code}">전체 화면으로 보기</a>` : `<a class="btn btn-sm btn-brand" href="#/stock/${R.code}">주문 화면으로</a>`}<span class="dim">${U.dt(R.at)} 분석 · 차트(일봉)·이동평균·RSI·MACD·볼린저·거래량·외국인/기관 수급·대량거래·OBV 패턴·CB/BW/유상증자 공시·PER/PBR·뉴스/리포트 제목을 종합한 알고리즘 결과이며, 투자 권유가 아닙니다. 최종 판단과 책임은 투자자 본인에게 있습니다.</span></div>
       </div>`;
     },
+    // 매집·세력 흔적 + 자금조달(CB·BW·유상증자) 상세
+    deep(R) {
+      const FL = R.flow, FU = R.fund, c = R.currency, px = (x) => (x ? this.px(x, c) : '-'); let h = '';
+      if (FL) {
+        const tone = FL.score >= 7 ? ['매집 우세', 'tag-ok'] : FL.score <= 3 ? ['분산 우세', 'tag-sell'] : ['중립', 'tag-no'];
+        h += `<section class="ai-sec"><div class="ai-sec-h"><h4 class="ai-h">매집 · 세력 흔적</h4><span class="tag ${tone[1]}">${tone[0]} ${FL.score}/10</span></div>
+          <div class="ai-chips"><div><small>OBV 20일</small><b class="${cls(FL.obvChg)}">${FL.obvChg >= 0 ? '+' : ''}${FL.obvChg.toFixed(2)}</b><em>주가 ${pct(FL.priceChg)}</em></div><div><small>자금흐름 CMF</small><b class="${cls(FL.cmf)}">${FL.cmf.toFixed(2)}</b><em>${FL.cmf > 0.05 ? '매수 우위' : FL.cmf < -0.05 ? '매도 우위' : '균형'}</em></div><div><small>상승/하락일 거래량</small><b>${FL.udr.toFixed(2)}배</b><em>20일</em></div><div><small>매집형 / 분산형 대량거래</small><b><span class="up">${FL.acc}</span> / <span class="down">${FL.dist}</span></b><em>120일</em></div><div><small>대량거래 평균 단가 (추정)</small><b>${px(FL.cost)}</b><em>${FL.cost ? `현재가 ${pct((R.price / FL.cost - 1) * 100)}` : '대량거래 없음'}</em></div><div><small>외국인 · 기관 연속 순매수</small><b>${FL.fS}일 · ${FL.oS}일</b><em>${FL.hNow != null ? `외국인 보유 ${FL.hNow.toFixed(2)}%` : '국내 종목'}</em></div></div>
+          <ul class="ai-f">${FL.factors.map(([t, x]) => `<li class="${t === '+' ? 'p' : 'n'}"><i>${t === '+' ? '▲' : '▼'}</i>${esc(x)}</li>`).join('') || '<li>뚜렷한 매집·분산 흔적이 없습니다</li>'}</ul>
+          ${FL.big.length ? `<div class="table-wrap"><table class="t ai-t"><thead><tr><th>대량거래일</th><th>평소 대비</th><th>등락률</th><th>종가 위치</th><th>판단</th></tr></thead><tbody>${FL.big.map((x) => `<tr><td class="dim">${U.date(x.t)}</td><td><b>${x.x.toFixed(1)}배</b></td><td class="${cls(x.ret)}">${pct(x.ret)}</td><td>${x.loc >= 0.66 ? '고가권' : x.loc <= 0.33 ? '저가권' : '중간'}</td><td>${x.ret <= -7 ? '<span class="tag tag-sell">급락·투매</span>' : x.loc >= 0.55 && x.up < 0.35 ? '<span class="tag tag-ok">매집형</span>' : x.up >= 0.45 && x.loc < 0.45 ? '<span class="tag tag-sell">윗꼬리·분산형</span>' : '<span class="tag tag-no">중립</span>'}</td></tr>`).join('')}</tbody></table></div>` : ''}
+        </section>`;
+      }
+      if (FU) {
+        const I = FU.instruments, kn = { CB: 'CB', BW: 'BW', EB: 'EB', CPS: '전환우선주' };
+        h += `<section class="ai-sec"><div class="ai-sec-h"><h4 class="ai-h">자금조달 · 주식 희석 (CB · BW · 유상증자)</h4><span class="tag ${FU.score >= 7 ? 'tag-ok' : FU.score <= 4 ? 'tag-sell' : 'tag-wait'}">${FU.score}/10</span></div>
+          <div class="ai-chips"><div><small>미전환 사채·전환주</small><b>${I.length}건</b><em>${I.length ? '잔액 ' + this.won(I.reduce((s, o) => s + (o.bal || 0), 0)) : '-'}</em></div><div><small>전환 시 늘어나는 주식</small><b>${FU.sumSh ? n0(Math.round(FU.sumSh)) + '주' : '-'}</b><em>${FU.dil != null ? '주식총수의 ' + FU.dil.toFixed(2) + '%' : '-'}</em></div><div><small>지금 전환하면 차익인 물량</small><b class="${FU.itmSh ? 'down' : ''}">${FU.itmSh ? n0(Math.round(FU.itmSh)) + '주' : '없음'}</b><em>${FU.itmP != null && FU.itmSh ? FU.itmP.toFixed(2) + '% · 오버행' : '전환가 > 현재가'}</em></div><div><small>최근 1년 조달 공시</small><b>${FU.n12}건</b><em>리픽싱 ${FU.downs} · 조기상환 ${FU.puts}</em></div></div>
+          ${I.length ? `<div class="table-wrap"><table class="t ai-t"><thead><tr><th class="l">종류·회차</th><th>미전환 잔액</th><th>전환가 (최초→현재)</th><th>현재가/전환가</th><th>전환 가능 주식</th><th>전환 청구</th><th class="hide-m">리픽싱 하한</th></tr></thead><tbody>${I.map((o) => `<tr><td class="l"><b>${kn[o.kind] || o.kind}${o.round ? ' ' + o.round + '회' : ''}</b>${(o.investors || []).some((v) => /본인|최대주주|특수관계/.test(v.rel)) ? ' <span class="tag tag-brand">대주주 참여</span>' : ''}</td><td>${o.bal != null ? this.won(o.bal) : '-'}</td><td>${o.price0 && o.price0 !== o.price ? `<span class="dim">${n0(o.price0)}→</span>` : ''}<b>${n0(o.price)}원</b></td><td class="${o.parity >= 100 ? 'up' : 'down'}"><b>${o.parity != null ? o.parity.toFixed(0) + '%' : '-'}</b></td><td>${o.shares ? n0(Math.round(o.shares)) + '주' : '-'}${FU.total && o.shares ? `<small class="dim"> (${((o.shares / FU.total) * 100).toFixed(2)}%)</small>` : ''}</td><td>${o.open ? `<span class="tag ${o.parity >= 100 ? 'tag-sell' : 'tag-wait'}">전환 가능</span>` : o.days != null ? `<span class="tag tag-no">D-${o.days}</span>` : '-'}<small class="dim" style="display:block">${o.from ? o.from.slice(2).replace(/-/g, '.') : ''}${o.to ? ' ~ ' + o.to.slice(2).replace(/-/g, '.') : ''}</small></td><td class="hide-m">${o.floorPx ? n0(Math.round(o.floorPx)) + '원' : '-'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty" style="padding:14px">미전환 CB·BW·전환우선주가 확인되지 않습니다</div>'}
+          <ul class="ai-f">${FU.factors.map(([t, x]) => `<li class="${t === '+' ? 'p' : 'n'}"><i>${t === '+' ? '▲' : '▼'}</i>${esc(x)}</li>`).join('') || '<li>특이 사항 없음</li>'}</ul>
+          ${FU.events.length ? `<details class="ai-ev"><summary>자금조달 공시 흐름 ${FU.events.length}건</summary><ul>${FU.events.map((e) => `<li><span class="dim">${e.at}</span><span class="tag ${e.t === 'down' || e.t === 'put' || e.t === 'conv' ? 'tag-sell' : e.t === 'up' ? 'tag-ok' : 'tag-wait'}">${{ issue: '발행', rights: '증자', down: '전환가↓', up: '전환가↑', put: '조기상환', conv: '전환 상장' }[e.t] || '공시'}</span>${esc(e.txt)}</li>`).join('')}</ul></details>` : ''}
+          <div class="ai-note"><b>전환가(발행가)와 주가의 관계</b><p>사채 투자자는 주가가 전환가보다 높으면 주식으로 바꿔 팔아 차익을 냅니다. 그래서 전환가 위에서는 전환 매물(오버행)이 상승을 누르는 경우가 많습니다. 주가가 전환가보다 낮으면 리픽싱으로 전환가를 내리거나(보통 최초의 70%까지), 조기상환(풋옵션)으로 원금과 이자를 돌려받습니다. 그래서 투자자는 주가가 오르지 않아도 손실을 피할 수 있습니다. 따라서 "발행가 이상은 반드시 간다"는 보장은 없습니다. 전환가는 참고 가격대로만 보세요.</p></div>
+          <p class="dim" style="font-size:11px;margin:6px 0 0">최근 공시 ${FU.since ? FU.since.slice(0, 10) + ' 이후 ' : ''}자동 판독 결과 (금융감독원·한국거래소 공시, 네이버 증권 경유)${FU.partial ? ' · 일부 공시는 불러오는 중입니다. 잠시 후 다시 분석하면 반영됩니다' : ''}. 잔액·전환 주식 수는 공시 기준 추정치입니다.</p>
+        </section>`;
+      }
+      return h;
+    },
+    won(x) { const a = Math.abs(x || 0); return a >= 1e12 ? (x / 1e12).toFixed(2).replace(/\.?0+$/, '') + '조' : a >= 1e8 ? n0(Math.round(x / 1e8)) + '억' : n0(x) + '원'; },
     bind() {},
   };
   function AiPage(main, sub, arg) {
     let tab = ['picks', 'analyze', 'holdings', 'sub'].includes(sub) ? sub : 'picks'; let mk = 'kr';
-    main.innerHTML = `${head('MAX AI 분석', '차트·그래프·수급·재무·뉴스와 공시를 AI 알고리즘으로 분석해 종목 점수와 매매 구간을 알려드립니다.', '<span id="aiSt"></span>')}
+    main.innerHTML = `${head('MAX AI 분석', '차트·수급·매집 흔적·CB/BW 자금조달·재무·뉴스와 공시를 AI 알고리즘으로 분석해 종목 점수와 매매 구간을 알려드립니다.', '<span id="aiSt"></span>')}
       <div class="tabs" id="aiTab" style="margin-bottom:16px">${[['picks', '오늘의 AI 추천종목'], ['analyze', '종목 분석'], ['holdings', '내 보유종목 진단'], ['sub', 'AI 월정액']].map(([k, n]) => `<button data-v="${k}" class="${k === tab ? 'on' : ''}">${n}</button>`).join('')}</div>
       <div id="aiBody"></div>`;
     $('#aiTab').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; tab = b.dataset.v; history.replaceState(null, '', '#/ai/' + tab); $$('#aiTab button').forEach((x) => x.classList.toggle('on', x === b)); draw(); };
