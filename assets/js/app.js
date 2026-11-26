@@ -601,10 +601,10 @@
     let lastPx = null;
     function renderSum() {
       const q = Market.quote(code); const el = $('#sSum'); if (!el || !q) return; const tk = Market.ticks(code);
-      const bv = tk.filter((t) => t.side > 0).reduce((s2, t) => s2 + t.v, 0), sv = tk.filter((t) => t.side < 0).reduce((s2, t) => s2 + t.v, 0); const str = sv ? (bv / sv) * 100 : bv ? 200 : null;
+      const bv = tk.filter((t) => t.side > 0).reduce((s2, t) => s2 + t.v, 0), sv = tk.filter((t) => t.side < 0).reduce((s2, t) => s2 + t.v, 0); const ns = tk.filter((t) => t.side).length; const str = ns < 6 ? null : sv ? Math.min(999, (bv / sv) * 100) : 999;
       const h52 = q.high52 || (y52 && y52.hi), l52 = q.low52 || (y52 && y52.lo); const val = q.value || q.price * q.volume * (q.currency === 'USD' ? Market.fx() : 1);
       const pos52 = h52 && l52 && h52 > l52 ? Math.max(0, Math.min(100, ((q.price - l52) / (h52 - l52)) * 100)) : null;
-      el.innerHTML = `<div><small>체결강도</small><b class="${str == null ? '' : str >= 100 ? 'up' : 'down'}">${str == null ? '-' : str.toFixed(1) + '%'}</b></div><div><small>거래대금</small><b>${q.currency === 'USD' ? U.usd(q.value || q.price * q.volume) : compact(val) + '원'}</b></div><div><small>시가총액</small><b>${q.marketCap ? (q.currency === 'USD' ? '$' + compact(q.marketCap) : compact(q.marketCap) + '원') : '-'}</b></div>
+      el.innerHTML = `<div title="최근 실시간 체결의 매수 체결량 ÷ 매도 체결량 × 100"><small>체결강도</small><b class="${str == null ? '' : str >= 100 ? 'up' : 'down'}">${str == null ? '집계 중' : str.toFixed(1) + '%'}</b></div><div><small>거래대금</small><b>${q.currency === 'USD' ? U.usd(q.value || q.price * q.volume) : compact(val) + '원'}</b></div><div><small>시가총액</small><b>${q.marketCap ? (q.currency === 'USD' ? '$' + compact(q.marketCap) : compact(q.marketCap) + '원') : '-'}</b></div>
         <div class="q52"><small>52주 최저 · 최고</small><b>${l52 ? px(l52, q.currency) : '-'} <span class="dim">~</span> ${h52 ? px(h52, q.currency) : '-'}</b>${pos52 != null ? `<span class="q52-bar"><i style="left:${pos52}%"></i></span>` : ''}</div>`;
     }
     $('#sEasy').onclick = () => { try { localStorage.setItem('mls.easy', localStorage.getItem('mls.easy') === '1' ? '0' : '1'); } catch {} syncInd(); };
