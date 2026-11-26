@@ -825,3 +825,11 @@ body { font-variant-numeric: tabular-nums lining-nums; line-height: 1.45; }
 .adm-lang button { border: 0; background: transparent; color: var(--text-2); font: 600 12px/1 inherit; padding: 7px 10px; border-radius: 999px; cursor: pointer; }
 .adm-lang button.on { background: var(--brand); color: #111; }
 @media (max-width: 760px) { .adm-lang { bottom: 70px; right: 8px; } }
+
+.adm-lang.in-top { position: static; box-shadow: none; padding: 2px; margin-right: 6px; background: var(--surface-2); }
+.adm-lang.in-top button { padding: 5px 8px; font-size: 11px; }
+html:not([lang="ko"]) .tabbar a { font-size: 10px; text-align: center; line-height: 1.15; padding: 0 2px; overflow: hidden; }
+html:not([lang="ko"]) .tabbar a span, html:not([lang="ko"]) .tabbar a { word-break: keep-all; }
+html:not([lang="ko"]) .side a, html:not([lang="ko"]) .side-nav a { line-height: 1.25; }
+@media (max-width: 760px) { .adm-lang.in-top { margin-right: 2px; } .adm-lang.in-top button { padding: 5px 6px; } }
+@media (min-width: 761px) { html:not([lang="ko"]) .app.admin { grid-template-columns: 208px 1fr; } html:not([lang="ko"]) .app.admin .sidebar .nav a { white-space: nowrap; } }
