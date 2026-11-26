@@ -16,8 +16,10 @@ function createWindow(url = SITE, opts = {}) {
     width: opts.width || 1480, height: opts.height || 920, minWidth: 380, minHeight: 600,
     backgroundColor: '#101216', title: 'MAX라이프 주식', icon: path.join(__dirname, 'build/icon.png'), show: false,
     autoHideMenuBar: false,
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false, backgroundThrottling: false },
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false, backgroundThrottling: false, devTools: !app.isPackaged, sandbox: true },
   });
+  // 화면 보호: 운영체제 캡처·녹화·화면 공유에 창 내용이 검게 나옴 (윈도우 10 2004+ / macOS)
+  w.setContentProtection(true);
   w.webContents.setUserAgent(w.webContents.getUserAgent() + UA_TAG);
   w.loadURL(url);
   w.once('ready-to-show', () => w.show());
@@ -32,10 +34,13 @@ function createWindow(url = SITE, opts = {}) {
     if (i.type !== 'keyDown') return;
     if (i.key === 'F5' || ((i.control || i.meta) && i.key.toLowerCase() === 'r')) { e.preventDefault(); w.webContents.reload(); }
     if (i.key === 'F11') { e.preventDefault(); w.setFullScreen(!w.isFullScreen()); }
-    if (i.key === 'F12' && i.shift) { e.preventDefault(); w.webContents.toggleDevTools(); }
+    // 개발자 도구·소스 보기·저장·인쇄 차단
+    const k = (i.key || '').toLowerCase(); const c = i.control || i.meta;
+    if (k === 'f12' || (c && i.shift && ['i', 'j', 'c'].includes(k)) || (c && ['u', 's', 'p'].includes(k))) { e.preventDefault(); if (!app.isPackaged && k === 'f12' && i.shift) w.webContents.toggleDevTools(); }
   });
   // 마지막 창은 닫아도 트레이에 남김
   w.on('close', (e) => { if (!quitting && wins.size === 1 && tray) { e.preventDefault(); w.hide(); notify('MAX라이프 주식', '트레이에서 계속 실행 중입니다. 체결·알림을 계속 받습니다.'); } });
+  w.webContents.on('devtools-opened', () => { if (app.isPackaged) w.webContents.closeDevTools(); });
   w.on('closed', () => wins.delete(w));
   wins.add(w);
   return w;
@@ -59,7 +64,7 @@ function buildMenu() {
     ] },
     { label: '이동', submenu: [
       ['홈', '#/home', 'Alt+1'], ['시세·순위', '#/market', 'Alt+2'], ['조건검색', '#/screen', 'Alt+3'], ['관심종목', '#/watch', 'Alt+4'],
-      ['잔고', '#/balance', 'Alt+6'], ['거래내역', '#/history', 'Alt+7'], ['입출금', '#/cash', 'Alt+8'], ['MAX 버프', '#/buff', 'Alt+9'], ['AI 분석', '#/ai', null], ['마이페이지', '#/my', 'Alt+0'],
+      ['잔고', '#/balance', 'Alt+6'], ['거래내역', '#/history', 'Alt+7'], ['입출금', '#/cash', 'Alt+8'], ['MAX 버프', '#/buff', 'Alt+9'], ['AI 분석', '#/ai', null], ['코인 선물', '#/futures/BTC', null], ['스테이킹', '#/staking', null], ['이벤트·투자 대회', '#/events', null], ['이용 가이드', '#/guide', null], ['마이페이지', '#/my', 'Alt+0'],
     ].map(([label, h, acc]) => ({ label, ...(acc ? { accelerator: acc, registerAccelerator: false } : {}), click: () => go(h) })) },
     { label: '보기', submenu: [
       { label: '새로고침', accelerator: 'CmdOrCtrl+R', click: () => focused() && focused().webContents.reload() },

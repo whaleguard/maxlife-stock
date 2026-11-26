@@ -8,6 +8,26 @@ const Market = (() => {
   let dataBase = null; // 실제 데이터 URL
   const candleCache = {};
   const simTicks = {};
+  // ── 국내 실시간 시세 (서버가 2초 캐시로 받아온 실시간 체결가·누적 거래량) ──
+  const RT = { last: {}, ticks: {}, timer: 0, provider: null, busy: false, ok: 0 };
+  function setLiveProvider(fn) { RT.provider = fn; if (!RT.timer) { RT.timer = setInterval(rtPoll, 2500); rtPoll(); } }
+  function rtApply(code, d) {
+    const q = state.items[code]; if (!q || q.currency !== 'KRW' || !d || !(d.price > 0)) return false;
+    const pv = q._rv != null ? q._rv : null; const dv = pv != null ? d.volume - pv : 0; const dir = Math.sign(d.price - q.price);
+    if (dv > 0) { const L = (RT.ticks[code] = RT.ticks[code] || []); L.unshift({ t: U.time(Date.now()), p: d.price, v: dv, side: dir || (L[0] ? L[0].side : 0) }); L.length = Math.min(L.length, 60); }
+    q.dir = dir || q.dir; q.price = d.price; if (d.open) q.open = d.open; if (d.high) q.high = d.high; if (d.low) q.low = d.low;
+    if (d.volume != null) { q.volume = d.volume; q._rv = d.volume; } if (d.change != null) q.change = d.change; if (d.changePct != null) q.changePct = d.changePct;
+    q.rtAt = Date.now(); q.mkt = d.status;
+    for (const k of [':D', ':m']) { const c = candleCache[code + k]; if (c && c.length) { const last = c[c.length - 1]; last.c = d.price; last.h = Math.max(last.h, d.price); last.l = Math.min(last.l, d.price); if (dv > 0) last.v += dv; } }
+    return true;
+  }
+  async function rtPoll() {
+    if (RT.busy || document.hidden || state.status !== 'LIVE' || !RT.provider || typeof Store === 'undefined' || !Store.rt) return;
+    const codes = [...new Set((RT.provider() || []).filter((c) => state.items[c] && state.items[c].currency === 'KRW'))].slice(0, 40); if (!codes.length) return;
+    RT.busy = true;
+    try { const D = await Store.rt(codes); let n = 0; for (const c in D || {}) { RT.last[c] = D[c]; if (rtApply(c, D[c])) n++; } if (n) { RT.ok = Date.now(); state.updatedAt = new Date().toISOString(); ev.emit('update', state); } } catch {} finally { RT.busy = false; }
+  }
+  const isRealtime = (code) => { const q = state.items[code]; return !!(q && q.rtAt && Date.now() - q.rtAt < 15000); };
   let simTimer = null, pollTimer = null;
 
   const isUS = (s) => s && (s.market === 'NASDAQ' || s.market === 'NYSE' || s.market === 'AMEX');
@@ -58,6 +78,8 @@ const Market = (() => {
         state.ticks[s.code] = t ? t.map(([hhmmss, p, v]) => ({ t: hhmmss.slice(0, 2) + ':' + hhmmss.slice(2, 4) + ':' + hhmmss.slice(4, 6), p, v, side: 0 })) : [];
         const old = prevItems[s.code]; state.items[s.code].dir = old ? Math.sign(state.items[s.code].price - old.price) : 0;
       }
+      // 실시간으로 받은 값이 파일보다 최신이면 유지
+      for (const c in RT.last) { const it = state.items[c]; if (it) { const o = prevItems[c]; if (o && o._rv != null) it._rv = o._rv; if (new Date(RT.last[c].at) > new Date(live.updatedAt)) rtApply(c, RT.last[c]); } }
       // 실시세에 없는 종목은 샘플로 보충
       for (const s of universe.stocks) if (!state.items[s.code]) state.items[s.code] = sampleItem(s);
     } else if (state.status !== 'SAMPLE') {
@@ -137,7 +159,7 @@ const Market = (() => {
   function book(code) {
     const q = quote(code); if (!q) return { asks: [], bids: [] };
     const lb = state.books[code];
-    if (state.status === 'LIVE' && lb && lb.asks && lb.asks[0] && lb.asks[0][0]) {
+    if (state.status === 'LIVE' && lb && lb.asks && lb.asks[0] && lb.asks[0][0] && lb.bids && lb.bids[0] && lb.bids[0][0] <= q.price && lb.asks[0][0] >= q.price) {
       const asks = lb.asks.slice(0, 10), bids = lb.bids.slice(0, 10);
       const avg = Math.max(1, Math.round([...asks, ...bids].reduce((t, x) => t + x[1], 0) / (asks.length + bids.length)));
       const r = U.rng(code + U.today());
@@ -163,6 +185,7 @@ const Market = (() => {
   const bestBid = (code) => { const b = book(code); return b.bids[0] ? b.bids[0][0] : quote(code).price; };
 
   function ticks(code) {
+    if (RT.ticks[code] && RT.ticks[code].length) return RT.ticks[code];
     if (state.status === 'LIVE' && state.ticks[code] && state.ticks[code].length) {
       const arr = state.ticks[code];
       return arr.map((t, i) => ({ ...t, side: i < arr.length - 1 ? Math.sign(t.p - arr[i + 1].p) : 0 }));
@@ -312,6 +335,6 @@ const Market = (() => {
   }
   function setHolidays(h) { holidays = Array.isArray(h) ? h : []; }
 
-  const api = { init, refresh, on: ev.on, info, aiPicks, indexCandles, quote, list, allMeta, meta, book, bestAsk, bestBid, ticks, candles, fx, toKrw, session, setHolidays, setOverrides, isUS, get state() { return state; }, get universe() { return universe; } };
+  const api = { init, refresh, on: ev.on, info, aiPicks, indexCandles, quote, list, allMeta, meta, book, bestAsk, bestBid, ticks, candles, fx, toKrw, session, setHolidays, setOverrides, isUS, setLiveProvider, isRealtime, rtPoll, get rtOk() { return RT.ok; }, get state() { return state; }, get universe() { return universe; } };
   return api;
 })();

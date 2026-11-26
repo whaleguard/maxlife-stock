@@ -18,6 +18,7 @@
     if (A.me.role === 'user') { root.innerHTML = `<div class="empty" style="padding:100px 20px">관리자 권한이 필요합니다.<br><a class="btn" style="margin-top:16px" href="index.html">사용자 화면으로</a></div>`; return; }
     await reload();
     shell(); Poll.start();
+    if (window.MLSGuard) { MLSGuard.apply(A.st.guard || {}); MLSGuard.mark(`관리자 ${A.me.name} · ${A.me.username}`); }
     window.addEventListener('hashchange', route); route();
     Store.on('change', async () => { await reload(); A.page && A.page.data && A.page.data(); });
     let t = 0; Market.on('update', async () => { if (Date.now() - t < 3000) return; t = Date.now(); if (Store.mode === 'local') { const f = await Store.matchAll(); if (f.length) await reload(); } A.page && A.page.tick && A.page.tick(); });
@@ -37,14 +38,14 @@
   const val = (b) => Engine.valuate(b, A.st);
   const ROLE = { user: '이용자', instructor: 'MAX 리딩', admin: '관리자' };
 
-  const NAV_ADMIN = [['dash', '대시보드', ICON.chart], ['members', '회원관리', ICON.users], ['cash', '입출금 승인', ICON.bank], ['buffs', 'MAX 버프', ICON.shield], ['inq', '1:1 문의', ICON.doc], ['subs', 'AI 구독', ICON.spark], ['grades', '등급 관리', ICON.trophy], ['lead', 'MAX 리딩·공지', ICON.lead], ['stocks', '종목·시세', ICON.list], ['settings', '수수료·설정', ICON.gear]];
+  const NAV_ADMIN = [['dash', '대시보드', ICON.chart], ['members', '회원관리', ICON.users], ['cash', '입출금 승인', ICON.bank], ['buffs', 'MAX 버프', ICON.shield], ['inq', '1:1 문의', ICON.doc], ['subs', 'AI 구독', ICON.spark], ['grades', '등급 관리', ICON.trophy], ['lead', 'MAX 리딩·공지', ICON.lead], ['stocks', '종목·시세', ICON.list], ['coin', '코인 선물·스테이킹', ICON.bolt], ['events', '이벤트·대회', ICON.coin], ['partners', '파트너·지사', ICON.users], ['stats', '통계·분석', ICON.chart], ['ops', '운영 도구', ICON.shield], ['content', '팝업·FAQ·약관', ICON.doc], ['settings', '수수료·설정', ICON.gear]];
   const NAV_INST = [['lead', '리딩·공지', ICON.lead]];
   function shell() {
     const nav = A.me.role === 'admin' ? NAV_ADMIN : NAV_INST;
     root.innerHTML = `<div class="app admin">
       <header class="topbar"><a href="#/${nav[0][0]}">${U.logo()}</a><span class="badge-mode">${A.me.role === 'admin' ? 'ADMIN' : 'MAX 리딩'}</span><div class="ticker" id="tk"></div>
         <div class="top-actions"><a class="btn btn-sm hide-m" href="index.html">사용자 화면</a>${A.me.role === 'admin' ? `<button class="icon-btn bell" id="aBell" title="알림">${ICON.bell}<span class="bdg" id="aBellN" hidden></span></button><div class="notif-pop hidden" id="aPop"></div><button class="icon-btn" id="aSnd" title="알림 소리"></button>` : ''}<button class="icon-btn" id="th">${ICON.sun}</button><button class="user-chip" id="out" title="로그아웃"><span class="avatar">${esc(A.me.name.slice(0, 1))}</span><span class="nm">${esc(A.me.name)}</span></button></div></header>
-      <aside class="sidebar"><nav class="nav"><div class="cap">${A.me.role === 'admin' ? 'ADMIN CONSOLE' : 'MAX 리딩'}</div>${nav.map(([r, l, i]) => `<a href="#/${r}" data-r="${r}">${i}<span>${l}</span>${['cash', 'buffs', 'inq', 'members', 'subs'].includes(r) ? `<span class="nbdg" id="nb-${r}" hidden></span>` : ''}</a>`).join('')}<div class="sep"></div><a href="index.html">${ICON.home}<span>사용자 화면</span></a></nav><div class="side-foot" id="sf"></div></aside>
+      <aside class="sidebar"><nav class="nav"><div class="cap">${A.me.role === 'admin' ? 'ADMIN CONSOLE' : 'MAX 리딩'}</div>${nav.map(([r, l, i]) => `<a href="#/${r}" data-r="${r}">${i}<span>${l}</span>${['cash', 'buffs', 'inq', 'members', 'subs', 'partners', 'ops'].includes(r) ? `<span class="nbdg" id="nb-${r}" hidden></span>` : ''}</a>`).join('')}<div class="sep"></div><a href="index.html">${ICON.home}<span>사용자 화면</span></a></nav><div class="side-foot" id="sf"></div></aside>
       <main class="main" id="main"></main>
       <nav class="tabbar" style="grid-template-columns:repeat(${Math.min(5, nav.length + 1)},1fr)">${nav.slice(0, 4).map(([r, l, i]) => `<a href="#/${r}" data-r="${r}">${i}${l.split('·')[0]}</a>`).join('')}<a href="index.html">${ICON.home}사용자</a></nav>
     </div>`;
@@ -67,9 +68,36 @@
     d: null, seen: null, ac: null, timer: 0, log: [],
     on() { try { return localStorage.getItem('mls.adm.snd') !== '0'; } catch { return true; } },
     ctx() { if (!this.ac) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; this.ac = new C(); } if (this.ac.state === 'suspended') this.ac.resume().catch(() => {}); return this.ac; },
+    // 유형별 알림음: 기본 제공음 또는 직접 올린 소리 (mls.adm.tone.<유형>)
+    TONES: { ding: [[1318.5, 0], [987.8, 0.22]], chime: [[1046.5, 0], [1318.5, 0.15], [1568, 0.3]], bell: [[1568, 0], [1568, 0.35]], beep: [[880, 0], [880, 0.15], [880, 0.3]], low: [[523.3, 0], [392, 0.25]], alarm: [[880, 0], [660, 0.18], [880, 0.36], [660, 0.54]] },
+    tone(kind) { try { return localStorage.getItem('mls.adm.tone.' + kind) || ''; } catch { return ''; } },
     ding(kind) {
-      if (!this.on()) return; const ac = this.ctx(); if (!ac) return;
-      const notes = kind === 'danger' ? [[880, 0], [660, 0.18], [880, 0.36], [660, 0.54]] : [[1318.5, 0], [987.8, 0.22]];
+      if (!this.on()) return; const t = this.tone(kind);
+      if (t === 'off') return;
+      if (t.startsWith('data:')) { try { const a = new Audio(t); a.volume = 0.9; a.play().catch(() => {}); return; } catch {} }
+      if (t && this.TONES[t]) return this.play(this.TONES[t]);
+      this.play(kind === 'danger' ? this.TONES.alarm : this.TONES.ding);
+    },
+    play(notes) {
+      const ac = this.ctx(); if (!ac) return;
+      return this._play(notes, ac);
+    },
+    // 미처리 건 반복 알림 (mls.adm.rep 분, 0이면 끔)
+    repeat(d) {
+      let m = 0; try { m = +localStorage.getItem('mls.adm.rep') || 0; } catch {} if (!m || !d) return;
+      const n = d.cash.length + d.inquiries.length + (d.subs || []).length + d.buffs.length + (d.partnerWds || []).length; if (!n) { this._rep = 0; return; }
+      if (!this._rep) { this._rep = Date.now(); return; }
+      if (Date.now() - this._rep >= m * 60000) { this._rep = Date.now(); this.ding(d.cash.length ? 'cash' : d.inquiries.length ? 'inq' : 'new'); this.say(`처리하지 않은 요청이 ${n}건 있습니다.`); }
+    },
+    // 상단 실시간 카운터
+    topBar() {
+      const m = $('#main'); if (!m || A.me.role !== 'admin') return; const t = this.d && this.d.top; if (!t) return;
+      let el = $('#aTop'); if (!el) { el = document.createElement('div'); el.id = 'aTop'; el.className = 'adm-top'; m.prepend(el); }
+      const it = (k, v, go, hot) => `<a href="${go}" class="${hot ? 'hot' : ''}"><small>${k}</small><b>${v}</b></a>`;
+      el.innerHTML = [it('접속 중', n0(t.online) + '명', '#/ops/online'), it('오늘 가입', n0(t.signupsToday) + '명', '#/members'), it('오늘 충전', won(t.depToday), '#/cash'), it('오늘 출금', won(t.wdToday), '#/cash'), it('오늘 거래 회원', n0(t.tradersToday) + '명', '#/stats'), it('오늘 수수료', won(t.feeToday), '#/stats'),
+        it('입출금 대기', n0(this.d.cash.length) + '건', '#/cash', this.d.cash.length), it('문의 대기', n0(this.d.inquiries.length) + '건', '#/inq', this.d.inquiries.length), it('인수인계', n0(t.handover) + '건', '#/ops/handover', t.handover), it('파트너 정산', n0(t.partnerWd) + '건', '#/partners/wd', t.partnerWd)].join('');
+    },
+    _play(notes, ac) {
       for (const [f, t] of notes) { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.value = f; const t0 = ac.currentTime + t; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.35, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.9); o.connect(g).connect(ac.destination); o.start(t0); o.stop(t0 + 1); }
     },
     say(t) { try { if (localStorage.getItem('mls.adm.voice') === '0' || !this.on() || !window.speechSynthesis) return; const u = new SpeechSynthesisUtterance(t); u.lang = 'ko-KR'; const v = speechSynthesis.getVoices().find((x) => /^ko/i.test(x.lang)); if (v) u.voice = v; speechSynthesis.speak(u); } catch {} },
@@ -78,8 +106,8 @@
     badges() {
       const d = this.d; const set = (k, n) => { const e = $('#nb-' + k); if (e) { e.hidden = !n; e.textContent = n > 99 ? '99+' : n; } };
       const cash = d ? d.cash.length : A.flows.filter((f) => f.status === 'pending').length;
-      set('cash', cash); set('subs', d && d.subs ? d.subs.length : 0); set('buffs', d ? d.buffs.length + d.danger.length : 0); set('inq', d ? d.inquiries.length : 0); set('members', d ? d.signups.length : 0);
-      const tot = d ? d.cash.length + d.buffs.length + d.inquiries.length + d.danger.length + (d.subs || []).length : cash;
+      set('cash', cash); set('subs', d && d.subs ? d.subs.length : 0); set('buffs', d ? d.buffs.length + d.danger.length : 0); set('inq', d ? d.inquiries.length : 0); set('members', d ? d.signups.length : 0); set('partners', d && d.top ? (d.top.partnerWd || 0) + (d.top.partnerInq || 0) : 0); set('ops', d && d.top ? d.top.handover || 0 : 0);
+      const tot = d ? d.cash.length + d.buffs.length + d.inquiries.length + d.danger.length + (d.subs || []).length + (d.partnerWds || []).length : cash;
       const bn = $('#aBellN'); if (bn) { bn.hidden = !tot; bn.textContent = tot > 99 ? '99+' : tot; }
       document.title = (tot ? `(${tot}) ` : '') + 'MAX라이프 주식 · 관리자';
     },
@@ -94,6 +122,7 @@
         ...d.inquiries.map((x) => it('#/inq', '1:1 문의', 'tag-wait', `${esc(x.name)} · ${esc(x.title)}`, x.at)),
         ...d.liquidations.map((x) => it('#/buffs', '자동 청산', 'tag-sell', `${esc(x.name)} · ${won(x.amount)}`, x.at)),
         ...d.signups.map((x) => it('#/members', '신규 가입', 'tag-ok', `${esc(x.name)} (${esc(x.username)})`, x.at)),
+        ...(d.partnerWds || []).map((x) => it('#/partners/wd', '파트너 정산', 'tag-wait', `${esc(x.name)} · ${won(x.amount)}`, x.at)),
       ];
       p.innerHTML = `<div class="np-h"><b>처리할 알림</b><span class="dim" style="font-size:11px">10초마다 확인</span></div>${rows.join('') || '<div class="empty">새 알림이 없습니다</div>'}${'Notification' in window && Notification.permission === 'default' ? '<button class="btn btn-sm btn-block" id="aDesk" style="margin:10px;width:calc(100% - 20px)">바탕화면 알림 켜기</button>' : ''}`;
       const dk = $('#aDesk'); if (dk) dk.onclick = () => Notification.requestPermission().then(() => this.pop());
@@ -102,7 +131,7 @@
       let d; try { d = await Store.adminPoll(); } catch { return; }
       if (!d) return; this.d = d;
       const ids = (k) => (d[k] || []).map((x) => x.id || x.userId);
-      const cur = { subs: ids('subs'), cash: ids('cash'), buffs: ids('buffs'), inquiries: ids('inquiries'), signups: ids('signups'), liquidations: ids('liquidations'), danger: ids('danger') };
+      const cur = { partnerWds: ids('partnerWds'), subs: ids('subs'), cash: ids('cash'), buffs: ids('buffs'), inquiries: ids('inquiries'), signups: ids('signups'), liquidations: ids('liquidations'), danger: ids('danger') };
       if (this.seen) {
         const nw = (k) => (d[k] || []).filter((x) => !this.seen[k].includes(x.id || x.userId));
         const ev = [];
@@ -111,10 +140,11 @@
         for (const x of nw('buffs')) ev.push(['buffs', 'MAX 버프 신청', `${x.name} · ${x.mult}배 · ${won(x.amount)}`, '#/buffs']);
         for (const x of nw('inquiries')) ev.push(['inq', '1:1 문의 접수', `${x.name} · ${x.title}`, '#/inq']);
         for (const x of nw('signups')) ev.push(['members', '신규 가입', `${x.name} (${x.username})`, '#/members']);
+        for (const x of nw('partnerWds')) ev.push(['partner', '파트너 정산 신청', `${x.name} · ${won(x.amount)}`, '#/partners/wd']);
         for (const x of nw('liquidations')) ev.push(['danger', '자동 청산 발생', `${x.name} · 버프 ${won(x.amount)} 청산`, '#/buffs']);
         for (const x of nw('danger')) ev.push(['danger', '담보비율 경고', `${x.name} · ${Number(x.ratio).toFixed(1)}% (청산 기준 ${x.maintain}%)`, '#/buffs']);
         if (ev.length) {
-          this.ding(ev.some((e) => e[0] === 'danger') ? 'danger' : 'new');
+          this.ding(ev.some((e) => e[0] === 'danger') ? 'danger' : ev[0][0]);
           this.say(ev.length > 1 ? `새 알림 ${ev.length}건. ${ev[0][1]}.` : `${ev[0][1]}이 들어왔습니다.`);
           for (const [, t, m, go] of ev.slice(0, 4)) this.toast(t, m, go);
           if (ev.length > 4) this.toast('새 알림', `외 ${ev.length - 4}건`, '#/dash');
@@ -122,7 +152,7 @@
           reload().then(() => { A.page && A.page.data && A.page.data(); });
         }
       }
-      this.seen = cur; this.badges(); this.pop();
+      this.seen = cur; this.badges(); this.pop(); this.topBar(); this.repeat(d);
     },
     toast(t, m, go) {
       let w = $('#aToasts'); if (!w) { w = document.createElement('div'); w.id = 'aToasts'; w.className = 'adm-toasts'; document.body.appendChild(w); }
@@ -145,12 +175,14 @@
   };
   function route() {
     const r = location.hash.replace(/^#\/?/, '') || (A.me.role === 'admin' ? 'dash' : 'lead');
-    const pages = A.me.role === 'admin' ? { dash: Dash, members: Members, cash: CashAdm, buffs: BuffAdm, inq: InqAdm, subs: SubsAdm, grades: Grades, lead: LeadAdm, stocks: Stocks, settings: Settings } : { lead: LeadAdm };
-    const P = pages[r] || Object.values(pages)[0];
-    $$('.nav a, .tabbar a').forEach((a) => a.classList.toggle('active', a.dataset.r === r));
+    const pages = A.me.role === 'admin' ? { ...(window.ADM_PAGES || {}), dash: Dash, members: Members, cash: CashAdm, buffs: BuffAdm, inq: InqAdm, subs: SubsAdm, grades: Grades, lead: LeadAdm, stocks: Stocks, settings: Settings } : { lead: LeadAdm };
+    const r0 = r.split('/')[0]; const P = pages[r0] || pages.dash || Object.values(pages)[0];
+    $$('.nav a, .tabbar a').forEach((a) => a.classList.toggle('active', a.dataset.r === r0));
     A.page && A.page.destroy && A.page.destroy();
-    $('#main').innerHTML = ''; A.page = P($('#main')) || {}; side();
+    $('#main').innerHTML = ''; A.page = P($('#main'), r.split('/')[1]) || {}; side(); Poll.topBar();
   }
+  // 템플릿 선택 상자 자동 채우기 (모달이 열릴 때)
+  new MutationObserver(() => { for (const sel of $$('select.tpl-sel:not([data-ok])')) { sel.dataset.ok = '1'; window.ADM && ADM.tplFill(sel); } }).observe(document.body, { childList: true, subtree: true });
   const head = (t, sub, right = '') => `<div class="page-head"><div><h1>${t}</h1>${sub ? `<p>${sub}</p>` : ''}</div>${right}</div>`;
   const stat = (k, v, s = '', c = '') => `<div class="panel panel-b stat"><div class="k">${k}</div><div class="v ${c}">${v}</div>${s ? `<div class="s muted">${s}</div>` : ''}</div>`;
   const dayKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${U.two(d.getMonth() + 1)}-${U.two(d.getDate())}`; };
@@ -286,7 +318,7 @@
       const G = {}; const R2 = []; for (const q of R) { if (!q.fromAdmin) { R2.push(q); continue; } const k = q.title + '|' + q.answer + '|' + String(q.createdAt).slice(0, 16); if (G[k]) { G[k].n++; G[k].ids.push(q.id); continue; } G[k] = Object.assign({}, q, { n: 1, ids: [q.id] }); R2.push(G[k]); }
       R.length = 0; R.push(...R2.map((q) => (q.fromAdmin && q.n > 1 ? Object.assign(q, { name: `${q.n}명에게 발송`, username: '' }) : q)));
       $('#iqL').innerHTML = R.length ? R.map((q) => `<div class="inq"><div class="inq-h"><span class="tag ${q.fromAdmin ? 'tag-brand' : 'tag-no'}">${CAT[q.category] || '기타'}</span><b>${esc(q.title)}</b><span class="tag ${q.status === 'open' ? 'tag-wait' : 'tag-ok'}">${q.fromAdmin ? '쪽지' : q.status === 'open' ? '답변 대기' : q.status === 'answered' ? '답변 완료' : '종료'}</span><small class="dim">${esc(q.name || '')} ${esc(q.username || '')} · ${U.dt(q.createdAt)}</small></div>${q.body ? `<p class="muted" style="white-space:pre-wrap;margin:8px 0 0">${esc(q.body)}</p>` : ''}${q.answer && !q.fromAdmin ? `<div class="inq-a"><b>답변</b> <small class="dim">${esc(q.answeredBy || '')} ${q.answeredAt ? U.dt(q.answeredAt) : ''}</small><p style="white-space:pre-wrap;margin:6px 0 0">${esc(q.answer)}</p></div>` : ''}${q.fromAdmin && q.answer ? `<p style="white-space:pre-wrap;margin:8px 0 0">${esc(q.answer)}</p>` : ''}${!q.fromAdmin ? `<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">${q.status !== 'closed' ? `<button class="btn btn-sm btn-brand" data-ans="${q.id}">${q.answer ? '답변 수정' : '답변하기'}</button><button class="btn btn-sm" data-cls="${q.id}">종료</button>` : ''}<button class="btn btn-sm btn-ghost" data-mem="${q.userId}">회원 정보</button><button class="btn btn-sm btn-ghost" data-qdel="${q.id}" style="color:var(--up)">삭제</button></div>` : `<div style="margin-top:8px"><button class="btn btn-sm btn-ghost" data-qdel="${q.ids ? q.ids.join(',') : q.id}" style="color:var(--up)">쪽지 삭제${q.n > 1 ? ` (${q.n}명)` : ''}</button></div>`}</div>`).join('') : '<div class="empty">해당 문의가 없습니다</div>';
-      $$('[data-ans]', main).forEach((b) => (b.onclick = () => { const q = L.find((x) => x.id === b.dataset.ans); U.modal({ title: '문의 답변', body: `<div class="inq" style="padding:0 0 12px"><b>${esc(q.title)}</b><p class="muted" style="white-space:pre-wrap">${esc(q.body || '')}</p></div><div class="field"><label>답변</label><textarea class="input" id="anB" rows="7" maxlength="3000">${esc(q.answer || '')}</textarea></div>`, foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="anOk">답변 등록</button>', onMount: (m, close) => { $('#anOk', m).onclick = async () => { try { await Store.answerInquiry(q.id, $('#anB', m).value); close(); U.toast('답변을 등록했습니다. 이용자에게 알림이 전달됩니다.'); load(); } catch (e) { U.toast(e.message, true); } }; } }); }));
+      $$('[data-ans]', main).forEach((b) => (b.onclick = () => { const q = L.find((x) => x.id === b.dataset.ans); U.modal({ title: '문의 답변', body: `<div class="inq" style="padding:0 0 12px"><b>${esc(q.title)}</b><p class="muted" style="white-space:pre-wrap">${esc(q.body || '')}</p></div><div class="field"><label>답변</label><select class="input tpl-sel" data-tpl="anB"><option value="">답변 템플릿 선택…</option></select><textarea class="input" id="anB" rows="7" maxlength="3000">${esc(q.answer || '')}</textarea></div>`, foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="anOk">답변 등록</button>', onMount: (m, close) => { $('#anOk', m).onclick = async () => { try { await Store.answerInquiry(q.id, $('#anB', m).value); close(); U.toast('답변을 등록했습니다. 이용자에게 알림이 전달됩니다.'); load(); } catch (e) { U.toast(e.message, true); } }; } }); }));
       $$('[data-cls]', main).forEach((b) => (b.onclick = async () => { try { await Store.closeInquiry(b.dataset.cls); U.toast('종료했습니다.'); load(); } catch (e) { U.toast(e.message, true); } }));
       $$('[data-mem]', main).forEach((b) => (b.onclick = () => memberDetail(b.dataset.mem)));
       $$('[data-qdel]', main).forEach((b) => (b.onclick = async () => { const ids = b.dataset.qdel.split(','); if (!(await U.confirmBox('삭제', `${ids.length > 1 ? `쪽지 ${ids.length}건` : '이 문의'}를 삭제할까요? 이용자 화면에서도 사라집니다.`, '삭제', 'btn-danger'))) return; try { await Store.deleteInquiries(ids); U.toast('삭제했습니다.'); load(); } catch (e) { U.toast(e.message, true); } }));
@@ -315,7 +347,7 @@
     const selTxt = () => { $('#mSel').textContent = `선택 ${SEL.size}명`; };
     $('#mMsg').onclick = () => {
       const ids = [...SEL]; const who = ids.length ? `선택한 ${ids.length}명` : '전체 이용자';
-      U.modal({ title: '쪽지 보내기', body: `<p class="muted" style="margin-top:0">받는 사람: <b>${who}</b> · 이용자 알림과 고객센터에 표시됩니다.</p><div class="field"><label>제목</label><input class="input" id="smT" maxlength="100" placeholder="예: 이번 주 MAX 리딩 일정 안내"></div><div class="field"><label>내용</label><textarea class="input" id="smB" rows="6" maxlength="3000"></textarea></div>`, foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="smOk">발송</button>', onMount: (m, close) => { $('#smOk', m).onclick = async () => { const t = $('#smT', m).value.trim(); if (!t) return U.toast('제목을 입력해 주세요.', true); try { await Store.sendMessage(t, $('#smB', m).value, ids.length ? ids : null); close(); U.toast(`${who}에게 쪽지를 보냈습니다.`); } catch (e) { U.toast(e.message, true); } }; } });
+      U.modal({ title: '쪽지 보내기', body: `<p class="muted" style="margin-top:0">받는 사람: <b>${who}</b> · 이용자 알림과 고객센터에 표시됩니다.</p><div class="field"><label>제목</label><input class="input" id="smT" maxlength="100" placeholder="예: 이번 주 MAX 리딩 일정 안내"></div><div class="field"><label>내용</label><select class="input tpl-sel" data-tpl="smB"><option value="">쪽지 템플릿 선택…</option></select><textarea class="input" id="smB" rows="6" maxlength="3000"></textarea></div>`, foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="smOk">발송</button>', onMount: (m, close) => { $('#smOk', m).onclick = async () => { const t = $('#smT', m).value.trim(); if (!t) return U.toast('제목을 입력해 주세요.', true); try { await Store.sendMessage(t, $('#smB', m).value, ids.length ? ids : null); close(); U.toast(`${who}에게 쪽지를 보냈습니다.`); } catch (e) { U.toast(e.message, true); } }; } });
     };
     $('#mDel').onclick = () => { const ids = [...SEL]; if (!ids.length) return U.toast('삭제할 회원을 먼저 선택해 주세요.', true); delDlg(ids.map((id) => A.users.find((u) => u.id === id)).filter(Boolean), () => { SEL.clear(); selTxt(); }); };
     $('#mPay').onclick = () => {
@@ -360,9 +392,9 @@
           ['AI 구독', X.ai ? esc(X.ai.plan) : '없음', X.ai ? U.date(X.ai.endsAt) + '까지' : '-'], ['MAX 버프', v.loan ? `${v.buff.mult}배 · ${won(v.loan)}` : '없음', v.loan ? `담보비율 ${v.ratio.toFixed(1)}%` : '-'],
         ].map(([k, val, sub]) => `<div><small>${k}</small><b>${val}</b><em>${sub}</em></div>`).join('') + `</div><div class="md-login"><div><small>최근 접속</small><b>${L.at ? U.dt(L.at) : u.lastLogin ? U.dt(u.lastLogin) : '-'}</b></div><div><small>접속 IP</small><b>${esc(L.ip || '-')}</b></div><div><small>지역</small><b>${esc(geo(L) || (L.ip ? '확인 중' : '-'))}</b></div><div><small>통신사</small><b>${esc(L.isp || '-')}</b></div><div><small>기기 · 브라우저</small><b>${esc(device(L.ua))}</b></div><div><small>30일 접속 · IP 수</small><b>${X.logins30 || 0}회 · ${X.ips || 0}개</b></div>`; })()}</div>
         <div style="height:160px;margin-bottom:12px"><canvas id="mdLine" style="width:100%;height:100%"></canvas></div>
-        <div class="tabs" id="mdTab" style="padding:0"><button data-v="hold" class="on">보유종목 ${v.holdings.length}</button><button data-v="fills">매입·매출 ${b.fills.length}</button><button data-v="orders">주문 ${b.orders.length}</button><button data-v="cash">입출금 ${b.cashflows.length}</button><button data-v="buff">MAX 버프 ${(b.buffs || []).length}</button><button data-v="login">접속 기록</button></div>
+        <div class="tabs" id="mdTab" style="padding:0"><button data-v="hold" class="on">보유종목 ${v.holdings.length}</button><button data-v="fills">매입·매출 ${b.fills.length}</button><button data-v="orders">주문 ${b.orders.length}</button><button data-v="cash">입출금 ${b.cashflows.length}</button><button data-v="buff">MAX 버프 ${(b.buffs || []).length}</button><button data-v="login">접속 기록</button><button data-v="money">자산 로그</button><button data-v="coin">코인 선물</button></div>
         <div id="mdBody" style="margin:0 -20px"></div>`,
-      foot: `${u.role !== 'admin' ? '<button class="btn btn-danger" id="mdDel">계정 삭제</button>' : ''}<button class="btn" id="mdAi">AI 구독 지급</button><button class="btn" id="mdGrade">등급: ${esc(GRADE(u.grade).name)}</button><button class="btn" id="mdCard">카드: ${CARD[u.cardTier || '']}</button>${v.loan ? '<button class="btn btn-danger" id="mdLiq">강제 청산</button>' : ''}<button class="btn" id="mdCash">예수금 조정</button>${u.role !== 'admin' ? `<button class="btn" id="mdRole">권한: ${ROLE[u.role]}</button>` : ''}<button class="btn ${u.status === 'active' ? 'btn-danger' : 'btn-brand'}" id="mdStat">${u.status === 'active' ? '계정 정지' : '정지 해제'}</button>`,
+      foot: `${u.role !== 'admin' ? '<button class="btn btn-danger" id="mdDel">계정 삭제</button>' : ''}<button class="btn" id="mdAi">AI 구독 지급</button><button class="btn" id="mdPt">파트너 지정</button><button class="btn" id="mdBlk">IP·기기 차단</button><button class="btn" id="mdGrade">등급: ${esc(GRADE(u.grade).name)}</button><button class="btn" id="mdCard">카드: ${CARD[u.cardTier || '']}</button>${v.loan ? '<button class="btn btn-danger" id="mdLiq">강제 청산</button>' : ''}<button class="btn" id="mdCash">예수금 조정</button>${u.role !== 'admin' ? `<button class="btn" id="mdRole">권한: ${ROLE[u.role]}</button>` : ''}<button class="btn ${u.status === 'active' ? 'btn-danger' : 'btn-brand'}" id="mdStat">${u.status === 'active' ? '계정 정지' : '정지 해제'}</button>`,
       onMount: (m, close) => {
         const snaps = (b.snapshots || []).map((s) => [s[0], s[1]]); if (!snaps.length || snaps[snaps.length - 1][0] !== U.today()) snaps.push([U.today(), v.total]);
         setTimeout(() => Chart.line($('#mdLine', m), { points: snaps, color: v.totalPnl >= 0 ? Chart.css('--up') : Chart.css('--down'), labels: true, base: v.principal }), 30);
@@ -374,6 +406,7 @@
           else if (tab === 'orders') { const os = b.orders.slice().sort((x, y) => y.createdAt.localeCompare(x.createdAt)); const st = { pending: '미체결', filled: '체결', cancelled: '취소', rejected: '거부' };
             el.innerHTML = os.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>주문일시</th><th class="l">종목</th><th>구분</th><th>유형</th><th>주문가</th><th>수량</th><th>상태</th></tr></thead><tbody>${os.map((o) => `<tr><td class="dim">${U.dt(o.createdAt)}</td><td class="l">${esc(o.name)}</td><td><span class="tag ${o.side === 'buy' ? 'tag-buy' : 'tag-sell'}">${o.side === 'buy' ? '매수' : '매도'}</span></td><td>${o.type === 'market' ? '시장가' : o.type === 'stop' ? '감시' : o.type === 'ext' ? '시간외' : '지정가'}${o.reason ? ' (' + esc(o.reason) + ')' : ''}</td><td>${o.type === 'market' ? '-' : o.type === 'stop' ? px(o.triggerPrice, o.currency) + (o.triggerCond === 'ge' ? ' 이상' : ' 이하') + ' → 시장가' : px(o.price, o.currency)}</td><td>${n0(o.qty)}</td><td>${st[o.status] || o.status}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">주문 내역 없음</div>'; }
           else if (tab === 'login') { el.innerHTML = '<div class="empty">불러오는 중…</div>'; Store.userLogins(uid).then((L) => { if (tab !== 'login') return; el.innerHTML = L.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>접속 일시</th><th>IP</th><th class="l">지역</th><th class="l hide-m">통신사</th><th class="l">기기 · 브라우저</th></tr></thead><tbody>${L.map((l) => `<tr><td class="dim">${U.dt(l.at)}</td><td>${esc(l.ip || '-')}</td><td class="l">${esc(geo(l) || (l.ip ? '확인 중' : '-'))}</td><td class="l hide-m muted">${esc(l.isp || '')}</td><td class="l muted" style="font-size:12px">${esc(device(l.ua))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">접속 기록이 없습니다</div>'; }); }
+          else if (tab === 'money' || tab === 'coin') { window.ADM && ADM.memberTab(tab, uid, el, () => tab); }
           else if (tab === 'buff') { const B = b.buffs || []; el.innerHTML = (v.loan ? `<div style="padding:12px 20px">${A.gauge(v)}</div>` : '') + (B.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>신청일시</th><th>배수</th><th>지원금</th><th>이자율</th><th>청산 기준</th><th>상태</th><th>이자</th><th>종료</th></tr></thead><tbody>${B.map((x) => `<tr><td class="dim">${U.dt(x.createdAt)}</td><td>${x.mult}배</td><td>${won(x.amount)}</td><td>${x.rate}%</td><td>${x.maintain}%</td><td>${A.BST[x.status] || x.status}</td><td>${won(x.status === 'active' ? x.interestNow || 0 : x.interest || 0)}</td><td class="dim">${x.closedAt ? U.dt(x.closedAt) : '-'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">버프 내역이 없습니다</div>'); }
           else { const cs = b.cashflows.slice().sort((x, y) => y.at.localeCompare(x.at)); const st = { pending: ['대기', 'tag-wait'], approved: ['승인', 'tag-ok'], rejected: ['반려', 'tag-sell'], cancelled: ['취소', 'tag-no'] };
             el.innerHTML = cs.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>신청일시</th><th>구분</th><th>금액</th><th class="l">메모</th><th>상태</th><th>처리자</th></tr></thead><tbody>${cs.map((c) => `<tr><td class="dim">${U.dt(c.at)}</td><td><span class="tag ${c.type === 'deposit' ? 'tag-buy' : 'tag-sell'}">${c.type === 'deposit' ? '입금' : '출금'}</span></td><td>${won(c.amount)}</td><td class="l muted">${esc(c.memo || '')}</td><td><span class="tag ${st[c.status][1]}">${st[c.status][0]}</span></td><td class="dim">${esc(c.processedBy || '-')}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">입출금 내역 없음</div>'; }
@@ -382,6 +415,8 @@
         body();
         $('#mdStat', m).onclick = async () => { const to = u.status === 'active' ? 'suspended' : 'active'; if (await U.confirmBox(to === 'suspended' ? '계정 정지' : '정지 해제', `<p>${esc(u.name)} 회원을 ${to === 'suspended' ? '정지' : '정지 해제'}할까요?${to === 'suspended' ? '<br><span class="muted" style="font-size:13px">정지된 회원은 로그인 및 주문이 불가합니다.</span>' : ''}</p>`, '확인', to === 'suspended' ? 'btn-danger' : 'btn-brand')) { await Store.setUserStatus(uid, to); close(); U.toast('처리되었습니다.'); } };
         $('#mdAi', m).onclick = () => grantDlg(u, close);
+        $('#mdPt', m).onclick = () => window.ADM && ADM.assignDlg(u);
+        $('#mdBlk', m).onclick = () => window.ADM && ADM.blockDlg(u, (A.sum[u.id] || {}).last || {});
         { const md = $('#mdDel', m); if (md) md.onclick = () => delDlg([u], close); }
         $('#mdGrade', m).onclick = () => U.modal({ title: '이용자 등급 변경', body: `<p class="muted" style="margin-bottom:10px">${esc(u.name)} · 현재 ${esc(GRADE(u.grade).name)}</p><select class="input" id="gd">${(A.st.grades || []).map((g) => `<option value="${g.id}" ${g.id === (u.grade || 'basic') ? 'selected' : ''}>${esc(g.name)} · 버프 최대 ${g.maxMult}배 · 이자 ${g.rate}% · 청산 ${g.maintain}%</option>`).join('')}</select>`, foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="gdOk">변경</button>', onMount: (m2, c2) => { $('#gdOk', m2).onclick = async () => { try { await Store.setGrade(u.id, $('#gd', m2).value); c2(); close(); U.toast('등급이 변경되었습니다.'); } catch (e) { U.toast(e.message, true); } }; } });
         $('#mdCard', m).onclick = () => U.modal({ title: 'MAX DAY LIFE 카드 등급', body: `<select class="input" id="cd">${Object.entries(CARD).map(([k, n]) => `<option value="${k}" ${k === (u.cardTier || '') ? 'selected' : ''}>${n}</option>`).join('')}</select><p class="dim" style="font-size:12px;margin-top:8px">카드 발급이 확인된 회원의 카드 등급을 연결합니다. 카드 회원은 MAX 리딩 무료 혜택이 표시됩니다.</p>`, foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="cdOk">저장</button>', onMount: (m2, c2) => { $('#cdOk', m2).onclick = async () => { try { await Store.setCardTier(u.id, $('#cd', m2).value); c2(); close(); U.toast('저장되었습니다.'); } catch (e) { U.toast(e.message, true); } }; } });
@@ -569,5 +604,6 @@
     return { data };
   }
 
+  window.ADM_CORE = { A, head, stat, Poll, reload, memberDetail: (id) => memberDetail(id), val, GRADE, ROLE, PAYN, dayKey };
   boot().catch((e) => { console.error(e); root.innerHTML = `<div class="empty" style="padding:80px 20px">관리자 화면을 시작하지 못했습니다: ${esc(e.message)}</div>`; });
 })();

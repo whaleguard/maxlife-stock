@@ -9,13 +9,16 @@ const Engine = (() => {
     st = { ...DEF, ...(st || {}) };
     const cash = d.user.cash || 0;
     const pending = (d.orders || []).filter((o) => o.status === 'pending');
-    let reserved = 0; const sellLock = {};
+    let reserved = 0; const sellLock = {}; const ocoMax = {};
     for (const o of pending) {
       const q = Market.quote(o.code); const ccy = q ? q.currency : 'KRW';
       const rem = o.qty - (o.filled || 0);
       if (o.side === 'buy') reserved += Market.toKrw((o.type === 'stop' ? o.triggerPrice : o.price) * rem, ccy) * (1 + feeRate(st, ccy));
+      else if (o.oco) { const k = o.code + '|' + o.oco; ocoMax[k] = Math.max(ocoMax[k] || 0, rem); }
       else sellLock[o.code] = (sellLock[o.code] || 0) + rem;
     }
+    // 익절·손절 묶음(OCO)은 둘 중 하나만 체결되므로 수량을 한 번만 잡음
+    for (const k in ocoMax) { const c = k.split('|')[0]; sellLock[c] = (sellLock[c] || 0) + ocoMax[k]; }
     const holdings = [];
     let evalKrw = 0, costKrw = 0;
     for (const [code, p] of Object.entries(d.positions || {})) {

@@ -71,12 +71,21 @@
     S.st = await Store.settings();
     Market.setOverrides(S.st.overrides);
     S.user = await Store.current();
-    if (!S.user) return renderAuth();
+    if (!S.user) return renderAuth(/[?&#]ref=/.test(location.href) ? 'signup' : 'login');
     if (S.user.status === 'suspended') { await Store.logout(); U.toast('정지된 계정입니다.', true); return renderAuth(); }
     await reload();
     renderShell(); Voice.btn(); Market.setHolidays(S.st.krHolidays);
+    // 실시간 시세: 보고 있는 종목 + 관심종목 + 보유종목 + (홈·시세 화면) 거래대금 상위
+    Market.setLiveProvider(() => {
+      const m = location.hash.match(/#\/(?:stock|ai\/analyze)\/([0-9A-Z]{6})/); const L = [];
+      if (m) L.push(m[1]); if (S.v) L.push(...S.v.holdings.map((h) => h.code)); L.push(...(S.user.watch || []));
+      if (!m) L.push(...Market.list().filter((q) => q.currency === 'KRW').sort((a, b) => (b.value || 0) - (a.value || 0)).slice(0, 20).map((q) => q.code));
+      return L;
+    });
     window.addEventListener('hashchange', route);
     route();
+    window.MLSX && MLSX.boot();
+    if (window.MLSGuard) { const g = S.st.guard || {}; MLSGuard.apply(g); if (g.mark !== false) MLSGuard.mark(`${S.user.name} · ${S.user.username.slice(0, 3)}***`); }
     Market.on('update', onMarket);
     setInterval(() => { if (!document.hidden || Store.mode === 'server') onMarket(); }, 15000);
     if (S.user.role === 'admin' && Store.mode === 'server') StaffPoll.start();
@@ -174,6 +183,9 @@
   // 계좌번호: 회원 ID로 고정 생성 (예: 7012-3456-78)
   function acctNo(id) { let h = 2166136261; for (const ch of String(id)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } const d = String(h).padStart(10, '0').slice(-8); return `70${d.slice(0, 2)}-${d.slice(2, 6)}-${d.slice(6, 8)}`; }
 
+  // 확장 모듈(코인 선물·스테이킹)에서 쓰는 공용 함수
+  window.MLS = { get S() { return S; }, head: (...a) => head(...a), Voice: { say: (t) => Voice.say(t) }, chime: () => chime(), notify: (t, b) => appNotify(t, b), reload: () => reload(), bindSearch: (...a) => bindSearch(...a) };
+
   // ═════════ 단축키 ═════════
   const IS_APP = /MAXLifeHTS/i.test(navigator.userAgent);
   const KEYS = [
@@ -184,7 +196,7 @@
       ['Alt + A', 'MAX AI 분석'], ['Alt + N', '알림센터'], ['Alt + V', '음성 안내 켜기/끄기'], ['Alt + L', '다크·화이트 전환'], ['Alt + X', '미체결 전체 취소'],
     ]],
     ['주문 화면', [
-      ['F2', '매수 (수량 입력으로 이동)'], ['F3', '매도 (수량 입력으로 이동)'], ['F4', '지정가'], ['F6', '시장가'], ['F7', '감시주문'], ['F8', '시간외'],
+      ['F2', '매수 (수량 입력으로 이동)'], ['F3', '매도 (수량 입력으로 이동)'], ['F4', '지정가'], ['F6', '시장가'], ['F7', '감시주문'], ['F8', '시간외'], ['F9', '시장가 매수 (코인 선물: 롱)'], ['F10', '시장가 매도 (코인 선물: 숏)'],
       ['Ctrl + Enter', '주문 실행'], ['Alt + ↑ / ↓', '가격 한 호가 올림·내림'], ['Shift + ↑ / ↓', '수량 1주 늘림·줄임'],
       ['Alt + Q / W / E / R', '수량 10% · 25% · 50% · 최대'], ['Alt + S', '관심종목 추가·해제'],
     ]],
@@ -222,7 +234,7 @@
       }
     }
     if (!K) return;
-    const F = { F2: () => K.side('buy'), F3: () => K.side('sell'), F4: () => K.type('limit'), F6: () => K.type('market'), F7: () => K.type('stop'), F8: () => K.type('ext') };
+    const F = { F2: () => K.side('buy'), F3: () => K.side('sell'), F4: () => K.type('limit'), F6: () => K.type('market'), F7: () => K.type('stop'), F8: () => K.type('ext'), F9: () => K.quick && K.quick('buy'), F10: () => K.quick && K.quick('sell') };
     if (F[k]) { stop(); F[k](); return; }
     if ((e.ctrlKey || e.metaKey) && k === 'Enter') { stop(); K.submit(); return; }
     if (e.shiftKey && !e.altKey && !e.ctrlKey) {
@@ -283,7 +295,8 @@
             <div class="field"><label>아이디 (영문/숫자 4~20자)</label><input class="input" name="username" autocomplete="username" required pattern="[A-Za-z0-9_]{4,20}"></div>
             <div class="field"><label>비밀번호 (6자 이상)</label><input class="input" type="password" name="pw" autocomplete="new-password" required minlength="6"></div>
             <div class="field"><label>휴대폰 (선택)</label><input class="input" name="phone" inputmode="tel"></div>
-            <label class="check" style="margin:6px 0 14px"><input type="checkbox" required> 가상 계좌로 운영되며 실제 주식 주문·송금은 이뤄지지 않음을 확인합니다.</label>
+            <div class="field"><label>추천 코드 (선택)</label><input class="input" name="ref" value="${esc(refGet())}" maxlength="20" style="text-transform:uppercase" placeholder="받은 추천 코드가 있으면 입력"></div>
+            <label class="check" style="margin:6px 0 14px"><input type="checkbox" required> <span><button type="button" class="link" data-terms="terms">이용약관</button> · <button type="button" class="link" data-terms="privacy">개인정보 처리방침</button> · <button type="button" class="link" data-terms="risk">거래 위험 안내</button>에 동의하며, 가상 계좌로 운영되어 실제 주식 주문·송금은 이뤄지지 않음을 확인합니다.</span></label>
             <button class="btn btn-brand btn-block btn-lg">가입하고 시작하기</button>
           </form>
           <div class="auth-switch">이미 계정이 있으신가요? <button data-sw="login">로그인</button></div>
@@ -291,9 +304,11 @@
       </div></div>
     </div>`;
     $('[data-sw]').onclick = (e) => renderAuth(e.target.dataset.sw);
+    $$('[data-terms]').forEach((b) => (b.onclick = (e) => { e.preventDefault(); termsModal(b.dataset.terms); }));
     $('#authF').onsubmit = async (e) => {
       e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
       const btn = e.target.querySelector('button.btn-brand'); btn.disabled = true;
+      if (f.ref) f.ref = f.ref.trim().toUpperCase(); else delete f.ref;
       try { mode === 'login' ? await Store.login(f.username, f.pw) : await Store.signup(f); location.hash = '#/home'; location.reload(); }
       catch (err) { U.toast(err.message, true); btn.disabled = false; }
     };
@@ -318,7 +333,7 @@
   // ── 셸 ──
   const NAV = [
     ['home', '홈', ICON.home], ['market', '시세·순위', ICON.grid], ['screen', '조건검색', ICON.search], ['watch', '관심종목', ICON.star], ['stock/005930', '종목·주문', ICON.chart], ['balance', '잔고', ICON.wallet], ['history', '거래내역', ICON.list],
-    ['cash', '입출금', ICON.bank], ['lead', 'MAX 리딩', ICON.lead], ['buff', 'MAX 버프', ICON.shield], ['ai', 'MAX AI 분석', ICON.spark], ['rank', '투자 수익 랭킹', ICON.trophy], ['help', '고객센터', ICON.doc], ['my', '마이페이지', ICON.user],
+    ['cash', '입출금', ICON.bank], ['futures/BTC', '코인 선물', ICON.bolt], ['staking', '스테이킹', ICON.coin], ['lead', 'MAX 리딩', ICON.lead], ['buff', 'MAX 버프', ICON.shield], ['ai', 'MAX AI 분석', ICON.spark], ['rank', '투자 수익 랭킹', ICON.trophy], ['events', '이벤트·투자 대회', ICON.coin], ['guide', '이용 가이드', ICON.list], ['help', '고객센터', ICON.doc], ['my', '마이페이지', ICON.user],
   ];
   function renderShell() {
     const staff = S.user.role === 'admin' || S.user.role === 'instructor';
@@ -338,8 +353,10 @@
         <nav class="nav">
           <div class="cap">TRADING</div>
           ${NAV.slice(0, 8).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
+          <div class="sep"></div><div class="cap">COIN</div>
+          ${NAV.slice(8, 10).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
           <div class="sep"></div><div class="cap">MAX SERVICE</div>
-          ${NAV.slice(8).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
+          ${NAV.slice(10).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
           ${staff ? `<div class="sep"></div><a href="admin.html" id="admLink">${ICON.shield}<span>${S.user.role === 'admin' ? '관리자' : 'MAX 리딩 관리'}</span><span class="nbdg" hidden></span></a>` : ''}
         </nav>
         ${IS_APP ? '' : `<a class="side-dl" href="#/download">${ICON.monitor || ICON.chart}<span><b>PC 프로그램</b><small>Windows · Mac 내려받기</small></span></a>`}
@@ -423,13 +440,16 @@
   function route() {
     const h = location.hash.replace(/^#\/?/, '') || 'home';
     const [name, arg] = h.split('/');
-    const pages = { home: Home, help: Help, download: Download, ai: AiPage, market: MarketPage, screen: Screen, buff: Buff, watch: Watch, stock: Stock, balance: Balance, history: History, cash: Cash, lead: Lead, rank: Rank, my: My, menu: Menu };
+    const pages = { ...(window.MLS_PAGES || {}), home: Home, help: Help, download: Download, ai: AiPage, market: MarketPage, screen: Screen, buff: Buff, watch: Watch, stock: Stock, balance: Balance, history: History, cash: Cash, lead: Lead, rank: Rank, my: My, menu: Menu };
     const P = pages[name] || Home;
     S.page && S.page.destroy && S.page.destroy();
     $$('.nav a, .tabbar a').forEach((a) => a.classList.toggle('active', a.dataset.r === name));
     const main = $('#main'); main.innerHTML = ''; window.scrollTo(0, 0);
     S.page = P(main, arg, h.split('/')[2]) || {};
+    window.MLSX && MLSX.route(name);
   }
+  const refGet = () => { try { const m = location.href.match(/[?&#]ref=([A-Za-z0-9]+)/); if (m) localStorage.setItem('mls.ref', m[1].toUpperCase()); return localStorage.getItem('mls.ref') || ''; } catch { return ''; } };
+  const termsModal = (k) => window.MLSX && MLSX.termsModal(k);
   const head = (t, sub, right = '') => `<div class="page-head"><div><h1>${t}</h1>${sub ? `<p>${sub}</p>` : ''}</div>${right}</div>`;
   const marketBanner = () => sesStrip();
   const stockRow = (q, extra = '') => `<div class="row" data-go="${q.code}"><div class="sname">${extra}<b>${esc(q.name)}</b><small>${q.code} · ${q.market}</small></div><div class="p ${cls(q.change)}"><b>${px(q.price, q.currency)}</b><small>${pct(q.changePct)}</small></div></div>`;
@@ -512,7 +532,7 @@
         <div class="col-chart">
           <section class="panel">
             <div class="quote-head" id="sHead"></div>
-            <div class="chart-tools"><div class="seg" id="sTf"><button data-v="m">분</button><button data-v="D" class="on">일</button><button data-v="W">주</button><button data-v="M">월</button></div><div class="seg" id="sMa" title="이동평균선"><button data-v="5" class="on">5</button><button data-v="20" class="on">20</button><button data-v="60" class="on">60</button><button data-v="120" class="on">120</button></div><div class="seg" id="sInd"><button data-v="bb">볼린저</button></div><div class="seg" id="sSub"><button data-v="vol" class="on">거래량</button><button data-v="rsi">RSI</button><button data-v="macd">MACD</button></div><span class="dim" style="font-size:11px" id="sCSrc"></span></div>
+            <div class="chart-tools"><div class="seg" id="sTf"><button data-v="m">분</button><button data-v="D" class="on">일</button><button data-v="W">주</button><button data-v="M">월</button></div><div class="seg" id="sMa" title="이동평균선"><button data-v="5" class="on">5</button><button data-v="20" class="on">20</button><button data-v="60" class="on">60</button><button data-v="120" class="on">120</button></div><div class="seg" id="sInd"><button data-v="bb">볼린저</button></div><div class="seg" id="sSub"><button data-v="vol" class="on">거래량</button><button data-v="rsi">RSI</button><button data-v="macd">MACD</button></div><button class="btn btn-sm btn-ghost" id="sEasy" title="이동평균 20일·거래량만 보는 간편 차트">간편 차트</button><span class="dim" style="font-size:11px" id="sCSrc"></span></div>
             <div class="chart-box"><div class="chart-tip" id="sTip"></div><canvas id="sChart"></canvas></div>
           </section>
           <section class="panel" style="margin-top:16px">
@@ -521,12 +541,13 @@
           </section>
         </div>
         <section class="panel book-panel">
-          <div class="panel-h"><h3>호가</h3><span class="dim" style="font-size:11px" id="sBookSrc"></span></div>
+          <div class="panel-h"><h3>호가</h3><label class="dim oc-tg" title="호가를 누르면 확인 없이 그 가격으로 바로 주문합니다 (매도호가 → 매수, 매수호가 → 매도)"><input type="checkbox" id="sOC"> 원클릭</label><span class="dim" style="font-size:11px" id="sBookSrc"></span></div>
           <div class="book" id="sBook"></div>
           <div class="panel-h" style="border-top:1px solid var(--border)"><h3>체결</h3></div>
           <div class="ticks" id="sTicks"></div>
         </section>
         <section class="panel" id="orderPanel">
+          <div class="acct-bar" id="oAcct"></div>
           <div class="order-side"><button class="buy" data-side="buy">매수</button><button class="sell" data-side="sell">매도</button></div>
           <div class="panel-b">
             <div class="field"><label>주문 유형</label><div class="seg" id="oType" style="width:100%"><button data-v="limit" style="flex:1">지정가</button><button data-v="market" style="flex:1">시장가</button><button data-v="stop" style="flex:1" title="손절·익절·돌파 매매">감시주문</button><button data-v="ext" style="flex:1" title="장전·장후 시간외 종가, 시간외 단일가, 프리·애프터마켓">시간외</button></div></div>
@@ -534,6 +555,7 @@
             <div class="field" id="oStopBox" style="display:none"><label>감시 조건 <span class="dim">현재가가 이 가격에 닿으면 시장가로 자동 주문</span></label><div class="seg" id="oCond" style="width:100%;margin-bottom:8px"><button data-v="le" style="flex:1">이하로 내려가면</button><button data-v="ge" style="flex:1">이상 올라가면</button></div><div class="stepper"><button data-t="-1">−</button><input class="input" id="oTrig" inputmode="decimal"><button data-t="1">+</button></div><div class="pct-row" id="oTrigPct"><button data-tp="-5">−5%</button><button data-tp="-3">−3%</button><button data-tp="3">+3%</button><button data-tp="5">+5%</button><button data-tp="10">+10%</button></div></div>
             <div class="field" id="oPriceBox"><label>주문 가격 <span class="dim" id="oTickInfo"></span></label><div class="stepper"><button data-p="-1">−</button><input class="input" id="oPrice" inputmode="decimal"><button data-p="1">+</button></div></div>
             <div class="field"><label>수량 <span class="dim" id="oMaxInfo"></span></label><div class="stepper"><button data-q="-1">−</button><input class="input" id="oQty" inputmode="numeric"><button data-q="1">+</button></div><div class="amt-row"><span class="dim">금액으로</span><input class="input" id="oAmt" inputmode="numeric" placeholder="투자금액 입력 → 수량 자동 계산"><span class="dim">원</span></div><div class="pct-row" id="oPct"><button data-r=".1">10%</button><button data-r=".25">25%</button><button data-r=".5">50%</button><button data-r="1">최대</button></div></div>
+            <details class="cf-tpsl" id="oAuto"><summary>매수 체결 후 자동 익절·손절</summary><div class="cf-tpsl-b"><div class="field"><label>익절 (+%)</label><input class="input" id="oTpP" inputmode="decimal" placeholder="예: 5"></div><div class="field"><label>손절 (−%)</label><input class="input" id="oSlP" inputmode="decimal" placeholder="예: 3"></div></div><p class="dim" style="font-size:11px;margin:6px 0 0">매수가 체결되면 익절 지정가 매도와 손절 감시 매도를 함께 걸고, 한쪽이 체결되면 다른 쪽은 자동 취소됩니다.</p></details>
             <div class="order-sum" id="oSum"></div>
             <button class="btn btn-block btn-lg" id="oSubmit"></button>
             <p class="dim" style="font-size:11px;margin-top:10px;line-height:1.6">실제 시세 기준으로 가상 계좌에서 체결됩니다.</p>
@@ -555,8 +577,12 @@
       $$('#sInd button').forEach((b) => b.classList.toggle('on', !!IND[b.dataset.v]));
       $$('#sSub button').forEach((b) => b.classList.toggle('on', IND.sub === b.dataset.v));
       try { localStorage.setItem('mls.ind', JSON.stringify(IND)); } catch {}
-      chart.set({ ma: IND.ma.slice().sort((a, b) => a - b), bb: IND.bb, sub: IND.sub });
+      const easy = localStorage.getItem('mls.easy') === '1';
+      ['#sMa', '#sInd', '#sSub'].forEach((x) => { const e = $(x); if (e) e.style.display = easy ? 'none' : ''; });
+      const eb = $('#sEasy'); if (eb) { eb.classList.toggle('on', easy); eb.textContent = easy ? '전문가 차트' : '간편 차트'; }
+      chart.set(easy ? { ma: [20], bb: false, sub: 'vol' } : { ma: IND.ma.slice().sort((a, b) => a - b), bb: IND.bb, sub: IND.sub });
     };
+    $('#sEasy').onclick = () => { try { localStorage.setItem('mls.easy', localStorage.getItem('mls.easy') === '1' ? '0' : '1'); } catch {} syncInd(); };
     $('#sMa').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; const v = +b.dataset.v; IND.ma = IND.ma.includes(v) ? IND.ma.filter((x) => x !== v) : [...IND.ma, v]; syncInd(); };
     $('#sInd').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; IND[b.dataset.v] = !IND[b.dataset.v]; syncInd(); };
     $('#sSub').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; IND.sub = b.dataset.v; syncInd(); };
@@ -576,7 +602,11 @@
     $('#oQty').addEventListener('change', () => syncForm());
     $('#oAmt').addEventListener('input', (e) => { const a = parseInt(e.target.value.replace(/[^0-9]/g, ''), 10) || 0; e.target.value = a ? n0(a) : ''; const pk = Market.toKrw(unitPrice(), ccy) * (1 + Engine.feeRate(S.st, ccy)); O.qty = pk ? Math.floor(a / pk) : 0; $('#oQty').value = O.qty; updSum(); });
     $('#oPct').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; O.qty = Math.max(1, Math.floor(maxQty() * +b.dataset.r)); syncForm(); };
-    $('#sBook').onclick = (e) => { const r = e.target.closest('[data-px]'); if (!r) return; autoPx = false; O.price = +r.dataset.px; O.type = 'limit'; syncForm(); };
+    $('#sOC').checked = localStorage.getItem('mls.oc') === '1';
+    $('#sOC').onchange = (e) => { try { localStorage.setItem('mls.oc', e.target.checked ? '1' : '0'); } catch {} U.toast(e.target.checked ? '원클릭 주문 켜짐 · 매도호가를 누르면 매수, 매수호가를 누르면 매도 주문이 바로 접수됩니다.' : '원클릭 주문 꺼짐 · 호가를 누르면 가격만 입력됩니다.'); };
+    $('#sBook').onclick = (e) => { const r = e.target.closest('[data-px]'); if (!r) return; autoPx = false; O.price = +r.dataset.px; O.type = 'limit';
+      if ($('#sOC').checked) { O.side = r.classList.contains('ask') ? 'buy' : 'sell'; if (!O.qty) O.qty = 1; syncForm(); return submit(true); }
+      syncForm(); };
     $('#oSubmit').onclick = submit;
     function unitPrice() { const q = Market.quote(code); if (O.type === 'stop') return O.trig || q.price; return O.type === 'market' ? (O.side === 'buy' ? Market.bestAsk(code) : Market.bestBid(code)) : O.price || q.price; }
     function maxQty() {
@@ -612,6 +642,8 @@
       const q = Market.quote(code); const p = unitPrice(); const gross = Market.toKrw(p * (O.qty || 0), ccy);
       const fee = gross * Engine.feeRate(S.st, ccy); const tax = O.side === 'sell' ? gross * Engine.taxRate(S.st, ccy) : 0;
       const h = S.v.holdings.find((x) => x.code === code);
+      $('#oAcct').innerHTML = `<div><small>예수금</small><b>${won(S.v.cash)}</b></div><div><small>주문가능</small><b>${won(S.v.orderable)}</b></div><div><small>이 종목 평가손익</small><b class="${cls(h ? h.pnl : 0)}">${h ? signedWon(h.pnl) : '-'}</b></div><div><small>보유</small><b>${h ? n0(h.qty) + '주' : '-'}</b></div>`;
+      $('#oAuto').style.display = O.side === 'buy' && O.type !== 'ext' ? '' : 'none';
       $('#oMaxInfo').textContent = O.side === 'buy' ? `· 최대 ${n0(maxQty())}주` : `· 매도가능 ${n0(h ? h.sellable : 0)}주`;
       $('#oSum').innerHTML = `<dl class="kv">
         <dt>${O.side === 'buy' ? '주문가능금액' : '보유수량'}</dt><dd>${O.side === 'buy' ? won(S.v.orderable) : n0(h ? h.qty : 0) + '주'}</dd>
@@ -622,7 +654,7 @@
         ${ccy === 'USD' ? `<dt>적용 환율</dt><dd>${U.n2(Market.fx())}원</dd>` : ''}
       </dl>`;
     }
-    async function submit() {
+    async function submit(quick) {
       const q = Market.quote(code);
       if (!O.qty) return U.toast('수량을 입력해 주세요.', true);
       const input = { code, side: O.side, type: O.type, price: O.type === 'limit' || O.type === 'ext' ? +O.price : 0, qty: O.qty, ...(O.type === 'stop' ? { triggerPrice: +O.trig, triggerCond: O.cond } : {}) };
@@ -630,7 +662,7 @@
       if (err && /주문가능금액/.test(err)) { const go = await U.confirmBox('주문가능금액 부족', `<p style="margin:0 0 8px">${esc(err)}</p><p class="muted" style="margin:0">입출금 메뉴에서 충전하면 바로 주문할 수 있습니다.${S.user.role === 'admin' ? '<br>관리자 계정은 충전 신청이 즉시 승인됩니다.' : ''}</p>`, '충전하러 가기'); if (go) location.hash = '#/cash'; return; }
       if (err) return U.toast(err, true);
       const p = unitPrice(); const gross = Market.toKrw(p * O.qty, ccy);
-      const ok = await U.confirmBox(`${O.side === 'buy' ? '매수' : '매도'} 주문 확인`, `<dl class="kv" style="font-size:14px"><dt>종목</dt><dd>${esc(q.name)} <span class="dim">${code}</span></dd><dt>구분</dt><dd class="${O.side === 'buy' ? 'up' : 'down'}">${O.side === 'buy' ? '매수' : '매도'} · ${O.type === 'market' ? '시장가' : O.type === 'stop' ? '감시주문' : O.type === 'ext' ? '시간외 · ' + Market.session(q.market).label : '지정가'}</dd><dt>가격</dt><dd>${O.type === 'market' ? '시장가 (약 ' + px(p, ccy) + ')' : O.type === 'stop' ? '현재가 ' + pxu(O.trig, ccy) + ' ' + (O.cond === 'ge' ? '이상' : '이하') + ' 도달 시 시장가' : pxu(O.price, ccy)}</dd><dt>수량</dt><dd>${n0(O.qty)}주</dd><dt>주문금액</dt><dd>${won(gross)}</dd></dl>`, O.type === 'stop' ? '감시주문 등록' : O.side === 'buy' ? '매수 주문' : '매도 주문', O.side === 'buy' ? 'btn-buy' : 'btn-sell');
+      const ok = quick === true || await U.confirmBox(`${O.side === 'buy' ? '매수' : '매도'} 주문 확인`, `<dl class="kv" style="font-size:14px"><dt>종목</dt><dd>${esc(q.name)} <span class="dim">${code}</span></dd><dt>구분</dt><dd class="${O.side === 'buy' ? 'up' : 'down'}">${O.side === 'buy' ? '매수' : '매도'} · ${O.type === 'market' ? '시장가' : O.type === 'stop' ? '감시주문' : O.type === 'ext' ? '시간외 · ' + Market.session(q.market).label : '지정가'}</dd><dt>가격</dt><dd>${O.type === 'market' ? '시장가 (약 ' + px(p, ccy) + ')' : O.type === 'stop' ? '현재가 ' + pxu(O.trig, ccy) + ' ' + (O.cond === 'ge' ? '이상' : '이하') + ' 도달 시 시장가' : pxu(O.price, ccy)}</dd><dt>수량</dt><dd>${n0(O.qty)}주</dd><dt>주문금액</dt><dd>${won(gross)}</dd></dl>`, O.type === 'stop' ? '감시주문 등록' : O.side === 'buy' ? '매수 주문' : '매도 주문', O.side === 'buy' ? 'btn-buy' : 'btn-sell');
       if (!ok) return;
       try {
         const r = await Store.placeOrder(input);
@@ -638,15 +670,33 @@
         if (r.fill) { seenFill.add(r.fill.id); chime(); Voice.say(`${q.name} ${n0(r.fill.qty)}주 ${sd} 체결되었습니다.`); }
         else Voice.say(O.type === 'stop' ? `감시 ${sd} 주문이 등록되었습니다.` : `${sd} 주문이 접수되었습니다.`);
         if (r.fill) U.toast(`체결 완료 · ${q.name} ${n0(r.fill.qty)}주 @ ${px(r.fill.price, ccy)}`);
+        const tpP = parseFloat($('#oTpP').value) || 0, slP = parseFloat($('#oSlP').value) || 0;
+        if (O.side === 'buy' && (tpP || slP)) { if (r.fill) await setTpSl(r.fill.qty, r.fill.price, tpP, slP); else U.toast('자동 익절·손절은 매수가 체결된 뒤 보유현황 탭의 「익절·손절」에서 걸 수 있습니다.'); }
         else if (O.type === 'ext') U.toast(`시간외 주문 접수 · ${px(input.price, ccy)} — 현재가에 닿으면 체결, 세션 종료 시 자동 취소`);
         else U.toast(O.type === 'stop' ? `감시주문 등록 · ${px(input.triggerPrice, ccy)} ${O.cond === 'ge' ? '이상' : '이하'} 도달 시 시장가 ${O.side === 'buy' ? '매수' : '매도'}` : `주문 접수 · 지정가 ${px(input.price, ccy)} 미체결 — ${O.side === 'buy' ? '매도호가가 이 가격 이하' : '매수호가가 이 가격 이상'}로 오면 자동 체결됩니다${!Market.session(q.market).open && S.st.enforceHours ? ` (${Market.session(q.market).label} 중: 정규장에서 체결)` : ''}`);
         if (bottomTab !== 'open' && !r.fill) { bottomTab = 'open'; $$('#sTabs button').forEach((x) => x.classList.toggle('on', x.dataset.v === 'open')); }
       } catch (e) { U.toast(e.message, true); }
     }
+    // 익절(지정가 매도) + 손절(감시 매도)을 한 묶음(OCO)으로 등록
+    async function setTpSl(qty, base, tpP, slP) {
+      const g = 'oco' + Date.now().toString(36); const rp = (v) => (ccy === 'USD' ? +v.toFixed(2) : U.roundTick(v, 'KRW')); let n = 0;
+      try {
+        if (tpP > 0) { await Store.placeOrder({ code, side: 'sell', type: 'limit', price: rp(base * (1 + tpP / 100)), qty, oco: g }); n++; }
+        if (slP > 0) { await Store.placeOrder({ code, side: 'sell', type: 'stop', price: 0, triggerPrice: rp(base * (1 - slP / 100)), triggerCond: 'le', qty, oco: g }); n++; }
+        U.toast(`익절 ${tpP ? '+' + tpP + '% ' + px(rp(base * (1 + tpP / 100)), ccy) : '-'} · 손절 ${slP ? '-' + slP + '% ' + px(rp(base * (1 - slP / 100)), ccy) : '-'} 주문을 걸었습니다.`); Voice.say('익절 손절 주문을 등록했습니다.');
+      } catch (e) { U.toast((n ? '일부만 등록됨 · ' : '') + e.message, true); }
+    }
+    function tpslDlg(h) {
+      U.modal({ title: `${h.name} 익절·손절`, body: `<p class="muted" style="margin:0 0 10px">평균단가 ${px(h.avg, h.currency)} · 매도가능 ${n0(h.sellable)}주</p><div class="grid g-2"><div class="field"><label>익절 (+%)</label><input class="input" id="tdT" inputmode="decimal" value="5"></div><div class="field"><label>손절 (−%)</label><input class="input" id="tdS" inputmode="decimal" value="3"></div></div><div class="field"><label>수량</label><input class="input" id="tdQ" inputmode="numeric" value="${h.sellable}"></div><p class="dim" style="font-size:12px">평균단가 기준으로 계산합니다. 한쪽이 체결되면 다른 쪽은 자동 취소됩니다.</p>`, foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="tdOk">등록</button>', onMount: (m, close) => { $('#tdOk', m).onclick = async () => { const qn = Math.min(h.sellable, parseInt($('#tdQ', m).value, 10) || 0); if (!qn) return U.toast('매도가능 수량이 없습니다.', true); close(); await setTpSl(qn, h.avg, parseFloat($('#tdT', m).value) || 0, parseFloat($('#tdS', m).value) || 0); }; } });
+    }
+    async function closeCode(h, silent) {
+      if (!h || !h.sellable) { if (!silent) U.toast('매도가능 수량이 없습니다.', true); return false; }
+      try { const r = await Store.placeOrder({ code: h.code, side: 'sell', type: 'market', price: 0, qty: h.sellable }); if (r.fill) seenFill.add(r.fill.id); return true; } catch (e) { U.toast(`${h.name} · ${e.message}`, true); return false; }
+    }
     function renderHead() {
       const q = Market.quote(code); const ses = Market.session(q.market); const watched = (S.user.watch || []).includes(code);
       $('#sHead').innerHTML = `
-        <div style="min-width:0"><div style="display:flex;align-items:center;gap:6px"><button class="star ${watched ? 'on' : ''}" id="sStar" title="관심종목">${ICON.star}</button><span class="nm">${esc(q.name)}</span><span class="cd">${code} · ${q.market}</span><span class="tag ${ses.open ? 'tag-ok' : ses.ext ? 'tag-brand' : 'tag-no'}" style="margin-left:4px">${ses.label}</span></div>
+        <div style="min-width:0"><div style="display:flex;align-items:center;gap:6px"><button class="star ${watched ? 'on' : ''}" id="sStar" title="관심종목">${ICON.star}</button><span class="nm">${esc(q.name)}</span>${q.currency === 'KRW' ? (Market.isRealtime(code) ? '<span class="rt-b on" title="2~3초마다 실시간 체결가·거래량 반영"><i></i>실시간</span>' : '<span class="rt-b" title="실시간 연결 중 · 연결 전에는 5분 간격 시세">연결 중</span>') : '<span class="rt-b" title="미국 주식은 5분 간격 시세">5분 지연</span>'}<span class="cd">${code} · ${q.market}</span><span class="tag ${ses.open ? 'tag-ok' : ses.ext ? 'tag-brand' : 'tag-no'}" style="margin-left:4px">${ses.label}</span></div>
           <div style="display:flex;align-items:baseline;gap:10px;margin-top:6px"><span class="px ${cls(q.change)}">${pxu(q.price, q.currency)}</span><span class="chg ${cls(q.change)}">${signed(q.change, q.currency)} (${pct(q.changePct)})</span></div></div>
         <div class="quote-meta">
           <span>시가<b>${px(q.open, q.currency)}</b></span><span>고가<b class="up">${px(q.high, q.currency)}</b></span><span>저가<b class="down">${px(q.low, q.currency)}</b></span>
@@ -673,7 +723,10 @@
         el.innerHTML = os.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>종목</th><th>구분</th><th>주문가</th><th>수량</th><th class="hide-m">주문시각</th><th></th></tr></thead><tbody>${os.map((o) => `<tr><td><div class="sname"><b>${esc(o.name)}</b><small>${o.code}</small></div></td><td><span class="tag ${o.side === 'buy' ? 'tag-buy' : 'tag-sell'}">${o.side === 'buy' ? '매수' : '매도'}</span>${o.type === 'stop' ? ' <span class="tag tag-wait">감시</span>' : o.type === 'ext' ? ' <span class="tag tag-brand">시간외</span>' : ''}</td><td>${o.type === 'stop' ? px(o.triggerPrice, o.currency) + (o.triggerCond === 'ge' ? ' 이상' : ' 이하') : px(o.price, o.currency)}</td><td>${n0(o.qty)}</td><td class="hide-m dim">${U.dt(o.createdAt)}</td><td><button class="btn btn-sm" data-amend="${o.id}">정정</button> <button class="btn btn-sm btn-danger" data-cancel="${o.id}">취소</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">미체결 주문이 없습니다</div>';
       } else if (bottomTab === 'pos') {
         const h = S.v.holdings.find((x) => x.code === code);
-        el.innerHTML = h ? `<div class="panel-b"><div class="grid g-4"><div class="stat"><div class="k">보유수량</div><div class="v" style="font-size:18px">${n0(h.qty)}주</div><div class="s dim">매도가능 ${n0(h.sellable)}주</div></div><div class="stat"><div class="k">평균단가</div><div class="v" style="font-size:18px">${pxu(h.avg, h.currency)}</div></div><div class="stat"><div class="k">평가금액</div><div class="v" style="font-size:18px">${won(h.evalKrw)}</div></div><div class="stat"><div class="k">평가손익</div><div class="v ${cls(h.pnl)}" style="font-size:18px">${signedWon(h.pnl)}</div><div class="s ${cls(h.pnl)}">${pct(h.pnlPct)}</div></div></div></div>` : '<div class="empty">이 종목을 보유하고 있지 않습니다</div>';
+        el.innerHTML = h ? `<div class="panel-b"><div class="grid g-4"><div class="stat"><div class="k">보유수량</div><div class="v" style="font-size:18px">${n0(h.qty)}주</div><div class="s dim">매도가능 ${n0(h.sellable)}주</div></div><div class="stat"><div class="k">평균단가</div><div class="v" style="font-size:18px">${pxu(h.avg, h.currency)}</div></div><div class="stat"><div class="k">평가금액</div><div class="v" style="font-size:18px">${won(h.evalKrw)}</div></div><div class="stat"><div class="k">평가손익</div><div class="v ${cls(h.pnl)}" style="font-size:18px">${signedWon(h.pnl)}</div><div class="s ${cls(h.pnl)}">${pct(h.pnlPct)}</div></div></div><div class="pos-act"><button class="btn btn-sm" id="pTs">익절·손절 걸기</button><button class="btn btn-sm btn-sell" id="pCl">이 종목 전량 청산</button><button class="btn btn-sm btn-danger" id="pAll">보유 종목 일괄 청산</button></div></div>` : `<div class="empty">이 종목을 보유하고 있지 않습니다${S.v.holdings.length ? `<br><button class="btn btn-sm btn-danger" id="pAll" style="margin-top:10px">보유 종목 ${S.v.holdings.length}개 일괄 청산</button>` : ''}</div>`;
+        if ($('#pTs')) $('#pTs').onclick = () => tpslDlg(h);
+        if ($('#pCl')) $('#pCl').onclick = async () => { if (!(await U.confirmBox('종목 청산', `<p>${esc(h.name)} 매도가능 ${n0(h.sellable)}주를 시장가로 모두 매도할까요?</p>`, '전량 매도', 'btn-sell'))) return; if (await closeCode(h)) { chime(); Voice.say(`${h.name} 전량 매도했습니다.`); U.toast(`${h.name} 전량 매도 주문 완료`); } };
+        if ($('#pAll')) $('#pAll').onclick = async () => { const L = S.v.holdings.filter((x) => x.sellable > 0); if (!L.length) return U.toast('매도가능한 보유 종목이 없습니다.', true); if (!(await U.confirmBox('일괄 청산', `<p>보유 종목 ${L.length}개를 모두 시장가로 매도합니다.</p><p class="dim" style="font-size:12px">${L.map((x) => esc(x.name)).join(', ')}</p>`, '일괄 청산', 'btn-danger'))) return; let n = 0; for (const x of L) if (await closeCode(x, true)) n++; chime(); Voice.say(`${n}개 종목을 청산했습니다.`); U.toast(`일괄 청산 · ${n}/${L.length}개 종목 매도 주문 완료`); };
       } else if (bottomTab === 'fills') {
         const fs = S.d.fills.filter((f) => f.code === code).sort((a, b) => b.at.localeCompare(a.at));
         el.innerHTML = fs.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>체결시각</th><th>구분</th><th>체결가</th><th>수량</th><th>금액</th><th>실현손익</th></tr></thead><tbody>${fs.map((f) => `<tr><td class="dim">${U.dt(f.at)}</td><td><span class="tag ${f.side === 'buy' ? 'tag-buy' : 'tag-sell'}">${f.side === 'buy' ? '매수' : '매도'}</span></td><td>${px(f.price, f.currency)}</td><td>${n0(f.qty)}</td><td>${won(f.amount)}</td><td class="${cls(f.pnl)}">${f.side === 'sell' ? signedWon(f.pnl) : '-'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">이 종목의 체결 내역이 없습니다</div>';
@@ -737,6 +790,7 @@
       tf: (v) => { const b = $(`#sTf [data-v="${v}"]`); if (b) b.click(); },
       tab: (v) => { const b = $(`#sTabs [data-v="${v}"]`); if (b) b.click(); },
       star: () => { const b = $('#sStar'); if (b) b.click(); },
+      quick: (sd) => { O.side = sd; O.type = 'market'; if (!O.qty) O.qty = 1; syncForm(); submit(); },
     };
     return { tick, data, keys, redraw: () => { chart.draw(); }, destroy: () => { clearInterval(ci); chart.destroy(); } };
   }
@@ -1307,7 +1361,7 @@
         <div class="field"><label>제목</label><input class="input" id="hqT" maxlength="100" placeholder="예: USDT 충전 신청이 아직 승인되지 않았어요"></div>
         <div class="field"><label>내용</label><textarea class="input" id="hqB" rows="6" maxlength="3000" placeholder="신청 시각, 금액, 종목 등 자세히 적어주시면 빠르게 확인합니다."></textarea></div>
         <button class="btn btn-brand btn-block btn-lg" id="hqGo">문의 등록</button></div></section>
-      <section class="panel"><div class="panel-h"><h3>자주 묻는 질문</h3></div><div class="panel-b faq">${[['충전은 어떻게 하나요?', '입출금 메뉴에서 계좌이체·카드·MOA 토큰·USDT·USDC·USD1·MAX 포인트 중 수단을 고르고 신청하면 관리자 승인 후 예수금에 반영됩니다.'], ['MAX 버프는 무엇인가요?', '순자산의 1~3배를 지원받아 더 크게 투자하는 신용 기능입니다. 담보비율이 등급별 청산 기준 아래로 내려가면 보유 종목이 자동 매도되어 상환됩니다.'], ['감시주문은 어떻게 쓰나요?', '종목 주문 화면에서 「감시주문」을 고르고 가격과 조건(이하·이상)을 정하면, 현재가가 그 가격에 닿을 때 시장가로 자동 매수·매도됩니다. 손절·익절·돌파 매수에 씁니다.'], ['등급은 어떻게 올라가나요?', '거래 실적과 운영 정책에 따라 관리자가 조정합니다. 등급이 높을수록 버프 한도가 크고 이자율이 낮습니다.'], ['시세는 실시간인가요?', '국내·미국 전 종목 시세가 장중 5분 간격으로 갱신됩니다.']].map(([q, a]) => `<details><summary>${q}</summary><p class="muted">${a}</p></details>`).join('')}</div></section></div>
+      <section class="panel"><div class="panel-h"><h3>자주 묻는 질문</h3></div><div class="panel-b faq" id="hFaq">${[['충전은 어떻게 하나요?', '입출금 메뉴에서 계좌이체·카드·MOA 토큰·USDT·USDC·USD1·MAX 포인트 중 수단을 고르고 신청하면 관리자 승인 후 예수금에 반영됩니다.'], ['MAX 버프는 무엇인가요?', '순자산의 1~3배를 지원받아 더 크게 투자하는 신용 기능입니다. 담보비율이 등급별 청산 기준 아래로 내려가면 보유 종목이 자동 매도되어 상환됩니다.'], ['감시주문은 어떻게 쓰나요?', '종목 주문 화면에서 「감시주문」을 고르고 가격과 조건(이하·이상)을 정하면, 현재가가 그 가격에 닿을 때 시장가로 자동 매수·매도됩니다. 손절·익절·돌파 매수에 씁니다.'], ['등급은 어떻게 올라가나요?', '거래 실적과 운영 정책에 따라 관리자가 조정합니다. 등급이 높을수록 버프 한도가 크고 이자율이 낮습니다.'], ['시세는 실시간인가요?', '국내·미국 전 종목 시세가 장중 5분 간격으로 갱신됩니다.']].map(([q, a]) => `<details><summary>${q}</summary><p class="muted">${a}</p></details>`).join('')}</div></section></div>
       <section class="panel"><div class="panel-h"><h3>내 문의 · 쪽지</h3></div><div class="panel-b flush" id="hqL"></div></section>`;
     $('#hqGo').onclick = async () => { const t = $('#hqT').value.trim(); if (!t) return U.toast('제목을 입력해 주세요.', true); try { await Store.createInquiry($('#hqC').value, t, $('#hqB').value); $('#hqT').value = ''; $('#hqB').value = ''; U.toast('문의가 등록되었습니다. 답변이 달리면 알림으로 알려드립니다.'); } catch (e) { U.toast(e.message, true); } };
     function data() {
@@ -1315,14 +1369,14 @@
       $('#hqL').innerHTML = L.length ? L.map((q) => `<div class="inq ${q.fromAdmin ? 'msg' : ''}"><div class="inq-h"><span class="tag ${q.fromAdmin ? 'tag-brand' : 'tag-no'}">${CAT[q.category] || '기타'}</span><b>${esc(q.title)}</b><span class="tag ${q.status === 'open' ? 'tag-wait' : 'tag-ok'}">${q.fromAdmin ? '쪽지' : q.status === 'open' ? '답변 대기' : q.status === 'answered' ? '답변 완료' : '종료'}</span><small class="dim">${U.dt(q.createdAt)}</small></div>${q.body ? `<p class="muted" style="white-space:pre-wrap;margin:8px 0 0">${esc(q.body)}</p>` : ''}${q.answer ? `<div class="inq-a"><b>${q.fromAdmin ? '운영팀' : '답변'}</b> <small class="dim">${q.answeredAt ? U.dt(q.answeredAt) : ''}</small><p style="white-space:pre-wrap;margin:6px 0 0">${esc(q.answer)}</p></div>` : ''}</div>`).join('') : '<div class="empty">문의 내역이 없습니다</div>';
       if (L.some((q) => !q.readByUser)) Store.readInquiries().catch(() => {});
     }
-    data();
+    data(); window.MLSX && MLSX.faq($('#hFaq'));
     return { data };
   }
 
   // ═════════ 마이페이지 ═════════
   function My(main) {
     let tab = (location.hash.split('/')[2]) || 'home', per = 'month';
-    const TABS = [['home', '내 정보'], ['asset', '자산 현황'], ['settle', '정산 내역'], ['trade', '매수·매도 내역'], ['cash', '입출금 내역'], ['buff', 'MAX 버프'], ['alert', '알림'], ['set', '설정']];
+    const TABS = [['home', '내 정보'], ['asset', '자산 현황'], ['settle', '정산 내역'], ['trade', '매수·매도 내역'], ['cash', '입출금 내역'], ['buff', 'MAX 버프'], ['alert', '알림'], ['money', '자산 변동 로그'], ['set', '설정']];
     main.innerHTML = `${head('마이페이지', '내 계좌·정산·입출금·매매 내역과 계정 설정을 한 곳에서 관리합니다.')}
       <div class="my-head panel panel-b" id="myHead"></div>
       <div class="tabs my-tabs" id="myT">${TABS.map(([k, n]) => `<button data-v="${k}">${n}</button>`).join('')}</div>
@@ -1339,6 +1393,7 @@
     function draw() {
       head2(); $$('#myT button').forEach((x) => x.classList.toggle('on', x.dataset.v === tab));
       const el = $('#myB'), u = S.user, v = S.v, g = GRADE(u.grade);
+      if (tab === 'money') { window.MLSX ? MLSX.moneyLog(el) : (el.innerHTML = ''); return; }
       if (tab === 'home') {
         el.innerHTML = `<div class="grid g-2 stack">
           <section class="panel"><div class="panel-h"><h3>내 정보</h3></div><div class="panel-b"><form id="pfF"><div class="field"><label>닉네임 <span class="dim">랭킹·리딩 댓글에 표시</span></label><input class="input" name="name" value="${esc(u.name)}" maxlength="20"></div><div class="field"><label>휴대폰</label><input class="input" name="phone" value="${esc(u.phone || '')}"></div><div class="field"><label>이메일</label><input class="input" name="email" value="${esc(u.email || '')}"></div><button class="btn btn-brand">저장</button></form></div></section>

@@ -1,0 +1,46 @@
+name: 웹 배포 (소스 난독화)
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['desktop/**', 'supabase/**', '*.md']
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency: { group: pages, cancel-in-progress: true }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: 난독화 도구 설치
+        run: npm i --no-save javascript-obfuscator@4.1.1 clean-css-cli@5.6.3 html-minifier-terser@7.2.0
+      - name: 배포본 만들기
+        run: |
+          mkdir -p _site
+          cp -r index.html admin.html partner.html assets _site/
+          [ -d data ] && cp -r data _site/ || true
+          [ -f manifest.webmanifest ] && cp manifest.webmanifest _site/ || true
+          [ -f sw.js ] && cp sw.js _site/ || true
+          # 자바스크립트 난독화 + 사이트 주소 잠금 (다른 사이트로 퍼가면 동작 안 함)
+          for f in _site/assets/js/*.js; do
+            npx javascript-obfuscator "$f" --output "$f" --compact true --string-array true --string-array-encoding base64 --string-array-threshold 0.75 \
+              --identifier-names-generator hexadecimal --rename-globals false --self-defending false --simplify true --split-strings false \
+              --domain-lock 'whaleguard.github.io,.whaleguard.github.io,localhost,127.0.0.1' --domain-lock-redirect-url 'about:blank' --source-map false
+          done
+          npx cleancss -o _site/assets/css/app.css _site/assets/css/app.css
+          for h in _site/*.html; do npx html-minifier-terser --collapse-whitespace --remove-comments --minify-css true --minify-js true -o "$h" "$h"; done
+          rm -rf _site/assets/js/*.map
+          ls -la _site/assets/js | head -30
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: '${{ steps.d.outputs.page_url }}' }
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4

@@ -14,7 +14,8 @@ const Chart = (() => {
   const macdCalc = (all) => { const c = all.map((k) => k.c); const e12 = ema(c, 12), e26 = ema(c, 26); const m = c.map((_, i) => (e12[i] != null && e26[i] != null ? e12[i] - e26[i] : null)); const firstIdx = m.findIndex((v) => v != null); const sig = firstIdx < 0 ? m.map(() => null) : [...m.slice(0, firstIdx).map(() => null), ...ema(m.slice(firstIdx), 9)]; return { m, sig, hist: m.map((v, i) => (v != null && sig[i] != null ? v - sig[i] : null)) }; };
   const bbCalc = (all, n = 20, k = 2) => all.map((_, i) => { if (i < n - 1) return null; const sl = all.slice(i - n + 1, i + 1).map((x) => x.c); const mean = sl.reduce((a, b) => a + b, 0) / n; const sd = Math.sqrt(sl.reduce((a, b) => a + (b - mean) ** 2, 0) / n); return { m: mean, u: mean + k * sd, l: mean - k * sd }; });
   const ma = (data, n) => data.map((_, i) => (i < n - 1 ? null : data.slice(i - n + 1, i + 1).reduce((s, k) => s + k.c, 0) / n));
-  const nice = (v, ccy) => (ccy === 'USD' ? v.toFixed(2) : U.n0(v));
+  const cfmt = (v) => { const a = Math.abs(v); return a >= 1000 ? v.toFixed(1) : a >= 10 ? v.toFixed(2) : a >= 1 ? v.toFixed(4) : a >= 0.01 ? v.toFixed(5) : v.toPrecision(4); };
+  const nice = (v, ccy) => (ccy === 'COIN' ? cfmt(v) : ccy === 'USD' ? v.toFixed(2) : U.n0(v));
   const fmtT = (t, tf) => { const d = new Date(t); return tf === 'm' ? U.two(d.getHours()) + ':' + U.two(d.getMinutes()) : tf === 'M' ? d.getFullYear() + '.' + U.two(d.getMonth() + 1) : U.two(d.getMonth() + 1) + '.' + U.two(d.getDate()); };
 
   // 캔들차트
@@ -80,7 +81,7 @@ const Chart = (() => {
         const top = y(Math.max(k.o, k.c)), bot = y(Math.min(k.o, k.c)); ctx.fillRect(x(i) - bw / 2, top, bw, Math.max(1, bot - top));
       });
       // MA
-      const mcol = { 5: '#F5B94A', 20: css('--brand'), 60: '#B48CFF', 120: '#5BC0DE' };
+      const mcol = { 5: '#F5B94A', 7: '#F5B94A', 20: css('--brand'), 25: css('--brand'), 60: '#B48CFF', 99: '#B48CFF', 120: '#5BC0DE' };
       for (const m of MAS) { ctx.strokeStyle = mcol[m]; ctx.lineWidth = 1.2; ctx.beginPath(); let s = false; mas[m].forEach((v, i) => { if (v == null) return; s ? ctx.lineTo(x(i), y(v)) : (ctx.moveTo(x(i), y(v)), (s = true)); }); ctx.stroke(); }
       ctx.lineWidth = 1;
       // 리딩 라인 (진입/목표/손절)
@@ -119,7 +120,7 @@ const Chart = (() => {
     canvas.addEventListener('touchmove', (e) => { const p = pos(e); if (tx != null && st._geom) { const sh = Math.round((p.x - tx) / st._geom.cw); if (sh) { st.offset = Math.max(0, Math.min(st.data.length - st.view, st.offset + sh)); tx = p.x; } st.hover = Math.floor(p.x / st._geom.cw); draw(); } }, { passive: true });
     canvas.addEventListener('touchend', () => { tx = null; st.hover = -1; draw(); });
     const ro = new ResizeObserver(() => draw()); ro.observe(canvas);
-    return { set(o) { Object.assign(st, o); draw(); }, draw, destroy() { ro.disconnect(); } };
+    return { set(o) { Object.assign(st, o); draw(); }, draw, destroy() { ro.disconnect(); }, patch(px) { const L = st.data[st.data.length - 1]; if (!L || !isFinite(px) || L.c === px) return; L.c = px; if (px > L.h) L.h = px; if (px < L.l) L.l = px; draw(); } };
   }
 
   // 라인/영역 차트
