@@ -879,3 +879,12 @@ html:not([lang="ko"]) .side a, html:not([lang="ko"]) .side-nav a { line-height: 
 
 .only-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--brand); color: #111; font-size: 11px; font-weight: 800; vertical-align: middle; margin-right: 4px; }
 .only-box { padding: 10px 14px; border-radius: 10px; background: color-mix(in srgb, var(--brand) 10%, transparent); border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent); font-size: 13px; line-height: 1.6; max-width: 640px; text-align: left; }
+
+.buff-opt.review small { color: var(--warn, #f5b94a); } .buff-opt.review { border-style: dashed; }
+
+.bf-sec { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; } .bf-sec b { font-size: 14px; } .bf-sec small { font-size: 11px; }
+.buff-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.buff-opt.focus { border-color: color-mix(in srgb, var(--up) 40%, var(--border)); } .buff-opt.focus small { color: var(--up); }
+.notice-bar.warn { border-color: color-mix(in srgb, var(--warn, #f5b94a) 50%, transparent); background: color-mix(in srgb, var(--warn, #f5b94a) 10%, transparent); }
+
+@media (max-width: 760px) { .buff-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; } .buff-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); } .buff-opt { padding: 10px 8px; } .buff-opt b { font-size: 18px; } .buff-opt span { font-size: 12px; } .buff-opt small { font-size: 10px; line-height: 1.35; } }
