@@ -674,3 +674,5 @@ tr.me-row td { background: var(--brand-soft); }
 .dist { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; } .dist > div { flex: 1; min-width: 140px; }
 .dist-r { display: grid; grid-template-columns: 12px 1fr auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .dist-r i { width: 10px; height: 10px; border-radius: 50%; } .dist-r small { color: var(--text-3); min-width: 46px; text-align: right; }
+.demo-acc { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); text-align: left; font-size: 13px; }
+.demo-acc:hover { border-color: var(--brand); } .demo-acc span { min-width: 52px; font-weight: 700; color: var(--text); }

@@ -15,6 +15,10 @@ window.MLS_CONFIG = {
   ],
   LOCAL_DATA: './data',
   QUOTE_POLL_MS: 60 * 1000,
+  // 로그인 화면에 보여줄 테스트 계정 (운영 시작 전 비워 두세요)
+  DEMO_ACCOUNTS: [
+    { label: '테스터', id: 'tester', pw: 'tester1234' },
+  ],
   SAMPLE_TICK_MS: 2000,
   STALE_MIN: 30, // 이 시간(분) 이상 갱신 없으면 '지연' 표시
 };

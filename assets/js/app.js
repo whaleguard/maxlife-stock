@@ -287,7 +287,7 @@
             <button class="btn btn-brand btn-block btn-lg" style="margin-top:8px">로그인</button>
           </form>
           <div class="auth-switch">아직 계정이 없으신가요? <button data-sw="signup">회원가입</button></div>
-          ${Store.mode === 'local' ? `<div class="demo-box"><b style="color:var(--text)">데모 계정</b><br>이용자 <code>demo</code> / <code>demo1234</code><br>MAX 리딩 <code>teacher</code> / <code>teacher1234</code><br>관리자 <code>admin</code> / <code>admin1234</code></div>` : ''}
+          ${Store.mode === 'local' ? `<div class="demo-box"><b style="color:var(--text)">데모 계정</b><br>이용자 <code>demo</code> / <code>demo1234</code><br>MAX 리딩 <code>teacher</code> / <code>teacher1234</code><br>관리자 <code>admin</code> / <code>admin1234</code></div>` : (window.MLS_CONFIG.DEMO_ACCOUNTS || []).length ? `<div class="demo-box"><b style="color:var(--text)">테스트 계정</b> <span class="dim">· 누르면 바로 입력됩니다</span>${window.MLS_CONFIG.DEMO_ACCOUNTS.map((a, i) => `<button type="button" class="demo-acc" data-demo="${i}"><span>${esc(a.label)}</span><code>${esc(a.id)}</code> / <code>${esc(a.pw)}</code></button>`).join('')}</div>` : ''}
         ` : `
           <h1>회원가입</h1><p class="sub">가입 즉시 예수금 ${won(S.st.initialCash)}이 지급됩니다.</p>
           <form id="authF">
@@ -304,6 +304,7 @@
       </div></div>
     </div>`;
     $('[data-sw]').onclick = (e) => renderAuth(e.target.dataset.sw);
+    $$('[data-demo]').forEach((b) => (b.onclick = () => { const a = window.MLS_CONFIG.DEMO_ACCOUNTS[+b.dataset.demo]; const f = $('#authF'); f.username.value = a.id; f.pw.value = a.pw; f.querySelector('.btn-brand').focus(); }));
     $$('[data-terms]').forEach((b) => (b.onclick = (e) => { e.preventDefault(); termsModal(b.dataset.terms); }));
     $('#authF').onsubmit = async (e) => {
       e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
