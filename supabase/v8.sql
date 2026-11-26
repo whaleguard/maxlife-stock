@@ -198,18 +198,18 @@ revoke all on function mls_rt_get(text[]) from public;
 -- ───────── 종목 공시 (네이버 증권 공시, 10분 캐시) ─────────
 create table if not exists mls_disc (k text primary key, d jsonb not null, at timestamptz not null default now());
 create or replace function mls_disc_get(p_code text, p_id text default null) returns jsonb language plpgsql security definer set search_path = public, extensions as $$
-declare r extensions.http_response; k text; c mls_disc;
+declare r extensions.http_response; v_k text; c mls_disc;
 begin
   if coalesce(p_code, '') !~ '^[0-9A-Z]{6}$' or coalesce(p_id, '') !~ '^[0-9]{0,15}$' then return '[]'::jsonb; end if;
-  k := p_code || ':' || coalesce(nullif(p_id, ''), 'list');
-  select * into c from mls_disc where mls_disc.k = k and at > now() - case when p_id is null or p_id = '' then interval '10 minutes' else interval '7 days' end;
+  v_k := p_code || ':' || coalesce(nullif(p_id, ''), 'list');
+  select * into c from mls_disc where mls_disc.k = v_k and at > now() - case when p_id is null or p_id = '' then interval '10 minutes' else interval '7 days' end;
   if found then return c.d; end if;
   begin
     perform extensions.http_set_curlopt('CURLOPT_TIMEOUT', '5');
     select * into r from extensions.http_get('https://m.stock.naver.com/api/stock/' || p_code || '/disclosure' || case when coalesce(p_id, '') = '' then '?pageSize=30&page=1' else '/' || p_id end);
-    if r.status = 200 then insert into mls_disc (k, d, at) values (k, r.content::jsonb, now()) on conflict (k) do update set d = excluded.d, at = excluded.at; return r.content::jsonb; end if;
+    if r.status = 200 then insert into mls_disc (k, d, at) values (v_k, r.content::jsonb, now()) on conflict (k) do update set d = excluded.d, at = excluded.at; return r.content::jsonb; end if;
   exception when others then null; end;
-  return coalesce((select d from mls_disc where mls_disc.k = k), '[]'::jsonb);
+  return coalesce((select d from mls_disc where mls_disc.k = v_k), '[]'::jsonb);
 end $$;
 revoke all on function mls_disc_get(text, text) from public;
 
