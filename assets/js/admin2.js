@@ -193,7 +193,7 @@
   // ═════ 운영 도구 ═════
   function Ops(main, sub) {
     let tab = sub || 'online';
-    main.innerHTML = `${H('운영 도구', '접속 중 회원, 자산 변동 로그, IP·기기 차단, 근무 인수인계, 점검 시간과 알림음을 관리합니다.')}${tabs('opT', [['online', '접속 중'], ['access', '접속 제한·투자성향'], ['money', '자산 변동 로그'], ['block', 'IP·기기 차단'], ['handover', '인수인계'], ['service', '점검·알림 설정']], tab)}<div id="opB"></div>`;
+    main.innerHTML = `${H('운영 도구', '접속 중 회원, 자산 변동 로그, IP·기기 차단, 근무 인수인계, 점검 시간과 알림음을 관리합니다.')}${tabs('opT', [['online', '접속 중'], ['access', '접속 제한·투자성향'], ['reserve', '예약주문'], ['money', '자산 변동 로그'], ['block', 'IP·기기 차단'], ['handover', '인수인계'], ['service', '점검·알림 설정']], tab)}<div id="opB"></div>`;
     onTabs('opT', (v) => { tab = v; history.replaceState(null, '', '#/ops/' + v); draw(); });
     let iv = 0;
     async function draw() {
@@ -213,6 +213,9 @@
           $('#ssSave').onclick = async () => { try { await Store.saveSettings({ singleSession: $('#ssOn').checked }); U.toast('저장했습니다.'); } catch (e) { U.toast(e.message, true); } };
           $$('[data-ac]', el).forEach((b) => (b.onclick = () => { const u = L.find((x) => x.id === b.dataset.ac); accessDlg({ id: u.id, name: u.name, status: 'active' }).then(() => {}); }));
           $$('[data-mem]', el).forEach((b) => (b.onclick = () => C().memberDetail(b.dataset.mem)));
+        } else if (tab === 'reserve') {
+          const L = await Store.adminReserves(); const ST = { pending: ['대기', 'tag-wait'], done: ['실행', 'tag-ok'], failed: ['실패', 'tag-sell'], cancelled: ['취소', 'tag-no'] };
+          el.innerHTML = `<section class="panel"><div class="panel-h"><h3>예약주문 (최근 300건)</h3><span class="dim" style="font-size:12px">다음 정규장 시작 때 매분 자동 실행</span></div>${tbl(['등록', ['회원', 'l'], ['종목', 'l'], '구분', '가격', '수량', '실행 예정', '상태', ['결과', 'l']], L.map((r) => `<tr><td class="dim">${U.dt(r.at)}</td><td class="l">${esc(r.user)}</td><td class="l">${esc(r.name)}</td><td><span class="tag ${r.side === 'buy' ? 'tag-buy' : 'tag-sell'}">${r.side === 'buy' ? '매수' : '매도'}</span></td><td>${r.type === 'market' ? '시장가' : n0(r.price)}</td><td>${n0(r.qty)}</td><td class="dim">${U.dt(r.runAfter)}</td><td><span class="tag ${(ST[r.status] || ST.pending)[1]}">${(ST[r.status] || ST.pending)[0]}</span></td><td class="l muted">${esc(r.result || '')}</td></tr>`), '예약주문이 없습니다')}</section>`;
         } else if (tab === 'money') {
           const L = await Store.moneyLog('', 1000); let q = '';
           el.innerHTML = `<section class="panel"><div class="panel-h"><div class="search" style="flex:1;max-width:280px">${ICON.search}<input id="mlQ" placeholder="회원·구분 검색" style="width:100%"></div><button class="btn btn-sm" id="mlCsv">엑셀(CSV)</button></div><div id="mlL"></div></section>`;

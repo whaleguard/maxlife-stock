@@ -345,7 +345,7 @@
         <a href="#/home">${U.logo()}</a>
         <div class="ticker" id="ticker"></div>
         <div class="top-actions">
-          <div class="search">${ICON.search}<input id="q" placeholder="종목명·코드 검색" autocomplete="off"><div class="search-results hidden" id="qr"></div></div>
+          <div class="search">${ICON.search}<input id="q" placeholder="종목명·코드·화면번호" autocomplete="off"><div class="search-results hidden" id="qr"></div></div>
           <button class="icon-btn hide-m" id="keysBtn" title="단축키 안내 (F1)"><kbd style="font-size:11px">F1</kbd></button><button class="icon-btn" id="voiceBtn" title="음성 안내"></button><button class="icon-btn bell" id="bellBtn" title="알림">${ICON.bell}<span class="bdg" id="bellN" hidden></span></button><div class="notif-pop hidden" id="notifPop"></div>
           <button class="icon-btn" id="themeBtn" title="다크·화이트 전환">${theme.get() === 'dark' ? ICON.sun : ICON.moon}</button>
           <button class="user-chip" id="userBtn"><span class="avatar">${esc(S.user.name.slice(0, 1))}</span><span class="nm">${esc(S.user.name)}</span></button>
@@ -533,7 +533,7 @@
           <section class="panel">
             <div class="quote-head" id="sHead"></div>
             <div class="q-sum" id="sSum"></div>
-            <div class="chart-tools"><select class="input sm mu-sel" id="sMu" title="분봉 단위" style="display:none">${[1, 3, 5, 10, 15, 30, 60].map((x) => `<option value="${x}">${x}분</option>`).join('')}</select><div class="seg" id="sTf"><button data-v="m">분</button><button data-v="D" class="on">일</button><button data-v="W">주</button><button data-v="M">월</button></div><div class="seg" id="sMa" title="이동평균선"><button data-v="5" class="on">5</button><button data-v="20" class="on">20</button><button data-v="60" class="on">60</button><button data-v="120" class="on">120</button></div><div class="seg" id="sInd"><button data-v="bb">볼린저</button></div><div class="seg" id="sSub"><button data-v="vol" class="on">거래량</button><button data-v="rsi">RSI</button><button data-v="macd">MACD</button></div><button class="btn btn-sm btn-ghost" id="sEasy" title="이동평균 20일·거래량만 보는 간편 차트">간편 차트</button><div class="seg draw-seg" id="sDraw" title="차트 그리기"><button data-v="h" title="차트를 누른 가격에 수평선">수평선</button><button data-v="t" title="두 점을 눌러 추세선">추세선</button><button data-v="x" title="그린 선 모두 지우기">지우기</button></div><button class="btn btn-sm btn-ghost" id="sFull" title="차트 전체화면">전체화면</button><span class="dim" style="font-size:11px" id="sCSrc"></span></div>
+            <div class="chart-tools"><select class="input sm mu-sel" id="sMu" title="분봉 단위" style="display:none">${[1, 3, 5, 10, 15, 30, 60].map((x) => `<option value="${x}">${x}분</option>`).join('')}</select><div class="seg" id="sTf"><button data-v="m">분</button><button data-v="D" class="on">일</button><button data-v="W">주</button><button data-v="M">월</button></div><div class="seg" id="sMa" title="이동평균선"><button data-v="5" class="on">5</button><button data-v="20" class="on">20</button><button data-v="60" class="on">60</button><button data-v="120" class="on">120</button></div><div class="seg" id="sInd"><button data-v="bb">볼린저</button><button data-v="ichi" title="일목균형표: 전환선·기준선·구름대">일목</button></div><div class="seg" id="sSub"><button data-v="vol" class="on">거래량</button><button data-v="rsi">RSI</button><button data-v="macd">MACD</button><button data-v="stoch" title="스토캐스틱 슬로우 (14,3,3)">스토캐스틱</button></div><button class="btn btn-sm btn-ghost" id="sEasy" title="이동평균 20일·거래량만 보는 간편 차트">간편 차트</button><div class="seg draw-seg" id="sDraw" title="차트 그리기"><button data-v="h" title="차트를 누른 가격에 수평선">수평선</button><button data-v="t" title="두 점을 눌러 추세선">추세선</button><button data-v="x" title="그린 선 모두 지우기">지우기</button></div><button class="btn btn-sm btn-ghost" id="sFull" title="차트 전체화면">전체화면</button><span class="dim" style="font-size:11px" id="sCSrc"></span></div>
             <div class="chart-box"><div class="chart-tip" id="sTip"></div><canvas id="sChart"></canvas></div>
           </section>
           <section class="panel" style="margin-top:16px">
@@ -552,7 +552,8 @@
           <div class="acct-bar" id="oAcct"></div>
           <div class="order-side"><button class="buy" data-side="buy">매수</button><button class="sell" data-side="sell">매도</button></div>
           <div class="panel-b">
-            <div class="field"><label>주문 유형</label><div class="seg" id="oType" style="width:100%"><button data-v="limit" style="flex:1">지정가</button><button data-v="market" style="flex:1">시장가</button><button data-v="stop" style="flex:1" title="손절·익절·돌파 매매">감시주문</button><button data-v="ext" style="flex:1" title="장전·장후 시간외 종가, 시간외 단일가, 프리·애프터마켓">시간외</button></div></div>
+            <div class="field"><label>주문 유형</label><div class="seg" id="oType" style="width:100%"><button data-v="limit" style="flex:1">지정가</button><button data-v="market" style="flex:1">시장가</button><button data-v="stop" style="flex:1" title="손절·익절·돌파 매매">감시주문</button><button data-v="ext" style="flex:1" title="장전·장후 시간외 종가, 시간외 단일가, 프리·애프터마켓">시간외</button><button data-v="reserve" style="flex:1" title="예약주문: 다음 정규장 시작 때 자동으로 주문합니다">예약</button></div></div>
+            <div class="rv-box" id="oRv" style="display:none"><label class="check" style="margin:0"><input type="checkbox" id="oRvM"> 시장가로 예약</label><span class="dim">다음 정규장 시작(국내 09:00) 때 자동으로 주문합니다</span></div>
             <div class="ses-box" id="oSes"></div>
             <div class="field" id="oStopBox" style="display:none"><label>감시 조건 <span class="dim">현재가가 이 가격에 닿으면 시장가로 자동 주문</span></label><div class="seg" id="oCond" style="width:100%;margin-bottom:8px"><button data-v="le" style="flex:1">이하로 내려가면</button><button data-v="ge" style="flex:1">이상 올라가면</button></div><div class="stepper"><button data-t="-1">−</button><input class="input" id="oTrig" inputmode="decimal"><button data-t="1">+</button></div><div class="pct-row" id="oTrigPct"><button data-tp="-5">−5%</button><button data-tp="-3">−3%</button><button data-tp="3">+3%</button><button data-tp="5">+5%</button><button data-tp="10">+10%</button></div></div>
             <div class="field" id="oPriceBox"><label style="display:flex;align-items:center;gap:6px">주문 가격 <span class="dim" id="oTickInfo"></span><span class="px-quick"><button type="button" data-bp="best" title="최유리지정가: 바로 체결되는 상대편 최우선 호가 (매수=매도1호가, 매도=매수1호가)">최유리</button><button type="button" data-bp="first" title="최우선지정가: 내 쪽 최우선 호가에 대기 (매수=매수1호가, 매도=매도1호가)">최우선</button></span></label><div class="stepper"><button data-p="-1">−</button><input class="input" id="oPrice" inputmode="decimal"><button data-p="1">+</button></div></div>
@@ -560,6 +561,7 @@
             <details class="cf-tpsl" id="oAuto"><summary>매수 체결 후 자동 익절·손절</summary><div class="cf-tpsl-b"><div class="field"><label>익절 (+%)</label><input class="input" id="oTpP" inputmode="decimal" placeholder="예: 5"></div><div class="field"><label>손절 (−%)</label><input class="input" id="oSlP" inputmode="decimal" placeholder="예: 3"></div></div><p class="dim" style="font-size:11px;margin:6px 0 0">매수가 체결되면 익절 지정가 매도와 손절 감시 매도를 함께 걸고, 한쪽이 체결되면 다른 쪽은 자동 취소됩니다.</p></details>
             <div class="order-sum" id="oSum"></div>
             <button class="btn btn-block btn-lg" id="oSubmit"></button>
+            <button class="btn btn-block btn-sm" id="oSplit" style="margin-top:8px" title="여러 가격에 나눠서 지정가 주문">분할 주문</button>
             <p class="dim" style="font-size:11px;margin-top:10px;line-height:1.6">실제 시세 기준으로 가상 계좌에서 체결됩니다.</p>
           </div>
         </section>
@@ -589,7 +591,7 @@
       const easy = localStorage.getItem('mls.easy') === '1';
       ['#sMa', '#sInd', '#sSub'].forEach((x) => { const e = $(x); if (e) e.style.display = easy ? 'none' : ''; });
       const eb = $('#sEasy'); if (eb) { eb.classList.toggle('on', easy); eb.textContent = easy ? '전문가 차트' : '간편 차트'; }
-      chart.set(easy ? { ma: [20], bb: false, sub: 'vol' } : { ma: IND.ma.slice().sort((a, b) => a - b), bb: IND.bb, sub: IND.sub });
+      chart.set(easy ? { ma: [20], bb: false, ichi: false, sub: 'vol' } : { ma: IND.ma.slice().sort((a, b) => a - b), bb: IND.bb, ichi: !!IND.ichi, sub: IND.sub });
     };
     const DKEY = 'mls.draw.' + code; const loadDraws = () => { try { return JSON.parse(localStorage.getItem(DKEY) || '[]'); } catch { return []; } };
     chart.set({ draws: loadDraws(), onDraw: (d) => { try { localStorage.setItem(DKEY, JSON.stringify(d.slice(-30))); } catch {} } });
@@ -638,6 +640,21 @@
       if ($('#sOC').checked) { O.side = r.classList.contains('ask') ? 'buy' : 'sell'; if (!O.qty) O.qty = 1; syncForm(); return submit(true); }
       syncForm(); };
     $('#oSubmit').onclick = submit;
+    $('#oRvM').onchange = () => syncForm();
+    $('#oSplit').onclick = () => {
+      const q = Market.quote(code); const base = O.price || q.price; const h = S.v.holdings.find((x) => x.code === code);
+      U.modal({ title: `분할 ${O.side === 'buy' ? '매수' : '매도'} · ${q.name}`, body: `<div class="grid g-2"><div class="field"><label>총 수량 (주)</label><input class="input" id="spQ" inputmode="numeric" value="${O.qty || 10}"></div><div class="field"><label>나눌 횟수</label><select class="input" id="spN">${[2, 3, 4, 5, 6, 8, 10].map((x) => `<option ${x === 3 ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
+        <div class="field"><label>시작 가격</label><input class="input" id="spA" inputmode="decimal" value="${base}"></div><div class="field"><label>끝 가격</label><input class="input" id="spB" inputmode="decimal" value="${ccy === 'USD' ? +(base * (O.side === 'buy' ? 0.97 : 1.03)).toFixed(2) : U.roundTick(base * (O.side === 'buy' ? 0.97 : 1.03), 'KRW')}"></div></div>
+        <div id="spL" class="sp-list"></div><p class="dim" style="font-size:12px">시작~끝 가격 사이를 같은 간격으로 나눠 지정가 주문을 여러 건 넣습니다. ${O.side === 'sell' ? `매도가능 ${n0(h ? h.sellable : 0)}주` : `주문가능 ${won(S.v.orderable)}`}</p>`,
+        foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="spGo">분할 주문</button>',
+        onMount: (m, close) => {
+          const plan = () => { const tq = parseInt($('#spQ', m).value, 10) || 0, n = +$('#spN', m).value, a = parseFloat($('#spA', m).value) || 0, b = parseFloat($('#spB', m).value) || 0; const L = []; let left = tq;
+            for (let i = 0; i < n; i++) { const p0 = n === 1 ? a : a + ((b - a) * i) / (n - 1); const p1 = ccy === 'USD' ? +p0.toFixed(2) : U.roundTick(p0, 'KRW'); const qn = i === n - 1 ? left : Math.floor(tq / n); left -= qn; if (qn > 0) L.push([p1, qn]); } return L; };
+          const show = () => { const L = plan(); $('#spL', m).innerHTML = L.map(([p1, qn], i) => `<div><span class="dim">${i + 1}차</span><b>${px(p1, ccy)}</b><span>${n0(qn)}주</span><span class="dim">${won(Market.toKrw(p1 * qn, ccy))}</span></div>`).join(''); };
+          m.addEventListener('input', show); m.addEventListener('change', show); show();
+          $('#spGo', m).onclick = async () => { const L = plan(); if (!L.length) return U.toast('수량을 확인해 주세요.', true); close(); let ok = 0; for (const [p1, qn] of L) { try { await Store.placeOrder({ code, side: O.side, type: 'limit', price: p1, qty: qn }); ok++; } catch (e) { U.toast(`${px(p1, ccy)} · ${e.message}`, true); } } U.toast(`분할 주문 ${ok}/${L.length}건 접수`); Voice.say(`분할 주문 ${ok}건이 접수되었습니다.`); };
+        } });
+    };
     function unitPrice() { const q = Market.quote(code); if (O.type === 'stop') return O.trig || q.price; return O.type === 'market' ? (O.side === 'buy' ? Market.bestAsk(code) : Market.bestBid(code)) : O.price || q.price; }
     function maxQty() {
       if (O.side === 'sell') { const h = S.v.holdings.find((x) => x.code === code); return h ? h.sellable : 0; }
@@ -664,7 +681,8 @@
       sesBox();
       if (document.activeElement !== $('#oQty')) $('#oQty').value = O.qty;
       $('#oTickInfo').textContent = ccy === 'USD' ? 'USD' : `· 호가단위 ${n0(U.tickKR(O.price || q0.price))}원`;
-      const sb = $('#oSubmit'); sb.className = 'btn btn-block btn-lg ' + (O.side === 'buy' ? 'btn-buy' : 'btn-sell'); sb.textContent = O.type === 'stop' ? `감시 ${O.side === 'buy' ? '매수' : '매도'} 등록 (${px(O.trig, ccy)} ${O.cond === 'ge' ? '이상' : '이하'})` : (O.side === 'buy' ? '매수' : '매도') + (O.type === 'market' ? ' (시장가)' : '');
+      const sb = $('#oSubmit'); sb.className = 'btn btn-block btn-lg ' + (O.side === 'buy' ? 'btn-buy' : 'btn-sell'); sb.textContent = O.type === 'stop' ? `감시 ${O.side === 'buy' ? '매수' : '매도'} 등록 (${px(O.trig, ccy)} ${O.cond === 'ge' ? '이상' : '이하'})` : (O.type === 'reserve' ? '예약 ' : '') + (O.side === 'buy' ? '매수' : '매도') + (O.type === 'market' ? ' (시장가)' : O.type === 'reserve' && $('#oRvM') && $('#oRvM').checked ? ' (시장가 예약)' : '');
+      $('#oRv').style.display = O.type === 'reserve' ? '' : 'none';
       updSum();
     }
     function updSum() {
@@ -686,6 +704,13 @@
     }
     async function submit(quick) {
       const q = Market.quote(code);
+      if (O.type === 'reserve') {
+        if (!O.qty) return U.toast('수량을 입력해 주세요.', true);
+        const mkt = $('#oRvM').checked; const body = { code, side: O.side, type: mkt ? 'market' : 'limit', price: mkt ? 0 : +O.price, qty: O.qty };
+        if (!(await U.confirmBox('예약주문 확인', `<dl class="kv" style="font-size:14px"><dt>종목</dt><dd>${esc(q.name)}</dd><dt>구분</dt><dd class="${O.side === 'buy' ? 'up' : 'down'}">${O.side === 'buy' ? '매수' : '매도'}</dd><dt>가격</dt><dd>${mkt ? '시장가' : px(body.price, ccy)}</dd><dt>수량</dt><dd>${n0(O.qty)}주</dd><dt>실행</dt><dd>다음 정규장 시작 때</dd></dl><p class="dim" style="font-size:12px;margin-top:8px">실행 시점에 주문가능금액·보유수량이 부족하면 주문이 실패하고 결과가 미체결 탭에 표시됩니다.</p>`, '예약', O.side === 'buy' ? 'btn-buy' : 'btn-sell'))) return;
+        try { const r = await Store.reserveOrder(body); U.toast(`예약주문 등록 · ${U.dt(r.runAfter)}에 실행`); Voice.say('예약주문이 등록되었습니다.'); bottomTab = 'open'; $$('#sTabs button').forEach((x) => x.classList.toggle('on', x.dataset.v === 'open')); renderBottom(); } catch (e) { U.toast(e.message, true); }
+        return;
+      }
       if (!O.qty) return U.toast('수량을 입력해 주세요.', true);
       const input = { code, side: O.side, type: O.type, price: O.type === 'limit' || O.type === 'ext' ? +O.price : 0, qty: O.qty, ...(O.type === 'stop' ? { triggerPrice: +O.trig, triggerCond: O.cond } : {}) };
       const err = Engine.validate(S.d, S.st, input);
@@ -700,10 +725,10 @@
         if (r.fill) { seenFill.add(r.fill.id); chime(); Voice.say(`${q.name} ${n0(r.fill.qty)}주 ${sd} 체결되었습니다.`); }
         else Voice.say(O.type === 'stop' ? `감시 ${sd} 주문이 등록되었습니다.` : `${sd} 주문이 접수되었습니다.`);
         if (r.fill) U.toast(`체결 완료 · ${q.name} ${n0(r.fill.qty)}주 @ ${px(r.fill.price, ccy)}`);
-        const tpP = parseFloat($('#oTpP').value) || 0, slP = parseFloat($('#oSlP').value) || 0;
-        if (O.side === 'buy' && (tpP || slP)) { if (r.fill) await setTpSl(r.fill.qty, r.fill.price, tpP, slP); else U.toast('자동 익절·손절은 매수가 체결된 뒤 보유현황 탭의 「익절·손절」에서 걸 수 있습니다.'); }
         else if (O.type === 'ext') U.toast(`시간외 주문 접수 · ${px(input.price, ccy)} — 현재가에 닿으면 체결, 세션 종료 시 자동 취소`);
         else U.toast(O.type === 'stop' ? `감시주문 등록 · ${px(input.triggerPrice, ccy)} ${O.cond === 'ge' ? '이상' : '이하'} 도달 시 시장가 ${O.side === 'buy' ? '매수' : '매도'}` : `주문 접수 · 지정가 ${px(input.price, ccy)} 미체결 — ${O.side === 'buy' ? '매도호가가 이 가격 이하' : '매수호가가 이 가격 이상'}로 오면 자동 체결됩니다${!Market.session(q.market).open && S.st.enforceHours ? ` (${Market.session(q.market).label} 중: 정규장에서 체결)` : ''}`);
+        const tpP = parseFloat($('#oTpP').value) || 0, slP = parseFloat($('#oSlP').value) || 0;
+        if (O.side === 'buy' && (tpP || slP)) { if (r.fill) await setTpSl(r.fill.qty, r.fill.price, tpP, slP); else U.toast('자동 익절·손절은 매수가 체결된 뒤 보유현황 탭의 「익절·손절」에서 걸 수 있습니다.'); }
         if (bottomTab !== 'open' && !r.fill) { bottomTab = 'open'; $$('#sTabs button').forEach((x) => x.classList.toggle('on', x.dataset.v === 'open')); }
       } catch (e) { U.toast(e.message, true); }
     }
@@ -752,6 +777,10 @@
       if (bottomTab === 'open') {
         const os = S.d.orders.filter((o) => o.status === 'pending').sort((a, b) => b.createdAt.localeCompare(a.createdAt));
         el.innerHTML = os.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>종목</th><th>구분</th><th>주문가</th><th>수량</th><th class="hide-m">주문시각</th><th></th></tr></thead><tbody>${os.map((o) => `<tr><td><div class="sname"><b>${esc(o.name)}</b><small>${o.code}</small></div></td><td><span class="tag ${o.side === 'buy' ? 'tag-buy' : 'tag-sell'}">${o.side === 'buy' ? '매수' : '매도'}</span>${o.type === 'stop' ? ' <span class="tag tag-wait">감시</span>' : o.type === 'ext' ? ' <span class="tag tag-brand">시간외</span>' : ''}</td><td>${o.type === 'stop' ? px(o.triggerPrice, o.currency) + (o.triggerCond === 'ge' ? ' 이상' : ' 이하') : px(o.price, o.currency)}</td><td>${n0(o.qty)}</td><td class="hide-m dim">${U.dt(o.createdAt)}</td><td><button class="btn btn-sm" data-amend="${o.id}">정정</button> <button class="btn btn-sm btn-danger" data-cancel="${o.id}">취소</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">미체결 주문이 없습니다</div>';
+        el.insertAdjacentHTML('beforeend', '<div id="sRv"></div>');
+        Store.myReserves().then((L) => { const box = $('#sRv'); if (!box || bottomTab !== 'open' || !L.length) return; const ST = { pending: ['대기', 'tag-wait'], done: ['실행', 'tag-ok'], failed: ['실패', 'tag-sell'], cancelled: ['취소', 'tag-no'] };
+          box.innerHTML = `<div class="panel-h" style="border-top:1px solid var(--border)"><h3>예약주문</h3><span class="dim" style="font-size:12px">다음 정규장 시작 때 자동 실행</span></div><div class="table-wrap"><table class="t"><thead><tr><th class="l">종목</th><th>구분</th><th>가격</th><th>수량</th><th>실행 예정</th><th>상태</th><th></th></tr></thead><tbody>${L.slice(0, 20).map((r) => `<tr><td class="l">${esc(r.name)}</td><td><span class="tag ${r.side === 'buy' ? 'tag-buy' : 'tag-sell'}">${r.side === 'buy' ? '매수' : '매도'}</span></td><td>${r.type === 'market' ? '시장가' : n0(r.price)}</td><td>${n0(r.qty)}</td><td class="dim">${U.dt(r.runAfter)}</td><td><span class="tag ${(ST[r.status] || ST.pending)[1]}" title="${esc(r.result || '')}">${(ST[r.status] || ST.pending)[0]}</span>${r.result && r.status === 'failed' ? `<br><small class="dim">${esc(r.result)}</small>` : ''}</td><td>${r.status === 'pending' ? `<button class="btn btn-sm" data-rvx="${r.id}">취소</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+          $$('[data-rvx]', box).forEach((b) => (b.onclick = async () => { await Store.cancelReserve(b.dataset.rvx); U.toast('예약주문을 취소했습니다.'); renderBottom(); })); }).catch(() => {});
       } else if (bottomTab === 'pos') {
         const h = S.v.holdings.find((x) => x.code === code);
         el.innerHTML = h ? `<div class="panel-b"><div class="grid g-4"><div class="stat"><div class="k">보유수량</div><div class="v" style="font-size:18px">${n0(h.qty)}주</div><div class="s dim">매도가능 ${n0(h.sellable)}주</div></div><div class="stat"><div class="k">평균단가</div><div class="v" style="font-size:18px">${pxu(h.avg, h.currency)}</div></div><div class="stat"><div class="k">평가금액</div><div class="v" style="font-size:18px">${won(h.evalKrw)}</div></div><div class="stat"><div class="k">평가손익</div><div class="v ${cls(h.pnl)}" style="font-size:18px">${signedWon(h.pnl)}</div><div class="s ${cls(h.pnl)}">${pct(h.pnlPct)}</div></div></div><div class="pos-act"><button class="btn btn-sm" id="pTs">익절·손절 걸기</button><button class="btn btn-sm btn-sell" id="pCl">이 종목 전량 청산</button><button class="btn btn-sm btn-danger" id="pAll">보유 종목 일괄 청산</button></div></div>` : `<div class="empty">이 종목을 보유하고 있지 않습니다${S.v.holdings.length ? `<br><button class="btn btn-sm btn-danger" id="pAll" style="margin-top:10px">보유 종목 ${S.v.holdings.length}개 일괄 청산</button>` : ''}</div>`;
@@ -817,7 +846,12 @@
           <dl class="kv"><dt>PER</dt><dd>${g('per') || '-'}</dd><dt>추정 PER</dt><dd>${g('cnsPer') || '-'}</dd><dt>EPS</dt><dd>${g('eps') || '-'}</dd><dt>PBR</dt><dd>${g('pbr') || '-'}</dd><dt>BPS</dt><dd>${g('bps') || '-'}</dd><dt>배당수익률</dt><dd>${g('dividendYieldRatio') || '-'}</dd><dt>주당배당금</dt><dd>${g('dividend') || '-'}</dd><dt>거래대금</dt><dd>${compact(Market.toKrw(q.value || q.price * q.volume, q.currency))}원</dd></dl></div>
           ${I && I.desc ? `<p class="muted" style="font-size:13px;margin-top:14px;line-height:1.7">${esc(I.desc)}</p>` : ''}${!I && q.currency === 'KRW' ? '<p class="dim" style="font-size:12px;margin-top:10px">상세 재무 지표는 거래대금 상위 500종목에 제공됩니다.</p>' : ''}</div>`; };
         el.innerHTML = base(null);
-        if (q.currency === 'KRW') Market.info(code).then((I) => { if (bottomTab === 'info' && I) el.innerHTML = base(I); });
+        const fin = (per) => { if (q.currency !== 'KRW') return; Store.finance(code, per).then((F) => { const box = $('#sFin'); if (!box || bottomTab !== 'info') return; const fi = F && F.financeInfo; if (!fi) { box.innerHTML = '<div class="empty">재무제표 정보가 없습니다</div>'; return; }
+            const cols = fi.trTitleList || []; const rows = (fi.rowList || []).filter((r) => r.columns);
+            box.innerHTML = `<div class="panel-h" style="border-top:1px solid var(--border)"><h3>재무제표 <span class="dim" style="font-size:12px;font-weight:500">(단위: 억원 · 비율 %)</span></h3><div class="seg" id="finP"><button data-v="annual" class="${per !== 'quarter' ? 'on' : ''}">연간</button><button data-v="quarter" class="${per === 'quarter' ? 'on' : ''}">분기</button></div></div><div class="table-wrap"><table class="t fin-t"><thead><tr><th class="l">항목</th>${cols.map((c) => `<th>${esc(c.title)}${c.isConsensus === 'Y' ? '<br><small class="dim">(예상)</small>' : ''}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr><td class="l">${esc(r.title)}</td>${cols.map((c) => { const v = (r.columns[c.key] || {}).value || '-'; const neg = /^-/.test(v); return `<td class="${neg ? 'down' : ''}">${esc(v)}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
+            $$('#finP button', box).forEach((b) => (b.onclick = () => fin(b.dataset.v))); }).catch(() => {}); };
+        if (q.currency === 'KRW') Market.info(code).then((I) => { if (bottomTab === 'info' && I) { el.innerHTML = base(I) + '<div id="sFin"></div>'; fin('annual'); } });
+        el.insertAdjacentHTML('beforeend', '<div id="sFin"></div>'); fin('annual');
       }
       $$('[data-cancel]', el).forEach((b) => (b.onclick = async () => { try { await Store.cancelOrder(b.dataset.cancel); U.toast('주문이 취소되었습니다.'); Voice.say('주문이 취소되었습니다.'); } catch (e) { U.toast(e.message, true); } }));
       $$('[data-amend]', el).forEach((b) => (b.onclick = () => amendModal(S.d.orders.find((o) => o.id === b.dataset.amend))));
@@ -1430,7 +1464,7 @@
   // ═════════ 마이페이지 ═════════
   function My(main) {
     let tab = (location.hash.split('/')[2]) || 'home', per = 'month';
-    const TABS = [['home', '내 정보'], ['asset', '자산 현황'], ['settle', '정산 내역'], ['trade', '매수·매도 내역'], ['cash', '입출금 내역'], ['buff', 'MAX 버프'], ['alert', '알림'], ['money', '자산 변동 로그'], ['risk', '투자성향'], ['set', '설정']];
+    const TABS = [['home', '내 정보'], ['asset', '자산 현황'], ['settle', '정산 내역'], ['trade', '매수·매도 내역'], ['cash', '입출금 내역'], ['buff', 'MAX 버프'], ['alert', '알림'], ['money', '자산 변동 로그'], ['risk', '투자성향'], ['sec', '보안·주문 비밀번호'], ['set', '설정']];
     main.innerHTML = `${head('마이페이지', '내 계좌·정산·입출금·매매 내역과 계정 설정을 한 곳에서 관리합니다.')}
       <div class="my-head panel panel-b" id="myHead"></div>
       <div class="tabs my-tabs" id="myT">${TABS.map(([k, n]) => `<button data-v="${k}">${n}</button>`).join('')}</div>
@@ -1449,6 +1483,7 @@
       const el = $('#myB'), u = S.user, v = S.v, g = GRADE(u.grade);
       if (tab === 'money') { window.MLSX ? MLSX.moneyLog(el) : (el.innerHTML = ''); return; }
       if (tab === 'risk') { window.MLSX ? MLSX.risk(el) : (el.innerHTML = ''); return; }
+      if (tab === 'sec') { window.MLSX ? MLSX.security(el) : (el.innerHTML = ''); return; }
       if (tab === 'home') {
         el.innerHTML = `<div class="grid g-2 stack">
           <section class="panel"><div class="panel-h"><h3>내 정보</h3></div><div class="panel-b"><form id="pfF"><div class="field"><label>닉네임 <span class="dim">랭킹·리딩 댓글에 표시</span></label><input class="input" name="name" value="${esc(u.name)}" maxlength="20"></div><div class="field"><label>휴대폰</label><input class="input" name="phone" value="${esc(u.phone || '')}"></div><div class="field"><label>이메일</label><input class="input" name="email" value="${esc(u.email || '')}"></div><button class="btn btn-brand">저장</button></form></div></section>

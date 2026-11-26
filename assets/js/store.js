@@ -173,7 +173,7 @@ const Store = (() => {
       async margin() { return null; },
       async deleteUsers(ids) { needAdmin(); let n = 0; for (const id of ids || []) { const u = db.users.find((x) => x.id === id); if (!u || u.role === 'admin') continue; db.users = db.users.filter((x) => x.id !== id); n++; } save(); ev.emit('change'); return n; },
       async deleteMe() { throw new Error('운영 서버 연결 후 사용할 수 있습니다.'); }, async deleteInquiries() { return 0; },
-      async rt() { return {}; }, async riskGet() { return null; }, async riskSave() { return true; }, async memberAccess() { return {}; }, async riskList() { return []; }, async disclosures() { return []; }, async disclosure() { return {}; }, async publicInfo() { return { popups: [], faqs: [], terms: {}, service: {} }; }, async pv() { return null; }, async consents() { return []; }, async consent() { return true; },
+      async rt() { return {}; }, async finance() { return null; }, async industries() { return null; }, async industry() { return null; }, async orderPinStatus() { return false; }, async myReserves() { return []; }, async riskGet() { return null; }, async riskSave() { return true; }, async memberAccess() { return {}; }, async riskList() { return []; }, async disclosures() { return []; }, async disclosure() { return {}; }, async publicInfo() { return { popups: [], faqs: [], terms: {}, service: {} }; }, async pv() { return null; }, async consents() { return []; }, async consent() { return true; },
       async missions() { return []; }, async contests() { return []; }, async contestRank() { return []; }, async myMoneyLog() { return []; }, async online() { return []; }, async moneyLog() { return []; },
       async blocks() { return []; }, async handover() { return []; }, async templates() { return []; }, async noticeConsents() { return []; }, async dailyStats() { return []; }, async userStats() { return []; },
       async pageStats() { return { pages: [], daily: [] }; }, async partners() { return []; }, async partnerComm() { return []; }, async partnerWds() { return []; }, async partnerInqs() { return []; },
@@ -259,7 +259,17 @@ const Store = (() => {
   const Remote = (() => {
     const ev = U.emitter();
     let token = localStorage.getItem('mls.token') || '';
-    async function call(action, body) {
+    // 주문 비밀번호: 이번 접속 동안 기억, 틀리거나 없으면 입력 창을 띄우고 한 번 다시 시도
+    const PIN_ACTIONS = ['placeOrder', 'amendOrder', 'cfOrder', 'cfClose', 'reserveOrder'];
+    async function call(action, body, retried) {
+      if (PIN_ACTIONS.includes(action)) { let pin = ''; try { pin = sessionStorage.getItem('mls.pin') || ''; } catch {} if (pin) body = { ...(body || {}), pin }; }
+      try { return await call0(action, body); } catch (e) {
+        if (e.code === 'PIN' && !retried && window.MLS_PIN_PROMPT) { const pin = await window.MLS_PIN_PROMPT(); if (pin) { try { sessionStorage.setItem('mls.pin', pin); } catch {} return call(action, { ...(body || {}), pin }, true); } }
+        if (e.code === 'PIN') { try { sessionStorage.removeItem('mls.pin'); } catch {} }
+        throw e;
+      }
+    }
+    async function call0(action, body) {
       if (C.SUPABASE_URL) {
         const r = await fetch(C.SUPABASE_URL.replace(/\/$/, '') + '/rest/v1/rpc/mls_api', {
           method: 'POST', headers: { 'Content-Type': 'application/json', apikey: C.SUPABASE_KEY, ...(C.SUPABASE_KEY && C.SUPABASE_KEY.startsWith('eyJ') ? { Authorization: 'Bearer ' + C.SUPABASE_KEY } : {}) },
@@ -267,7 +277,7 @@ const Store = (() => {
         });
         let j; try { j = await r.json(); } catch { throw new Error('서버 응답 오류 (' + r.status + ')'); }
         if (!r.ok) throw new Error((j && (j.message || j.error)) || '서버 응답 오류 (' + r.status + ')');
-        if (!j || !j.ok) throw new Error((j && j.error) || '요청 실패');
+        if (!j || !j.ok) { const er = new Error((j && j.error) || '요청 실패'); er.code = j && j.code; throw er; }
         return j.data;
       }
       const r = await fetch(C.API_BASE + '?action=' + encodeURIComponent(action), {
@@ -285,7 +295,7 @@ const Store = (() => {
       async current() { if (!token) return null; try { return await call('current'); } catch { return null; } },
       async login(username, pw) { const r = await call('login', { username, pw, device: deviceId() }); token = r.token; localStorage.setItem('mls.token', token); return r.user; },
       async signup(p) { const r = await call('signup', { ...p, device: deviceId(), ref: p.ref || refCode() || undefined }); token = r.token; localStorage.setItem('mls.token', token); return r.user; },
-      async logout() { try { await call('logout'); } catch {} token = ''; localStorage.removeItem('mls.token'); },
+      async logout() { try { await call('logout'); } catch {} token = ''; localStorage.removeItem('mls.token'); try { sessionStorage.removeItem('mls.pin'); } catch {} },
       me: () => call('me'),
       settings: () => call('settings'),
       saveSettings: mut((s) => call('saveSettings', s)),
@@ -333,6 +343,9 @@ const Store = (() => {
       // v8 — 공개 정보 · 이벤트 · 대회 · 관리자 운영 도구 · 파트너
       publicInfo: () => call('publicInfo'),
       rt: (codes) => call('rt', { codes }),
+      finance: (code, period) => call('finance', { code, period }), industries: () => call('industries'), industry: (no) => call('industry', { no }),
+      orderPinStatus: () => call('orderPinStatus'), setOrderPin: (pw, pin) => call('setOrderPin', { pw, pin }),
+      reserveOrder: mut((o) => call('reserveOrder', o)), myReserves: () => call('myReserves'), cancelReserve: (id) => call('cancelReserve', { id }), adminReserves: () => call('adminReserves'),
       riskSave: (answers, score, type) => call('riskSave', { answers, score, type }), riskGet: (userId) => call('riskGet', userId ? { userId } : {}),
       suspendUser: (userId, until, reason) => call('suspendUser', { userId, until, reason }), kickUser: (userId) => call('kickUser', { userId }),
       accessHours: (userId, hours) => call('accessHours', { userId, hours }), memberAccess: (userId) => call('memberAccess', { userId }), riskList: () => call('riskList'),

@@ -13,6 +13,8 @@ const Chart = (() => {
   const rsiCalc = (all, n = 14) => { const out = new Array(all.length).fill(null); let g = 0, l = 0; for (let i = 1; i < all.length; i++) { const d = all[i].c - all[i - 1].c; const up = Math.max(0, d), dn = Math.max(0, -d); if (i <= n) { g += up; l += dn; if (i === n) { g /= n; l /= n; out[i] = l === 0 ? 100 : 100 - 100 / (1 + g / l); } } else { g = (g * (n - 1) + up) / n; l = (l * (n - 1) + dn) / n; out[i] = l === 0 ? 100 : 100 - 100 / (1 + g / l); } } return out; };
   const macdCalc = (all) => { const c = all.map((k) => k.c); const e12 = ema(c, 12), e26 = ema(c, 26); const m = c.map((_, i) => (e12[i] != null && e26[i] != null ? e12[i] - e26[i] : null)); const firstIdx = m.findIndex((v) => v != null); const sig = firstIdx < 0 ? m.map(() => null) : [...m.slice(0, firstIdx).map(() => null), ...ema(m.slice(firstIdx), 9)]; return { m, sig, hist: m.map((v, i) => (v != null && sig[i] != null ? v - sig[i] : null)) }; };
   const bbCalc = (all, n = 20, k = 2) => all.map((_, i) => { if (i < n - 1) return null; const sl = all.slice(i - n + 1, i + 1).map((x) => x.c); const mean = sl.reduce((a, b) => a + b, 0) / n; const sd = Math.sqrt(sl.reduce((a, b) => a + (b - mean) ** 2, 0) / n); return { m: mean, u: mean + k * sd, l: mean - k * sd }; });
+  const stochCalc = (all, n = 14, k = 3, d = 3) => { const raw = all.map((_, i) => { if (i < n - 1) return null; const sl = all.slice(i - n + 1, i + 1); const hh = Math.max(...sl.map((x) => x.h)), ll = Math.min(...sl.map((x) => x.l)); return hh === ll ? 50 : ((all[i].c - ll) / (hh - ll)) * 100; }); const sm = (arr, m) => arr.map((_, i) => { const sl = arr.slice(Math.max(0, i - m + 1), i + 1).filter((v) => v != null); return sl.length < m ? null : sl.reduce((a, b) => a + b, 0) / m; }); const K = sm(raw, k); return { k: K, d: sm(K, d) }; };
+  const ichiCalc = (all) => { const mid = (i, n) => { if (i < n - 1) return null; const sl = all.slice(i - n + 1, i + 1); return (Math.max(...sl.map((x) => x.h)) + Math.min(...sl.map((x) => x.l))) / 2; }; const tk = all.map((_, i) => mid(i, 9)), kj = all.map((_, i) => mid(i, 26)); const a = all.map((_, i) => { const j = i - 26; return j >= 0 && tk[j] != null && kj[j] != null ? (tk[j] + kj[j]) / 2 : null; }); const b = all.map((_, i) => { const j = i - 26; return j >= 0 ? mid(j, 52) : null; }); return { tk, kj, a, b }; };
   const ma = (data, n) => data.map((_, i) => (i < n - 1 ? null : data.slice(i - n + 1, i + 1).reduce((s, k) => s + k.c, 0) / n));
   const cfmt = (v) => { const a = Math.abs(v); return a >= 1000 ? v.toFixed(1) : a >= 10 ? v.toFixed(2) : a >= 1 ? v.toFixed(4) : a >= 0.01 ? v.toFixed(5) : v.toPrecision(4); };
   const nice = (v, ccy) => (ccy === 'COIN' ? cfmt(v) : ccy === 'USD' ? v.toFixed(2) : U.n0(v));
@@ -31,12 +33,14 @@ const Chart = (() => {
       const data = all.slice(end - n, end);
       const MAS = st.ma || []; const mas = {}; for (const m of MAS) mas[m] = ma(all, m).slice(end - n, end);
       const bb = st.bb ? bbCalc(all).slice(end - n, end) : null;
+      const ich = st.ichi ? (() => { const I = ichiCalc(all); return { tk: I.tk.slice(end - n, end), kj: I.kj.slice(end - n, end), a: I.a.slice(end - n, end), b: I.b.slice(end - n, end) }; })() : null;
       const padR = 64, padB = 22, padT = 22;
       const volH = Math.max(40, (h - padB - padT) * 0.2);
       const ph = h - padB - padT - volH - 8; const pw = w - padR;
       let hi = -Infinity, lo = Infinity, vmax = 0;
       data.forEach((k, i) => { hi = Math.max(hi, k.h); lo = Math.min(lo, k.l); vmax = Math.max(vmax, k.v); for (const m of MAS) if (mas[m][i]) { hi = Math.max(hi, mas[m][i]); lo = Math.min(lo, mas[m][i]); } if (bb && bb[i]) { hi = Math.max(hi, bb[i].u); lo = Math.min(lo, bb[i].l); } });
       for (const L of st.lines) if (L.price) { hi = Math.max(hi, L.price); lo = Math.min(lo, L.price); }
+      if (ich) for (const arr of [ich.tk, ich.kj, ich.a, ich.b]) for (const v of arr) if (v != null) { hi = Math.max(hi, v); lo = Math.min(lo, v); }
       const pad = (hi - lo) * 0.08 || hi * 0.01; hi += pad; lo -= pad;
       const y = (p) => padT + ((hi - p) / (hi - lo)) * ph;
       const cw = pw / n; const bw = Math.max(1, Math.min(14, cw * 0.7));
@@ -55,6 +59,11 @@ const Chart = (() => {
         ctx.strokeStyle = grid; for (const lv of [30, 70]) { ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, yr(lv)); ctx.lineTo(pw, yr(lv)); ctx.stroke(); ctx.setLineDash([]); ctx.fillText(String(lv), pw + 8, yr(lv) - 6); }
         ctx.strokeStyle = '#B48CFF'; ctx.lineWidth = 1.4; ctx.beginPath(); let s0 = false; r.forEach((v, i) => { if (v == null) return; s0 ? ctx.lineTo(x(i), yr(v)) : (ctx.moveTo(x(i), yr(v)), (s0 = true)); }); ctx.stroke(); ctx.lineWidth = 1;
         const lr = r[r.length - 1]; ctx.fillStyle = t2; ctx.fillText('RSI(14) ' + (lr != null ? lr.toFixed(1) : '-'), 4, vTop + 2);
+      } else if (st.sub === 'stoch') {
+        const S = stochCalc(all); const kk = S.k.slice(end - n, end), dd = S.d.slice(end - n, end); const yr = (v) => vTop + (1 - v / 100) * volH;
+        ctx.strokeStyle = grid; for (const lv of [20, 80]) { ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, yr(lv)); ctx.lineTo(pw, yr(lv)); ctx.stroke(); ctx.setLineDash([]); ctx.fillText(String(lv), pw + 8, yr(lv) - 6); }
+        for (const [arr, col] of [[kk, '#F5B94A'], [dd, '#5B9BFF']]) { ctx.strokeStyle = col; ctx.lineWidth = 1.3; ctx.beginPath(); let s1 = false; arr.forEach((v, i) => { if (v == null) return; s1 ? ctx.lineTo(x(i), yr(v)) : (ctx.moveTo(x(i), yr(v)), (s1 = true)); }); ctx.stroke(); }
+        ctx.lineWidth = 1; const lk = kk[kk.length - 1], ld = dd[dd.length - 1]; ctx.fillStyle = t2; ctx.fillText(`스토캐스틱(14,3,3) %K ${lk != null ? lk.toFixed(1) : '-'} %D ${ld != null ? ld.toFixed(1) : '-'}`, 4, vTop + 2);
       } else if (st.sub === 'macd') {
         const M = macdCalc(all); const m = M.m.slice(end - n, end), sg = M.sig.slice(end - n, end), hs = M.hist.slice(end - n, end);
         let mx = 0; [...m, ...sg, ...hs].forEach((v) => { if (v != null) mx = Math.max(mx, Math.abs(v)); }); mx = mx || 1;
@@ -66,6 +75,13 @@ const Chart = (() => {
       } else {
         data.forEach((k, i) => { const vh = vmax ? (k.v / vmax) * volH : 0; ctx.fillStyle = k.c >= k.o ? up : down; ctx.globalAlpha = 0.45; ctx.fillRect(x(i) - bw / 2, vy0 - vh, bw, vh); });
         ctx.globalAlpha = 1; ctx.fillStyle = t2; ctx.fillText('거래량', 4, vTop + 2);
+      }
+      if (ich) {
+        // 구름대 (선행스팬1·2 사이)
+        for (let i = 1; i < n; i++) { const a0 = ich.a[i - 1], b0 = ich.b[i - 1], a1 = ich.a[i], b1 = ich.b[i]; if ([a0, b0, a1, b1].some((v) => v == null)) continue; ctx.fillStyle = a1 >= b1 ? up : down; ctx.globalAlpha = 0.08; ctx.beginPath(); ctx.moveTo(x(i - 1), y(a0)); ctx.lineTo(x(i), y(a1)); ctx.lineTo(x(i), y(b1)); ctx.lineTo(x(i - 1), y(b0)); ctx.closePath(); ctx.fill(); }
+        ctx.globalAlpha = 1;
+        for (const [arr, col, w] of [[ich.tk, '#FF9F43', 1.2], [ich.kj, '#54A0FF', 1.2], [ich.a, up, 0.8], [ich.b, down, 0.8]]) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.globalAlpha = w < 1 ? 0.6 : 1; ctx.beginPath(); let s2 = false; arr.forEach((v, i) => { if (v == null) return; s2 ? ctx.lineTo(x(i), y(v)) : (ctx.moveTo(x(i), y(v)), (s2 = true)); }); ctx.stroke(); }
+        ctx.globalAlpha = 1; ctx.lineWidth = 1;
       }
       if (bb) {
         ctx.fillStyle = css('--brand'); ctx.globalAlpha = 0.07; ctx.beginPath(); let st0 = -1;

@@ -191,6 +191,10 @@
       ['롱 · 숏', '코인 선물에서 가격 상승에 거는 것이 롱(매수), 하락에 거는 것이 숏(매도)입니다.'], ['레버리지', '증거금의 몇 배 규모로 포지션을 잡을지입니다. 높을수록 작은 변동에도 크게 벌거나 잃습니다.'],
       ['증거금 · 청산가', '포지션을 유지하려고 맡긴 USDT와, 손실로 증거금을 다 잃어 강제 청산되는 가격입니다.'], ['펀딩비', '무기한 선물에서 8시간마다 롱·숏 사이에 오가는 작은 수수료입니다.'],
       ['USDT · 스테이킹', '코인 선물·스테이킹에 쓰는 앱 안의 가상 달러입니다. 스테이킹은 USDT를 기간 동안 예치하고 만기에 가상 이자를 받는 기능입니다.'], ['투자성향', '마이페이지에서 7문항으로 진단하는 안정형~공격투자형 5단계 성향입니다. 실제 매매 기록으로 본 성향도 함께 보여줍니다.'],
+      ['예약주문', '장이 닫혀 있을 때 미리 넣어 두면 다음 정규장 시작(국내 09:00) 때 자동으로 주문합니다. 주문 유형의 「예약」을 고르세요.'], ['분할 주문', '총 수량을 여러 가격으로 나눠 지정가 주문을 한 번에 넣습니다. 주문창 아래 「분할 주문」 버튼입니다.'],
+      ['주문 비밀번호', '증권사의 계좌 비밀번호처럼 주문 전에 숫자 4~6자리를 확인합니다. 마이페이지 → 보안에서 켜고 끕니다.'], ['화면번호', 'HTS처럼 상단 검색창에 [0600] 같은 4자리 번호를 넣고 Enter를 누르면 그 화면으로 바로 갑니다. 목록은 마이페이지 → 보안에 있습니다.'],
+      ['스토캐스틱', '최근 14일 가격 범위 안에서 현재가 위치를 0~100으로 보여주는 지표입니다. 80 이상은 과열, 20 이하는 침체로 봅니다.'], ['일목균형표', '전환선·기준선과 구름대(선행스팬)로 추세와 지지·저항을 보는 지표입니다. 가격이 구름 위면 상승 추세로 봅니다.'],
+      ['업종별 시세', '시세·순위 화면 위쪽에서 업종별 평균 등락률과 상승·하락 종목 수를 봅니다. 업종을 누르면 소속 종목이 나옵니다.'], ['재무제표', '종목정보 탭 아래에서 매출액·영업이익·순이익·ROE 등을 연간·분기로 봅니다. 예상치는 (예상)으로 표시됩니다.'],
     ];
     const gd = (q) => { $('#gdL').innerHTML = GL.filter(([t, d]) => !q || t.includes(q) || d.includes(q)).map(([t, d]) => `<div class="gl-r"><b>${esc(t)}</b><p>${esc(d)}</p></div>`).join('') || '<div class="empty">찾는 용어가 없습니다</div>'; };
     $('#gdQ').oninput = (e) => gd(e.target.value.trim()); gd('');
@@ -231,9 +235,51 @@
         $('#rkOk', m).onclick = async () => { const sc = Risk.scoreOf(ans); const t = Risk.typeOf(sc); try { await Store.riskSave(ans, sc, t[1]); close(); U.toast(`투자성향: ${t[1]} (${sc}점)`); M().Voice.say(`투자성향은 ${t[1]}입니다.`); done && done(); } catch (e) { U.toast(e.message, true); } };
       } });
   }
+
+  // ───────── 화면번호 (HTS처럼 4자리 번호로 화면 이동) ─────────
+  const SCREENS = [['0101', '홈', '#/home'], ['0150', '시세·순위', '#/market'], ['0155', '업종별 시세', '#/market'], ['0161', '조건검색', '#/screen'], ['0170', '관심종목', '#/watch'], ['0600', '종목·주문 (현재가)', '#/stock/005930'], ['0610', '예약주문', '#/stock/005930'],
+    ['0400', '잔고', '#/balance'], ['0410', '거래내역', '#/history'], ['0500', '입출금', '#/cash'], ['0700', '코인 선물', '#/futures/BTC'], ['0710', '스테이킹', '#/staking'], ['0800', 'MAX 리딩', '#/lead'], ['0810', 'MAX 버프', '#/buff'], ['0820', 'MAX AI 분석', '#/ai'],
+    ['0830', '투자 수익 랭킹', '#/rank'], ['0840', '이벤트·투자 대회', '#/events'], ['0900', '이용 가이드·용어 사전', '#/guide'], ['0910', '고객센터', '#/help'], ['0950', '마이페이지', '#/my'], ['0960', '투자성향', '#/my/risk'], ['0970', '보안·주문 비밀번호', '#/my/sec'], ['0980', '자산 변동 로그', '#/my/money']];
+  document.addEventListener('keydown', (e) => {
+    const t = e.target; if (!t || t.id !== 'q' || e.key !== 'Enter') return; const v = t.value.trim().replace(/[\[\]]/g, '');
+    if (/^\d{4}$/.test(v)) { const sc = SCREENS.find((x) => x[0] === v); if (sc) { e.preventDefault(); e.stopImmediatePropagation(); t.value = ''; t.blur(); const qr = $('#qr'); if (qr) qr.classList.add('hidden'); let hash = sc[2]; if (/^#\/stock\//.test(hash)) { const m = location.hash.match(/#\/stock\/([0-9A-Z]{6})/); if (m) hash = '#/stock/' + m[1]; } location.hash = hash; U.toast(`[${sc[0]}] ${sc[1]}`); } else if (!/^\d{6}$/.test(v)) { U.toast(`없는 화면번호입니다. 이용 가이드에서 화면번호 목록을 확인하세요.`, true); } }
+  }, true);
+
+  // ───────── 주문 비밀번호 ─────────
+  window.MLS_PIN_PROMPT = () => new Promise((res) => {
+    let done = false; const fin = (v) => { if (!done) { done = true; res(v); } };
+    U.modal({ title: '주문 비밀번호', body: '<p class="muted" style="margin:0 0 10px">주문하려면 주문 비밀번호(숫자 4~6자리)를 입력하세요. 이번 접속 동안 다시 묻지 않습니다.</p><input class="input pin-in" id="pinI" type="password" inputmode="numeric" maxlength="6" autocomplete="off">', foot: '<button class="btn" data-x>취소</button><button class="btn btn-brand" id="pinOk">확인</button>',
+      onMount: (m, close) => { const i = $('#pinI', m); setTimeout(() => i.focus(), 50); const ok = () => { const v = i.value.trim(); if (!/^\d{4,6}$/.test(v)) return U.toast('숫자 4~6자리를 입력해 주세요.', true); fin(v); close(); }; $('#pinOk', m).onclick = ok; i.onkeydown = (e) => { if (e.key === 'Enter') ok(); }; $$('[data-x]', m).forEach((b) => b.addEventListener('click', () => fin(null))); m.closest('.modal-bg').addEventListener('click', (e) => { if (e.target.classList.contains('modal-bg')) fin(null); }); } });
+  });
+  async function security(el) {
+    el.innerHTML = '<div class="empty">불러오는 중…</div>'; let has = false; try { has = await Store.orderPinStatus(); } catch {}
+    el.innerHTML = `<div class="grid g-2 stack"><section class="panel"><div class="panel-h"><h3>주문 비밀번호</h3><span class="tag ${has ? 'tag-ok' : 'tag-no'}">${has ? '사용 중' : '사용 안 함'}</span></div><div class="panel-b">
+      <p class="muted" style="font-size:13px;margin:0 0 12px">증권사 HTS의 계좌 비밀번호처럼, 주문(주식·코인 선물·예약주문)할 때 숫자 비밀번호를 한 번 더 확인합니다. 접속할 때마다 처음 주문하는 순간 한 번만 묻습니다.</p>
+      <div class="field"><label>로그인 비밀번호 (본인 확인)</label><input class="input" type="password" id="spPw" autocomplete="current-password"></div>
+      <div class="field"><label>새 주문 비밀번호 (숫자 4~6자리)</label><input class="input pin-in" type="password" id="spPin" inputmode="numeric" maxlength="6" autocomplete="off"></div>
+      <div style="display:flex;gap:8px"><button class="btn btn-brand" id="spSet">${has ? '변경' : '설정'}</button>${has ? '<button class="btn" id="spDel">사용 안 함</button>' : ''}</div></div></section>
+      <section class="panel"><div class="panel-h"><h3>화면번호</h3><span class="dim" style="font-size:12px">상단 검색창에 4자리 입력 후 Enter</span></div><div class="panel-b flush"><div class="table-wrap"><table class="t"><tbody>${SCREENS.map(([n, l, h]) => `<tr><td><code>[${n}]</code></td><td class="l"><a href="${h}">${esc(l)}</a></td></tr>`).join('')}</tbody></table></div></div></section></div>`;
+    const go = async (pin) => { try { await Store.setOrderPin($('#spPw', el).value, pin); try { sessionStorage.removeItem('mls.pin'); } catch {} U.toast(pin ? '주문 비밀번호를 설정했습니다.' : '주문 비밀번호를 해제했습니다.'); security(el); } catch (e) { U.toast(e.message, true); } };
+    $('#spSet', el).onclick = () => { const p = $('#spPin', el).value.trim(); if (!/^\d{4,6}$/.test(p)) return U.toast('주문 비밀번호는 숫자 4~6자리입니다.', true); go(p); };
+    const d = $('#spDel', el); if (d) d.onclick = () => go('');
+  }
+
+  // ───────── 업종별 시세 (시세·순위 화면) ─────────
+  async function industryPanel() {
+    const main = $('#main'); if (!main || $('#indPanel')) return; const ses = $('.ses-strip', main); if (!ses) return;
+    const box = document.createElement('section'); box.className = 'panel'; box.id = 'indPanel'; box.style.marginBottom = '16px';
+    box.innerHTML = '<div class="panel-h"><h3>업종별 시세 <span class="dim" style="font-size:12px;font-weight:500">[0155]</span></h3><div class="seg" id="indS"><button data-v="up" class="on">상승률순</button><button data-v="down">하락률순</button><button data-v="name">이름순</button></div></div><div class="panel-b"><div class="ind-grid" id="indG"><div class="empty">불러오는 중…</div></div></div>';
+    ses.after(box); let G = [], so = 'up';
+    const draw = () => { const L = G.slice().sort((a, b) => (so === 'up' ? b.r - a.r : so === 'down' ? a.r - b.r : a.name.localeCompare(b.name))); $('#indG', box).innerHTML = L.map((g) => `<button class="ind-c" data-ind="${g.no}" data-nm="${esc(g.name)}" style="--a:${Math.min(1, Math.abs(g.r) / 5)}"><b>${esc(g.name)}</b><span class="${cls(g.r)}">${g.r > 0 ? '+' : ''}${g.r.toFixed(2)}%</span><small><span class="up">▲${g.up}</span> <span class="down">▼${g.down}</span> · ${g.n}종목</small><i class="${g.r >= 0 ? 'u' : 'd'}"></i></button>`).join('') || '<div class="empty">업종 정보를 불러오지 못했습니다</div>'; };
+    $('#indS', box).onclick = (e) => { const b = e.target.closest('button'); if (!b) return; so = b.dataset.v; $$('#indS button', box).forEach((x) => x.classList.toggle('on', x === b)); draw(); };
+    $('#indG', box).onclick = async (e) => { const b = e.target.closest('[data-ind]'); if (!b) return; let D; try { D = await Store.industry(b.dataset.ind); } catch (er) { return U.toast(er.message, true); } const S0 = (D && D.stocks) || [];
+      U.modal({ title: b.dataset.nm + ' 업종', size: 'lg', body: S0.length ? `<div class="table-wrap"><table class="t"><thead><tr><th class="l">종목</th><th>현재가</th><th>등락률</th><th>거래량</th></tr></thead><tbody>${S0.map((x) => { const r = parseFloat(x.fluctuationsRatio) || 0; return `<tr class="click" data-go="${x.itemCode}"><td class="l"><b>${esc(x.stockName)}</b> <small class="dim">${x.itemCode}</small></td><td class="${cls(r)}">${esc(x.closePrice)}</td><td class="${cls(r)}">${r > 0 ? '+' : ''}${r.toFixed(2)}%</td><td>${esc(x.accumulatedTradingVolume || '')}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">종목이 없습니다</div>', foot: '<button class="btn btn-brand" data-x>닫기</button>',
+        onMount: (m, close) => { m.addEventListener('click', (ev) => { const r = ev.target.closest('[data-go]'); if (r) { close(); location.hash = '#/stock/' + r.dataset.go; } }); } }); };
+    try { const D = await Store.industries(); G = ((D && D.groups) || []).map((g) => ({ no: g.no, name: g.name, r: parseFloat(g.changeRate) || 0, up: g.riseCount, down: g.fallCount, n: g.totalCount })); } catch {} draw();
+  }
   window.MLS_PAGES = Object.assign(window.MLS_PAGES || {}, { events: Events, guide: Guide });
   window.MLSX = {
-    termsModal, faq, moneyLog, shareCard, breadth, PUB, risk, survey,
+    termsModal, faq, moneyLog, shareCard, breadth, PUB, risk, survey, security, SCREENS,
     async boot() {
       // 상단 바: 서버 응답 속도
       const ta = $('.top-actions'); if (ta && !$('#latB')) { const b = document.createElement('span'); b.id = 'latB'; b.className = 'lat-b hide-m'; ta.prepend(b); LAT.show(); }
@@ -245,6 +291,7 @@
       if (name === 'home') { const m = $('#main'); const g = m && $('#hBrd', m); if (g && !$('.brd-card', m)) { g.innerHTML = breadthCard(); } }
       if (name === 'balance') { const ph = $('#main .page-head'); if (ph && !$('#shareBtn')) { const b = document.createElement('button'); b.className = 'btn btn-sm'; b.id = 'shareBtn'; b.textContent = '수익 인증 카드'; b.onclick = shareCard; ph.appendChild(b); } }
       if (name === 'cash') usdtCard();
+      if (name === 'market') industryPanel();
     },
   };
 })();
