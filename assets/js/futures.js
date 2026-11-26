@@ -146,7 +146,7 @@
       if (!b) { $('#cfBook').innerHTML = '<div class="empty">호가 불러오는 중…</div>'; return; }
       const mx = Math.max(...b.asks.map((a) => a[1]), ...b.bids.map((a) => a[1]), 1);
       const row = (p, s, k) => `<div class="cf-br ${k}" data-px="${p}"><span class="p">${cp(p)}</span><span class="s">${qtyFmt(s)}</span><i style="width:${(s / mx) * 100}%"></i></div>`;
-      $('#cfBook').innerHTML = `<div class="cf-bh"><span>가격 (USDT)</span><span>수량</span></div>${b.asks.slice(0, 5).reverse().map((a) => row(a[0], a[1], 'ask')).join('')}<div class="cf-mid ${cls(t.chg)}">${cp(t.last)}</div>${b.bids.slice(0, 5).map((a) => row(a[0], a[1], 'bid')).join('')}`;
+      $('#cfBook').innerHTML = `<div class="cf-bh"><span>가격 (USDT)</span><span>수량</span></div>${b.asks.slice(0, 5).reverse().map((a) => row(a[0], a[1], 'ask')).join('')}<div class="cf-mid ${cls(t.chg)}">${cp(t.last || ((CF.trades[sym] || [])[0] || {}).px || (b.asks[0] && b.bids[0] ? (b.asks[0][0] + b.bids[0][0]) / 2 : null))}</div>${b.bids.slice(0, 5).map((a) => row(a[0], a[1], 'bid')).join('')}`;
     }
     $('#cfBook').onclick = async (e) => {
       const r = e.target.closest('[data-px]'); if (!r) return; const px = +r.dataset.px;
@@ -248,7 +248,7 @@
       <div class="cf-sum" id="skSum" style="margin-bottom:16px"></div>
       <div class="sk-grid" id="skP"></div>
       <section class="panel" style="margin-top:16px"><div class="panel-h"><h3>내 스테이킹</h3></div><div id="skL"><div class="empty">불러오는 중…</div></div></section>
-      <p class="dim" style="font-size:12px;margin-top:12px">앱 안의 가상 자산 예치 체험이며 실제 코인·현금 이자가 아닙니다. 연 수익률은 관리자가 정하는 가상 이율입니다.</p>`;
+      <p class="dim" style="font-size:12px;margin-top:12px">앱 안의 가상 자산 예치이며 실제 코인·현금 이자가 아닙니다. 연 수익률은 관리자가 정하는 가상 이율입니다.</p>`;
     $('#skCv').onclick = () => convertDlg(draw);
     let P = [];
     async function draw() {

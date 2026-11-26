@@ -585,7 +585,7 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border: 1px soli
 .cf-hl { display: flex; gap: 10px; align-items: center; } .cf-hl b { font-size: 16px; display: flex; align-items: center; gap: 6px; } .cf-hl small { color: var(--text-3); font-size: 12px; }
 .cf-hp { display: flex; flex-direction: column; } .cf-hp b { font-size: 24px; font-weight: 800; line-height: 1.1; } .cf-hp small { font-size: 13px; font-weight: 600; }
 .cf-hs { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-left: auto; } .cf-hs dt { color: var(--text-3); font-size: 11px; } .cf-hs dd { font-size: 13px; font-weight: 600; }
-.cf-bh { display: grid; grid-template-columns: 1fr 1fr 1fr; padding: 6px 12px; font-size: 11px; color: var(--text-3); } .cf-book-p .cf-bh { grid-template-columns: 1fr 1fr; }
+.cf-bh { display: grid; grid-template-columns: 1fr 1fr 1fr; padding: 6px 12px; font-size: 11px; color: var(--text-3); } #cfBook .cf-bh { grid-template-columns: 1fr 1fr; } #cfBook .cf-bh span:last-child { text-align: right; }
 .cf-br { position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 3px 12px; font-size: 12px; cursor: pointer; }
 .cf-br:hover { background: var(--hover); } .cf-br span { position: relative; z-index: 1; } .cf-br .s { text-align: right; }
 .cf-br i { position: absolute; right: 0; top: 1px; bottom: 1px; opacity: .14; }
@@ -770,4 +770,11 @@ body { font-variant-numeric: tabular-nums lining-nums; line-height: 1.45; }
   .home-ranking-filters .seg { flex: 1 1 100%; } .home-ranking-filters .seg button { white-space: nowrap; padding: 0 6px; }
   .ses-card .sc-t { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; overflow: visible; }
   .ses-card .sc-t span { min-width: 0; }
+}
+
+/* 검수 수정 */
+@media (max-width: 760px) {
+  .q-sum { grid-template-columns: repeat(3, minmax(0, 1fr)); } .q-sum > div { padding: 7px 10px; } .q-sum b { font-size: 12px; }
+  .adm-top { display: flex; overflow-x: auto; scrollbar-width: none; grid-template-columns: none; } .adm-top::-webkit-scrollbar { display: none; }
+  .adm-top a { flex: 0 0 auto; min-width: 104px; }
 }

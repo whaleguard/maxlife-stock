@@ -273,7 +273,7 @@
         <div>${U.logo()}</div>
         <div>
           <h2>실전과 똑같이.<br>돈은 걸지 않고.</h2>
-          <p>실제 국내·미국 주식 시세로 매수·매도하고, MAX 리딩의 실전 매매를 가상계좌로 따라하며 투자를 배웁니다.</p>
+          <p>실제 국내·미국 주식 시세로 매수·매도하고, MAX 리딩의 실전 매매를 가상계좌로 그대로 따라 합니다.</p>
         </div>
         <div class="auth-stats"><div><b>${Market.list().length}+</b><small>국내·미국 종목</small></div><div><b>1,000만원</b><small>가입 즉시 예수금</small></div><div><b>0원</b><small>실제 투자 위험</small></div></div>
       </div>
@@ -479,7 +479,7 @@
     function data() {
       const pin = S.notices.find((n) => n.pinned) || S.notices[0];
       $('#hNotice').innerHTML = pin ? `<a class="notice-bar" href="#/lead"><b>공지</b><span>${esc(pin.title)}</span><span class="dim" style="margin-left:auto;font-size:12px">${U.ago(pin.at)}</span></a>` : '';
-      $('#hLead').innerHTML = S.posts.slice(0, 3).map((p) => `<a href="#/lead" class="feed-card" style="display:block;padding:14px 18px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">${p.kind === 'trade' ? `<span class="tag ${p.side === 'sell' ? 'tag-sell' : 'tag-buy'}">${p.side === 'sell' ? '매도 시연' : '매수 시연'}</span>` : '<span class="tag tag-brand">해설</span>'}${resultTag(p)}<span class="dim" style="font-size:12px;margin-left:auto">${U.ago(p.at)}</span></div><b style="font-weight:700">${esc(p.title)}</b></a>`).join('') || '<div class="empty">등록된 리딩이 없습니다</div>';
+      $('#hLead').innerHTML = S.posts.slice(0, 3).map((p) => `<a href="#/lead" class="feed-card" style="display:block;padding:14px 18px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">${p.kind === 'trade' ? `<span class="tag ${p.side === 'sell' ? 'tag-sell' : 'tag-buy'}">${p.side === 'sell' ? '매도 리딩' : '매수 리딩'}</span>` : '<span class="tag tag-brand">해설</span>'}${resultTag(p)}<span class="dim" style="font-size:12px;margin-left:auto">${U.ago(p.at)}</span></div><b style="font-weight:700">${esc(p.title)}</b></a>`).join('') || '<div class="empty">등록된 리딩이 없습니다</div>';
       tick();
     }
     function tick() {
@@ -597,12 +597,13 @@
     document.addEventListener('fullscreenchange', onFs);
     let y52 = null; Market.candles(code, 'D').then((r) => { const d = r.data.slice(-250); if (d.length) y52 = { hi: Math.max(...d.map((k) => k.h)), lo: Math.min(...d.map((k) => k.l)) }; renderSum(); }).catch(() => {});
     let lastPx = null;
+    const usdC = (v) => { const a = Math.abs(v || 0); return '$' + (a >= 1e12 ? (v / 1e12).toFixed(2) + 'T' : a >= 1e9 ? (v / 1e9).toFixed(1) + 'B' : a >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : n0(v)); };
     function renderSum() {
       const q = Market.quote(code); const el = $('#sSum'); if (!el || !q) return; const tk = Market.ticks(code);
       const bv = tk.filter((t) => t.side > 0).reduce((s2, t) => s2 + t.v, 0), sv = tk.filter((t) => t.side < 0).reduce((s2, t) => s2 + t.v, 0); const ns = tk.filter((t) => t.side).length; const str = ns < 6 ? null : sv ? Math.min(999, (bv / sv) * 100) : 999;
       const h52 = q.high52 || (y52 && y52.hi), l52 = q.low52 || (y52 && y52.lo); const val = q.value || q.price * q.volume * (q.currency === 'USD' ? Market.fx() : 1);
       const pos52 = h52 && l52 && h52 > l52 ? Math.max(0, Math.min(100, ((q.price - l52) / (h52 - l52)) * 100)) : null;
-      el.innerHTML = `<div title="최근 실시간 체결의 매수 체결량 ÷ 매도 체결량 × 100"><small>체결강도</small><b class="${str == null ? '' : str >= 100 ? 'up' : 'down'}">${str == null ? '집계 중' : str.toFixed(1) + '%'}</b></div><div><small>거래대금</small><b>${q.currency === 'USD' ? U.usd(q.value || q.price * q.volume) : compact(val) + '원'}</b></div><div><small>시가총액</small><b>${q.marketCap ? (q.currency === 'USD' ? '$' + compact(q.marketCap) : compact(q.marketCap) + '원') : '-'}</b></div>
+      el.innerHTML = `<div title="최근 실시간 체결의 매수 체결량 ÷ 매도 체결량 × 100"><small>체결강도</small><b class="${str == null ? '' : str >= 100 ? 'up' : 'down'}">${str == null ? '집계 중' : str.toFixed(1) + '%'}</b></div><div><small>거래대금</small><b>${q.currency === 'USD' ? usdC(q.value || q.price * q.volume) : compact(val) + '원'}</b></div><div><small>시가총액</small><b>${q.marketCap ? (q.currency === 'USD' ? usdC(q.marketCap) : compact(q.marketCap) + '원') : '-'}</b></div>
         <div class="q52"><small>52주 최저 · 최고</small><b>${l52 ? px(l52, q.currency) : '-'} <span class="dim">~</span> ${h52 ? px(h52, q.currency) : '-'}</b>${pos52 != null ? `<span class="q52-bar"><i style="left:${pos52}%"></i></span>` : ''}</div>`;
     }
     $('#sEasy').onclick = () => { try { localStorage.setItem('mls.easy', localStorage.getItem('mls.easy') === '1' ? '0' : '1'); } catch {} syncInd(); };
@@ -1095,11 +1096,11 @@
     let filter = 'all';
     main.innerHTML = `${head('MAX 리딩', 'MAX 리딩이 가상계좌로 직접 보여주는 실전 매매 리딩입니다.', staff ? '<button class="btn btn-brand" id="lNew">리딩 작성</button>' : '')}
       <div class="grid g-main">
-        <section class="panel"><div class="tabs" id="lTab"><button data-v="all" class="on">전체</button><button data-v="trade">매매 시연</button><button data-v="lesson">해설</button><button data-v="open">진행중</button></div><div id="lFeed"></div></section>
+        <section class="panel"><div class="tabs" id="lTab"><button data-v="all" class="on">전체</button><button data-v="trade">매매 리딩</button><button data-v="lesson">해설</button><button data-v="open">진행중</button></div><div id="lFeed"></div></section>
         <div>
           <section class="panel" style="margin-bottom:16px"><div class="panel-h"><h3>실시간 공지</h3>${staff ? '<button class="btn btn-sm" id="nNew">공지 작성</button>' : ''}</div><div id="lNotice"></div></section>
           <section class="panel"><div class="panel-h"><h3>리딩 성과</h3></div><div class="panel-b" id="lPerf"></div></section>
-          <p class="dim" style="font-size:11px;margin-top:12px;line-height:1.7;padding:0 4px">MAX 리딩의 모든 매매는 가상계좌 기반 시연이며, 특정 종목의 매수·매도를 권유하는 투자자문이 아닙니다. 투자 판단과 책임은 본인에게 있습니다.</p>
+          <p class="dim" style="font-size:11px;margin-top:12px;line-height:1.7;padding:0 4px">MAX 리딩의 모든 매매는 가상계좌 기반 리딩이며, 특정 종목의 매수·매도를 권유하는 투자자문이 아닙니다. 투자 판단과 책임은 본인에게 있습니다.</p>
         </div>
       </div>`;
     if (staff) { $('#lNew').onclick = () => postEditor(); $('#nNew').onclick = () => noticeEditor(); }
@@ -1126,7 +1127,7 @@
       $$('[data-ndel]').forEach((b) => (b.onclick = () => Store.deleteNotice(b.dataset.ndel)));
       const done = S.posts.filter((p) => p.kind === 'trade' && p.result && p.result !== 'open');
       const win = done.filter((p) => p.resultPct > 0).length; const avg = done.length ? done.reduce((s, p) => s + (+p.resultPct || 0), 0) / done.length : 0;
-      $('#lPerf').innerHTML = `<dl class="kv"><dt>종료된 시연</dt><dd>${done.length}건</dd><dt>진행중</dt><dd>${S.posts.filter((p) => p.kind === 'trade' && p.result === 'open').length}건</dd><dt>승률</dt><dd>${done.length ? ((win / done.length) * 100).toFixed(0) + '%' : '-'}</dd><dt>평균 수익률</dt><dd class="${cls(avg)}">${done.length ? pct(avg) : '-'}</dd></dl>`;
+      $('#lPerf').innerHTML = `<dl class="kv"><dt>종료된 리딩</dt><dd>${done.length}건</dd><dt>진행중</dt><dd>${S.posts.filter((p) => p.kind === 'trade' && p.result === 'open').length}건</dd><dt>승률</dt><dd>${done.length ? ((win / done.length) * 100).toFixed(0) + '%' : '-'}</dd><dt>평균 수익률</dt><dd class="${cls(avg)}">${done.length ? pct(avg) : '-'}</dd></dl>`;
     }
     function card(p) {
       const q = p.code && Market.quote(p.code);
@@ -1134,7 +1135,7 @@
       const yt = (p.video || '').match(/(?:youtu\.be\/|v=|embed\/|shorts\/)([\w-]{11})/);
       const can = staff;
       return `<article class="feed-card">
-        <div class="feed-meta"><span class="avatar">${esc((p.authorName || '강').slice(0, 1))}</span><div class="who"><b>${esc(p.authorName || 'MAX 리딩')}</b><small>${U.ago(p.at)}${p.updatedAt ? ' · 수정됨' : ''}</small></div><div style="margin-left:auto;display:flex;gap:6px;align-items:center">${p.kind === 'trade' ? `<span class="tag ${p.side === 'sell' ? 'tag-sell' : 'tag-buy'}">${p.side === 'sell' ? '매도 시연' : '매수 시연'}</span>` : '<span class="tag tag-brand">해설</span>'}${resultTag(p)}</div></div>
+        <div class="feed-meta"><span class="avatar">${esc((p.authorName || '강').slice(0, 1))}</span><div class="who"><b>${esc(p.authorName || 'MAX 리딩')}</b><small>${U.ago(p.at)}${p.updatedAt ? ' · 수정됨' : ''}</small></div><div style="margin-left:auto;display:flex;gap:6px;align-items:center">${p.kind === 'trade' ? `<span class="tag ${p.side === 'sell' ? 'tag-sell' : 'tag-buy'}">${p.side === 'sell' ? '매도 리딩' : '매수 리딩'}</span>` : '<span class="tag tag-brand">해설</span>'}${resultTag(p)}</div></div>
         <h3>${esc(p.title)}</h3>
         ${q && p.kind === 'trade' ? `<a href="#/stock/${p.code}" style="display:inline-flex;gap:8px;align-items:baseline;font-size:13px;margin-bottom:4px"><b>${esc(q.name)}</b><span class="dim">${p.code}</span><span class="${cls(q.change)}">${px(q.price, q.currency)} ${pct(q.changePct)}</span></a>
           <div class="plan"><div><small>진입가</small><b>${px(p.entry, q.currency)}</b></div><div><small>목표가</small><b class="up">${px(p.target, q.currency)}</b></div><div><small>손절가</small><b class="down">${px(p.stop, q.currency)}</b></div><div><small>${p.result === 'open' ? '현재 수익률' : '결과'}</small><b class="${cls(p.result === 'open' ? live : p.resultPct)}">${p.result === 'open' ? pct(live) : pct(+p.resultPct || 0)}</b></div></div>

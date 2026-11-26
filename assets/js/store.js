@@ -92,7 +92,7 @@ const Store = (() => {
       const p1 = pq('005930'), p2 = pq('NVDA'), p3 = pq('000660');
       const R = (q, m) => (q.currency === 'USD' ? +(q.price * m).toFixed(2) : U.roundTick(q.price * m, 'KRW'));
       db.posts.push(
-        { id: U.uid('p'), authorId: teacher.id, authorName: teacher.name, kind: 'trade', title: '[1강 실전] 20일선 눌림목 매수 — 이렇게 들어갑니다', code: '005930', side: 'buy', entry: R(p1, 0.99), target: R(p1, 1.08), stop: R(p1, 0.955), result: 'open', resultPct: 0,
+        { id: U.uid('p'), authorId: teacher.id, authorName: teacher.name, kind: 'trade', title: '[실전 리딩] 20일선 눌림목 매수 — 이렇게 들어갑니다', code: '005930', side: 'buy', entry: R(p1, 0.99), target: R(p1, 1.08), stop: R(p1, 0.955), result: 'open', resultPct: 0,
           body: '진입 근거\n① 일봉 20일 이동평균선까지 거래량 줄면서 눌림 (매도세 약화)\n② 직전 저점 이탈 없음 → 상승 추세 유지\n③ 분봉에서 첫 양봉 장대 출현 시 1차 진입\n\n분할 매수: 1차 50% / 20일선 이탈 없이 재지지 시 2차 50%\n손절: 직전 저점 하향 이탈 (-4.5%) 기계적으로 실행\n목표: 전고점 부근 1차 익절 (+8%)\n\n※ 가상계좌 시연입니다. 직접 차트를 보면서 근거가 맞는지 확인하고 따라해 보세요.', video: '', at: new Date(now - 5400000).toISOString(), comments: [], likes: [] },
         { id: U.uid('p'), authorId: teacher.id, authorName: teacher.name, kind: 'trade', title: '[2강 미국주식] 실적 발표 전후 변동성 대응법', code: 'NVDA', side: 'buy', entry: R(p2, 0.985), target: R(p2, 1.12), stop: R(p2, 0.94), result: 'open', resultPct: 0,
           body: '실적 발표 전에는 비중을 30% 이하로 제한합니다.\n\n체크리스트\n- 발표일/시간 확인 (한국시간 새벽)\n- 옵션 내재변동성 → 예상 변동폭 파악\n- 발표 후 갭 방향 확인 뒤 추가 진입\n\n오늘 시연: 30% 선진입 → 발표 후 지지 확인 시 추가.', video: '', at: new Date(now - 86400000).toISOString(), comments: [], likes: [] },
