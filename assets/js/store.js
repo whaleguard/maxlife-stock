@@ -173,7 +173,7 @@ const Store = (() => {
       async margin() { return null; },
       async deleteUsers(ids) { needAdmin(); let n = 0; for (const id of ids || []) { const u = db.users.find((x) => x.id === id); if (!u || u.role === 'admin') continue; db.users = db.users.filter((x) => x.id !== id); n++; } save(); ev.emit('change'); return n; },
       async deleteMe() { throw new Error('운영 서버 연결 후 사용할 수 있습니다.'); }, async deleteInquiries() { return 0; },
-      async rt() { return {}; }, async disclosures() { return []; }, async disclosure() { return {}; }, async publicInfo() { return { popups: [], faqs: [], terms: {}, service: {} }; }, async pv() { return null; }, async consents() { return []; }, async consent() { return true; },
+      async rt() { return {}; }, async riskGet() { return null; }, async riskSave() { return true; }, async memberAccess() { return {}; }, async riskList() { return []; }, async disclosures() { return []; }, async disclosure() { return {}; }, async publicInfo() { return { popups: [], faqs: [], terms: {}, service: {} }; }, async pv() { return null; }, async consents() { return []; }, async consent() { return true; },
       async missions() { return []; }, async contests() { return []; }, async contestRank() { return []; }, async myMoneyLog() { return []; }, async online() { return []; }, async moneyLog() { return []; },
       async blocks() { return []; }, async handover() { return []; }, async templates() { return []; }, async noticeConsents() { return []; }, async dailyStats() { return []; }, async userStats() { return []; },
       async pageStats() { return { pages: [], daily: [] }; }, async partners() { return []; }, async partnerComm() { return []; }, async partnerWds() { return []; }, async partnerInqs() { return []; },
@@ -333,6 +333,9 @@ const Store = (() => {
       // v8 — 공개 정보 · 이벤트 · 대회 · 관리자 운영 도구 · 파트너
       publicInfo: () => call('publicInfo'),
       rt: (codes) => call('rt', { codes }),
+      riskSave: (answers, score, type) => call('riskSave', { answers, score, type }), riskGet: (userId) => call('riskGet', userId ? { userId } : {}),
+      suspendUser: (userId, until, reason) => call('suspendUser', { userId, until, reason }), kickUser: (userId) => call('kickUser', { userId }),
+      accessHours: (userId, hours) => call('accessHours', { userId, hours }), memberAccess: (userId) => call('memberAccess', { userId }), riskList: () => call('riskList'),
       disclosures: (code) => call('disclosures', { code }), disclosure: (code, id) => call('disclosure', { code, id: String(id) }),
       pv: (items) => call('pv', { items }).catch(() => null),
       consents: () => call('consents'), consent: (id) => call('consent', { id }),

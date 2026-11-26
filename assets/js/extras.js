@@ -175,7 +175,25 @@
     ];
     main.innerHTML = `${M().head('이용 가이드', 'MAX라이프 주식을 처음 쓰는 분을 위한 기능 안내입니다.', '<button class="btn btn-sm" id="gdKeys">단축키 보기 (F1)</button>')}
       <div class="gd-grid">${G.map(([t, L], i) => `<section class="panel gd-card"><div class="panel-b"><div class="gd-n">${i + 1}</div><h3>${t}</h3><ul>${L.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div></section>`).join('')}</div>
+      <section class="panel" style="margin-top:16px"><div class="panel-h"><h3>용어 사전</h3><div class="search" style="max-width:220px">${ICON.search}<input id="gdQ" placeholder="용어 검색" style="width:100%"></div></div><div class="panel-b gloss" id="gdL"></div></section>
       <section class="panel" style="margin-top:16px"><div class="panel-b" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><b style="margin-right:auto">더 알아보기</b><a class="btn btn-sm" href="#/help">자주 묻는 질문 · 1:1 문의</a><a class="btn btn-sm" href="#/download">PC 프로그램 받기</a><button class="btn btn-sm" data-tm="terms">이용약관</button><button class="btn btn-sm" data-tm="risk">거래 위험 안내</button></div></section>`;
+    const GL = [
+      ['예수금', '계좌에 들어 있는 현금입니다. 증권사의 「예수금」과 같습니다.'], ['주문가능금액', '예수금에서 미체결 매수 주문·출금 신청 금액을 뺀, 지금 주문에 쓸 수 있는 돈입니다.'], ['출금가능금액', '지금 출금 신청할 수 있는 금액입니다.'],
+      ['평가금액 · 평가손익', '보유 주식을 현재가로 계산한 금액과, 매입 금액 대비 손익입니다. 팔기 전까지는 확정되지 않은 손익입니다.'], ['실현손익', '이미 매도해서 확정된 손익입니다.'], ['순자산', '예수금 + 보유 주식 평가금액 − MAX 버프 지원금·이자입니다.'],
+      ['지정가', '내가 정한 가격(또는 더 유리한 가격)에만 체결되는 주문입니다.'], ['시장가', '가격을 정하지 않고 지금 가장 좋은 호가로 바로 체결합니다. 정규장에서만 됩니다.'],
+      ['최유리지정가', '바로 체결되도록 상대편 1호가로 지정가를 넣습니다. 매수는 매도 1호가, 매도는 매수 1호가입니다.'], ['최우선지정가', '내 쪽 1호가에 줄을 섭니다. 매수는 매수 1호가, 매도는 매도 1호가입니다.'],
+      ['감시주문', '증권사의 「자동감시주문·스탑로스」입니다. 현재가가 정한 가격에 닿으면 자동으로 시장가 주문이 나갑니다.'], ['자동 익절·손절', '매수 체결 후 이익실현(지정가 매도)과 손실제한(감시 매도)을 한 번에 겁니다. 한쪽이 체결되면 다른 쪽은 자동 취소됩니다(OCO).'],
+      ['시간외', '정규장 전후 거래입니다. 장전·장후 시간외 종가, 시간외 단일가, 미국 프리·애프터마켓이 있습니다.'], ['정정 · 취소', '미체결 주문의 가격·수량을 바꾸거나 주문을 없앱니다.'],
+      ['호가 · 잔량', '사고(매수)·팔려는(매도) 가격과 그 가격에 쌓인 주문 수량입니다. 위쪽(파란색)이 매도, 아래쪽(빨간색)이 매수입니다.'], ['원클릭 주문', '호가를 누르는 즉시 확인 창 없이 주문이 접수됩니다. 매도호가를 누르면 매수, 매수호가를 누르면 매도입니다.'],
+      ['체결강도', '매수 체결량 ÷ 매도 체결량 × 100입니다. 100보다 크면 사려는 힘이 강합니다.'], ['상한가 · 하한가', '국내 주식이 하루에 오르내릴 수 있는 한도(전일 종가 ±30%)입니다.'], ['52주 최저 · 최고', '최근 1년 동안의 가장 낮은·높은 가격입니다.'],
+      ['MAX 버프', '증권사의 「신용·투자금 지원」과 비슷합니다. 순자산의 최대 몇 배까지 가상 투자금을 지원받고, 담보비율이 기준 아래로 내려가면 자동 청산됩니다.'], ['담보비율', '(총자산 ÷ 지원금) × 100입니다. 청산 기준 아래로 내려가면 보유 종목이 자동 매도됩니다.'],
+      ['MAX 리딩', '운영진이 실제 시세로 매매 진입·목표·손절가를 공개하는 리딩입니다. 따라 할지는 본인이 판단합니다.'], ['MAX AI 분석', '차트·거래량·수급·뉴스·공시를 점수로 정리해 지지·저항·목표가를 보여주는 참고 지표입니다.'],
+      ['롱 · 숏', '코인 선물에서 가격 상승에 거는 것이 롱(매수), 하락에 거는 것이 숏(매도)입니다.'], ['레버리지', '증거금의 몇 배 규모로 포지션을 잡을지입니다. 높을수록 작은 변동에도 크게 벌거나 잃습니다.'],
+      ['증거금 · 청산가', '포지션을 유지하려고 맡긴 USDT와, 손실로 증거금을 다 잃어 강제 청산되는 가격입니다.'], ['펀딩비', '무기한 선물에서 8시간마다 롱·숏 사이에 오가는 작은 수수료입니다.'],
+      ['USDT · 스테이킹', '코인 선물·스테이킹에 쓰는 앱 안의 가상 달러입니다. 스테이킹은 USDT를 기간 동안 예치하고 만기에 가상 이자를 받는 기능입니다.'], ['투자성향', '마이페이지에서 7문항으로 진단하는 안정형~공격투자형 5단계 성향입니다. 실제 매매 기록으로 본 성향도 함께 보여줍니다.'],
+    ];
+    const gd = (q) => { $('#gdL').innerHTML = GL.filter(([t, d]) => !q || t.includes(q) || d.includes(q)).map(([t, d]) => `<div class="gl-r"><b>${esc(t)}</b><p>${esc(d)}</p></div>`).join('') || '<div class="empty">찾는 용어가 없습니다</div>'; };
+    $('#gdQ').oninput = (e) => gd(e.target.value.trim()); gd('');
     $('#gdKeys').onclick = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }));
     $$('[data-tm]').forEach((b) => (b.onclick = () => termsModal(b.dataset.tm)));
     return {};
@@ -192,9 +210,30 @@
     load();
   }
 
+
+  // ───────── 투자성향 (설문 진단 + 실제 매매 성향) ─────────
+  async function risk(el) {
+    el.innerHTML = '<div class="empty">불러오는 중…</div>';
+    let R = null; try { R = await Store.riskGet(); } catch {}
+    const B = Risk.behavior(M().S.d);
+    el.innerHTML = `<div class="grid g-2 stack"><section class="panel"><div class="panel-h"><h3>투자성향 진단</h3><button class="btn btn-sm btn-brand" id="rkGo">${R ? '다시 진단하기' : '진단 시작'}</button></div><div class="panel-b">${Risk.surveyHTML(R)}<p class="dim" style="font-size:12px;margin-top:12px">7가지 질문으로 투자 기간·경험·손실 감수 정도를 확인해 5단계(안정형~공격투자형)로 알려드립니다. 결과는 MAX 리딩·AI 분석을 볼 때 참고용입니다.</p></div></section>
+      <section class="panel"><div class="panel-h"><h3>실제 매매 성향</h3><span class="dim" style="font-size:12px">내 체결 ${n0((M().S.d.fills || []).length)}건 기준</span></div><div class="panel-b">${Risk.behaviorHTML(B)}</div></section></div>
+      ${R && B ? `<section class="panel" style="margin-top:16px"><div class="panel-b rk-cmp">${(() => { const t = Risk.typeOf(R.score); const gap = B.aggr - R.score; return `<b>진단 결과와 실제 매매 비교</b><p class="muted">진단은 <b>${esc(R.type)}</b>(${R.score}점)인데 실제 매매 공격성은 <b>${B.aggr}점</b>입니다. ${Math.abs(gap) < 15 ? '생각한 성향대로 매매하고 있습니다.' : gap > 0 ? '생각보다 공격적으로 매매하고 있습니다. 손실 한도를 미리 정해 두세요.' : '생각보다 보수적으로 매매하고 있습니다.'}</p>`; })()}</div></section>` : ''}`;
+    $('#rkGo', el).onclick = () => survey(() => risk(el));
+  }
+  function survey(done) {
+    const ans = [];
+    U.modal({ title: '투자성향 진단', size: 'lg', body: `<div id="rkQ">${Risk.Q.map((q, i) => `<div class="rk-q"><b>${i + 1}. ${esc(q.q)}</b><div class="rk-a">${q.a.map(([t], j) => `<label><input type="radio" name="rq${i}" value="${j}"> <span>${esc(t)}</span></label>`).join('')}</div></div>`).join('')}</div>`,
+      foot: '<span class="dim" id="rkN" style="margin-right:auto;font-size:12px">0 / 7</span><button class="btn" data-x>취소</button><button class="btn btn-brand" id="rkOk" disabled>결과 보기</button>',
+      onMount: (m, close) => {
+        const upd = () => { for (let i = 0; i < Risk.Q.length; i++) { const c = $(`input[name=rq${i}]:checked`, m); ans[i] = c ? +c.value : null; } const n = ans.filter((x) => x != null).length; $('#rkN', m).textContent = `${n} / ${Risk.Q.length}`; $('#rkOk', m).disabled = n < Risk.Q.length; };
+        m.addEventListener('change', upd);
+        $('#rkOk', m).onclick = async () => { const sc = Risk.scoreOf(ans); const t = Risk.typeOf(sc); try { await Store.riskSave(ans, sc, t[1]); close(); U.toast(`투자성향: ${t[1]} (${sc}점)`); M().Voice.say(`투자성향은 ${t[1]}입니다.`); done && done(); } catch (e) { U.toast(e.message, true); } };
+      } });
+  }
   window.MLS_PAGES = Object.assign(window.MLS_PAGES || {}, { events: Events, guide: Guide });
   window.MLSX = {
-    termsModal, faq, moneyLog, shareCard, breadth, PUB,
+    termsModal, faq, moneyLog, shareCard, breadth, PUB, risk, survey,
     async boot() {
       // 상단 바: 서버 응답 속도
       const ta = $('.top-actions'); if (ta && !$('#latB')) { const b = document.createElement('span'); b.id = 'latB'; b.className = 'lat-b hide-m'; ta.prepend(b); LAT.show(); }

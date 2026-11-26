@@ -336,6 +336,7 @@
     ['home', '홈', ICON.home], ['market', '시세·순위', ICON.grid], ['screen', '조건검색', ICON.search], ['watch', '관심종목', ICON.star], ['stock/005930', '종목·주문', ICON.chart], ['balance', '잔고', ICON.wallet], ['history', '거래내역', ICON.list],
     ['cash', '입출금', ICON.bank], ['futures/BTC', '코인 선물', ICON.bolt], ['staking', '스테이킹', ICON.coin], ['lead', 'MAX 리딩', ICON.lead], ['buff', 'MAX 버프', ICON.shield], ['ai', 'MAX AI 분석', ICON.spark], ['rank', '투자 수익 랭킹', ICON.trophy], ['events', '이벤트·투자 대회', ICON.coin], ['guide', '이용 가이드', ICON.list], ['help', '고객센터', ICON.doc], ['my', '마이페이지', ICON.user],
   ];
+  const NAV_TIP = { lead: '운영진 실전 매매 리딩·공지', buff: '신용처럼 가상 투자금을 지원받는 기능', ai: '차트·수급·뉴스·공시 점수 분석', rank: '이용자 수익률 순위', events: '미션 보상·수익률 대회', guide: '기능 안내·용어 사전', help: '1:1 문의·자주 묻는 질문', my: '내 정보·정산·투자성향·설정' };
   function renderShell() {
     const staff = S.user.role === 'admin' || S.user.role === 'instructor';
     root.innerHTML = `
@@ -357,7 +358,7 @@
           <div class="sep"></div><div class="cap">COIN</div>
           ${NAV.slice(8, 10).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
           <div class="sep"></div><div class="cap">MAX SERVICE</div>
-          ${NAV.slice(10).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
+          ${NAV.slice(10).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}" title="${NAV_TIP[r.split('/')[0]] || ''}">${i}<span>${l}</span></a>`).join('')}
           ${staff ? `<div class="sep"></div><a href="admin.html" id="admLink">${ICON.shield}<span>${S.user.role === 'admin' ? '관리자' : 'MAX 리딩 관리'}</span><span class="nbdg" hidden></span></a>` : ''}
         </nav>
         ${IS_APP ? '' : `<a class="side-dl" href="#/download">${ICON.monitor || ICON.chart}<span><b>PC 프로그램</b><small>Windows · Mac 내려받기</small></span></a>`}
@@ -532,7 +533,7 @@
           <section class="panel">
             <div class="quote-head" id="sHead"></div>
             <div class="q-sum" id="sSum"></div>
-            <div class="chart-tools"><div class="seg" id="sTf"><button data-v="m">분</button><button data-v="D" class="on">일</button><button data-v="W">주</button><button data-v="M">월</button></div><div class="seg" id="sMa" title="이동평균선"><button data-v="5" class="on">5</button><button data-v="20" class="on">20</button><button data-v="60" class="on">60</button><button data-v="120" class="on">120</button></div><div class="seg" id="sInd"><button data-v="bb">볼린저</button></div><div class="seg" id="sSub"><button data-v="vol" class="on">거래량</button><button data-v="rsi">RSI</button><button data-v="macd">MACD</button></div><button class="btn btn-sm btn-ghost" id="sEasy" title="이동평균 20일·거래량만 보는 간편 차트">간편 차트</button><div class="seg draw-seg" id="sDraw" title="차트 그리기"><button data-v="h" title="차트를 누른 가격에 수평선">수평선</button><button data-v="t" title="두 점을 눌러 추세선">추세선</button><button data-v="x" title="그린 선 모두 지우기">지우기</button></div><button class="btn btn-sm btn-ghost" id="sFull" title="차트 전체화면">전체화면</button><span class="dim" style="font-size:11px" id="sCSrc"></span></div>
+            <div class="chart-tools"><select class="input sm mu-sel" id="sMu" title="분봉 단위" style="display:none">${[1, 3, 5, 10, 15, 30, 60].map((x) => `<option value="${x}">${x}분</option>`).join('')}</select><div class="seg" id="sTf"><button data-v="m">분</button><button data-v="D" class="on">일</button><button data-v="W">주</button><button data-v="M">월</button></div><div class="seg" id="sMa" title="이동평균선"><button data-v="5" class="on">5</button><button data-v="20" class="on">20</button><button data-v="60" class="on">60</button><button data-v="120" class="on">120</button></div><div class="seg" id="sInd"><button data-v="bb">볼린저</button></div><div class="seg" id="sSub"><button data-v="vol" class="on">거래량</button><button data-v="rsi">RSI</button><button data-v="macd">MACD</button></div><button class="btn btn-sm btn-ghost" id="sEasy" title="이동평균 20일·거래량만 보는 간편 차트">간편 차트</button><div class="seg draw-seg" id="sDraw" title="차트 그리기"><button data-v="h" title="차트를 누른 가격에 수평선">수평선</button><button data-v="t" title="두 점을 눌러 추세선">추세선</button><button data-v="x" title="그린 선 모두 지우기">지우기</button></div><button class="btn btn-sm btn-ghost" id="sFull" title="차트 전체화면">전체화면</button><span class="dim" style="font-size:11px" id="sCSrc"></span></div>
             <div class="chart-box"><div class="chart-tip" id="sTip"></div><canvas id="sChart"></canvas></div>
           </section>
           <section class="panel" style="margin-top:16px">
@@ -554,7 +555,7 @@
             <div class="field"><label>주문 유형</label><div class="seg" id="oType" style="width:100%"><button data-v="limit" style="flex:1">지정가</button><button data-v="market" style="flex:1">시장가</button><button data-v="stop" style="flex:1" title="손절·익절·돌파 매매">감시주문</button><button data-v="ext" style="flex:1" title="장전·장후 시간외 종가, 시간외 단일가, 프리·애프터마켓">시간외</button></div></div>
             <div class="ses-box" id="oSes"></div>
             <div class="field" id="oStopBox" style="display:none"><label>감시 조건 <span class="dim">현재가가 이 가격에 닿으면 시장가로 자동 주문</span></label><div class="seg" id="oCond" style="width:100%;margin-bottom:8px"><button data-v="le" style="flex:1">이하로 내려가면</button><button data-v="ge" style="flex:1">이상 올라가면</button></div><div class="stepper"><button data-t="-1">−</button><input class="input" id="oTrig" inputmode="decimal"><button data-t="1">+</button></div><div class="pct-row" id="oTrigPct"><button data-tp="-5">−5%</button><button data-tp="-3">−3%</button><button data-tp="3">+3%</button><button data-tp="5">+5%</button><button data-tp="10">+10%</button></div></div>
-            <div class="field" id="oPriceBox"><label>주문 가격 <span class="dim" id="oTickInfo"></span></label><div class="stepper"><button data-p="-1">−</button><input class="input" id="oPrice" inputmode="decimal"><button data-p="1">+</button></div></div>
+            <div class="field" id="oPriceBox"><label style="display:flex;align-items:center;gap:6px">주문 가격 <span class="dim" id="oTickInfo"></span><span class="px-quick"><button type="button" data-bp="best" title="최유리지정가: 바로 체결되는 상대편 최우선 호가 (매수=매도1호가, 매도=매수1호가)">최유리</button><button type="button" data-bp="first" title="최우선지정가: 내 쪽 최우선 호가에 대기 (매수=매수1호가, 매도=매도1호가)">최우선</button></span></label><div class="stepper"><button data-p="-1">−</button><input class="input" id="oPrice" inputmode="decimal"><button data-p="1">+</button></div></div>
             <div class="field"><label>수량 <span class="dim" id="oMaxInfo"></span></label><div class="stepper"><button data-q="-1">−</button><input class="input" id="oQty" inputmode="numeric"><button data-q="1">+</button></div><div class="amt-row"><span class="dim">금액으로</span><input class="input" id="oAmt" inputmode="numeric" placeholder="투자금액 입력 → 수량 자동 계산"><span class="dim">원</span></div><div class="pct-row" id="oPct"><button data-r=".1">10%</button><button data-r=".25">25%</button><button data-r=".5">50%</button><button data-r="1">최대</button></div></div>
             <details class="cf-tpsl" id="oAuto"><summary>매수 체결 후 자동 익절·손절</summary><div class="cf-tpsl-b"><div class="field"><label>익절 (+%)</label><input class="input" id="oTpP" inputmode="decimal" placeholder="예: 5"></div><div class="field"><label>손절 (−%)</label><input class="input" id="oSlP" inputmode="decimal" placeholder="예: 3"></div></div><p class="dim" style="font-size:11px;margin:6px 0 0">매수가 체결되면 익절 지정가 매도와 손절 감시 매도를 함께 걸고, 한쪽이 체결되면 다른 쪽은 자동 취소됩니다.</p></details>
             <div class="order-sum" id="oSum"></div>
@@ -570,10 +571,14 @@
     let bottomTab = 'open';
     async function loadChart() {
       const r = await Market.candles(code, O.tf);
-      chart.set({ data: r.data, tf: O.tf, offset: 0, lines: avgLine() });
+      let data = r.data; const mu = +(localStorage.getItem('mls.mu') || 1);
+      if (O.tf === 'm' && mu > 1 && r.unit === '1분') { const out = []; let cur = null; const W = mu * 60000; for (const k of data) { const b = Math.floor(k.t / W) * W; if (!cur || cur.t !== b) { cur && out.push(cur); cur = { t: b, o: k.o, h: k.h, l: k.l, c: k.c, v: k.v }; } else { cur.h = Math.max(cur.h, k.h); cur.l = Math.min(cur.l, k.l); cur.c = k.c; cur.v += k.v; } } cur && out.push(cur); data = out; }
+      const ms = $('#sMu'); if (ms) { ms.style.display = O.tf === 'm' && r.unit === '1분' ? '' : 'none'; ms.value = String(mu); }
+      chart.set({ data, tf: O.tf, offset: 0, lines: avgLine() });
       $('#sCSrc').textContent = r.unit || '';
     }
     const avgLine = () => { const h = S.v.holdings.find((x) => x.code === code); return h ? [{ price: h.avg, label: '평균', color: '#8A94A6' }] : []; };
+    $('#sMu').onchange = (e) => { try { localStorage.setItem('mls.mu', e.target.value); } catch {} loadChart(); };
     $('#sTf').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; O.tf = b.dataset.v; $$('#sTf button').forEach((x) => x.classList.toggle('on', x === b)); loadChart(); };
     const IND = (() => { try { return JSON.parse(localStorage.getItem('mls.ind') || 'null') || { ma: [5, 20, 60, 120], bb: false, sub: 'vol' }; } catch { return { ma: [5, 20, 60, 120], bb: false, sub: 'vol' }; } })();
     const syncInd = () => {
@@ -619,6 +624,7 @@
     $$('[data-t]').forEach((b) => (b.onclick = () => { O.trig = U.stepPrice(O.trig || Market.quote(code).price, ccy, +b.dataset.t); syncForm(); }));
     $('#oTrigPct').onclick = (e) => { const b = e.target.closest('[data-tp]'); if (!b) return; const q = Market.quote(code); const v = q.price * (1 + +b.dataset.tp / 100); O.trig = ccy === 'USD' ? +v.toFixed(2) : U.roundTick(v, 'KRW'); O.cond = +b.dataset.tp < 0 ? 'le' : 'ge'; syncForm(); };
     $('#oTrig').addEventListener('change', (e) => { const v = parseFloat(e.target.value.replace(/,/g, '')); if (v > 0) O.trig = ccy === 'USD' ? +v.toFixed(2) : U.roundTick(v, 'KRW'); syncForm(); });
+    $$('[data-bp]').forEach((b) => (b.onclick = (e) => { e.preventDefault(); autoPx = false; O.type = 'limit'; const best = b.dataset.bp === 'best'; O.price = (O.side === 'buy') === best ? Market.bestAsk(code) : Market.bestBid(code); syncForm(); U.toast(`${best ? '최유리' : '최우선'}지정가 ${px(O.price, ccy)}`); }));
     $$('[data-p]').forEach((b) => (b.onclick = () => { autoPx = false; O.price = U.stepPrice(O.price || Market.quote(code).price, ccy, +b.dataset.p); syncForm(); }));
     $$('[data-q]').forEach((b) => (b.onclick = () => { O.qty = Math.max(1, (O.qty || 0) + +b.dataset.q); syncForm(); }));
     $('#oPrice').addEventListener('change', (e) => { autoPx = false; const v = parseFloat(e.target.value.replace(/,/g, '')); O.price = v > 0 ? U.roundTick(v, ccy) : Market.quote(code).price; syncForm(); });
@@ -1424,7 +1430,7 @@
   // ═════════ 마이페이지 ═════════
   function My(main) {
     let tab = (location.hash.split('/')[2]) || 'home', per = 'month';
-    const TABS = [['home', '내 정보'], ['asset', '자산 현황'], ['settle', '정산 내역'], ['trade', '매수·매도 내역'], ['cash', '입출금 내역'], ['buff', 'MAX 버프'], ['alert', '알림'], ['money', '자산 변동 로그'], ['set', '설정']];
+    const TABS = [['home', '내 정보'], ['asset', '자산 현황'], ['settle', '정산 내역'], ['trade', '매수·매도 내역'], ['cash', '입출금 내역'], ['buff', 'MAX 버프'], ['alert', '알림'], ['money', '자산 변동 로그'], ['risk', '투자성향'], ['set', '설정']];
     main.innerHTML = `${head('마이페이지', '내 계좌·정산·입출금·매매 내역과 계정 설정을 한 곳에서 관리합니다.')}
       <div class="my-head panel panel-b" id="myHead"></div>
       <div class="tabs my-tabs" id="myT">${TABS.map(([k, n]) => `<button data-v="${k}">${n}</button>`).join('')}</div>
@@ -1442,6 +1448,7 @@
       head2(); $$('#myT button').forEach((x) => x.classList.toggle('on', x.dataset.v === tab));
       const el = $('#myB'), u = S.user, v = S.v, g = GRADE(u.grade);
       if (tab === 'money') { window.MLSX ? MLSX.moneyLog(el) : (el.innerHTML = ''); return; }
+      if (tab === 'risk') { window.MLSX ? MLSX.risk(el) : (el.innerHTML = ''); return; }
       if (tab === 'home') {
         el.innerHTML = `<div class="grid g-2 stack">
           <section class="panel"><div class="panel-h"><h3>내 정보</h3></div><div class="panel-b"><form id="pfF"><div class="field"><label>닉네임 <span class="dim">랭킹·리딩 댓글에 표시</span></label><input class="input" name="name" value="${esc(u.name)}" maxlength="20"></div><div class="field"><label>휴대폰</label><input class="input" name="phone" value="${esc(u.phone || '')}"></div><div class="field"><label>이메일</label><input class="input" name="email" value="${esc(u.email || '')}"></div><button class="btn btn-brand">저장</button></form></div></section>

@@ -193,7 +193,7 @@
   // ═════ 운영 도구 ═════
   function Ops(main, sub) {
     let tab = sub || 'online';
-    main.innerHTML = `${H('운영 도구', '접속 중 회원, 자산 변동 로그, IP·기기 차단, 근무 인수인계, 점검 시간과 알림음을 관리합니다.')}${tabs('opT', [['online', '접속 중'], ['money', '자산 변동 로그'], ['block', 'IP·기기 차단'], ['handover', '인수인계'], ['service', '점검·알림 설정']], tab)}<div id="opB"></div>`;
+    main.innerHTML = `${H('운영 도구', '접속 중 회원, 자산 변동 로그, IP·기기 차단, 근무 인수인계, 점검 시간과 알림음을 관리합니다.')}${tabs('opT', [['online', '접속 중'], ['access', '접속 제한·투자성향'], ['money', '자산 변동 로그'], ['block', 'IP·기기 차단'], ['handover', '인수인계'], ['service', '점검·알림 설정']], tab)}<div id="opB"></div>`;
     onTabs('opT', (v) => { tab = v; history.replaceState(null, '', '#/ops/' + v); draw(); });
     let iv = 0;
     async function draw() {
@@ -202,6 +202,17 @@
         if (tab === 'online') {
           const load = async () => { const L = await Store.online(); if (tab !== 'online') return; el.innerHTML = `<section class="panel"><div class="panel-h"><h3>지금 접속 중 ${L.length}명</h3><span class="dim" style="font-size:12px">최근 2분 안에 활동한 회원 · 15초마다 갱신</span></div>${tbl([['닉네임', 'l'], ['아이디', 'l'], '마지막 활동', ''], L.map((u) => `<tr><td class="l"><span class="on-dot"></span>${esc(u.name)}</td><td class="l">${esc(u.username)}</td><td class="dim">${U.ago(u.lastSeen)}</td><td><button class="btn btn-sm" data-mem="${u.id}">상세</button></td></tr>`), '접속 중인 회원이 없습니다')}</section>`; $$('[data-mem]', el).forEach((b) => (b.onclick = () => C().memberDetail(b.dataset.mem))); };
           await load(); iv = setInterval(() => load().catch(() => {}), 15000);
+        } else if (tab === 'access') {
+          const [L, st] = await Promise.all([Store.riskList(), Store.settings()]); const now = new Date();
+          const lim = L.filter((u) => (u.suspendUntil && new Date(u.suspendUntil) > now) || u.accessHours);
+          const dist = Risk.TYPES.map((t) => [t[1], t[3], L.filter((u) => u.risk && u.risk.type === t[1]).length]); const none = L.filter((u) => !u.risk).length; const mx = Math.max(1, ...dist.map((d) => d[2]), none);
+          el.innerHTML = `<section class="panel" style="margin-bottom:16px"><div class="panel-b" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap"><label class="check" style="margin:0"><input type="checkbox" id="ssOn" ${st.singleSession ? 'checked' : ''}> 중복 접속 차단 — 한 계정은 한 기기에서만 (새로 로그인하면 이전 기기는 자동 로그아웃)</label><button class="btn btn-sm btn-brand" id="ssSave">저장</button></div></section>
+            <div class="grid g-2" style="margin-bottom:16px"><section class="panel"><div class="panel-h"><h3>접속 제한 중인 회원 ${lim.length}명</h3></div>${tbl([['회원', 'l'], '정지 종료', '접속 허용 시간', ''], lim.map((u) => `<tr><td class="l">${esc(u.name)} <small class="dim">${esc(u.username)}</small></td><td>${u.suspendUntil && new Date(u.suspendUntil) > now ? `<span class="tag tag-sell">${U.dt(u.suspendUntil)}</span>` : '-'}</td><td>${esc(u.accessHours || '-')}</td><td><button class="btn btn-sm" data-ac="${u.id}">변경</button></td></tr>`), '접속 제한 중인 회원이 없습니다')}</section>
+            <section class="panel"><div class="panel-h"><h3>회원 투자성향 분포</h3><span class="dim" style="font-size:12px">진단 ${L.length - none}명 / 전체 ${L.length}명</span></div><div class="panel-b">${dist.map(([n, c, v]) => `<div class="pv-r"><span>${n}</span><div><i style="width:${(v / mx) * 100}%;background:${c}"></i></div><b>${n0(v)}명</b></div>`).join('')}<div class="pv-r"><span class="dim">미진단</span><div><i style="width:${(none / mx) * 100}%;background:var(--text-3)"></i></div><b>${n0(none)}명</b></div></div></section></div>
+            <section class="panel"><div class="panel-h"><h3>회원별 투자성향</h3></div>${tbl([['회원', 'l'], '진단 유형', '점수', '진단일', ''], L.filter((u) => u.risk).sort((a, b) => b.risk.score - a.risk.score).map((u) => `<tr><td class="l"><button class="link" data-mem="${u.id}">${esc(u.name)}</button> <small class="dim">${esc(u.username)}</small></td><td><span class="tag" style="color:${(Risk.typeOf(u.risk.score) || [])[3]}">${esc(u.risk.type)}</span></td><td>${u.risk.score}</td><td class="dim">${U.date(u.risk.at)}</td><td><button class="btn btn-sm" data-ac="${u.id}">접속 제한</button></td></tr>`), '투자성향을 진단한 회원이 없습니다')}</section>`;
+          $('#ssSave').onclick = async () => { try { await Store.saveSettings({ singleSession: $('#ssOn').checked }); U.toast('저장했습니다.'); } catch (e) { U.toast(e.message, true); } };
+          $$('[data-ac]', el).forEach((b) => (b.onclick = () => { const u = L.find((x) => x.id === b.dataset.ac); accessDlg({ id: u.id, name: u.name, status: 'active' }).then(() => {}); }));
+          $$('[data-mem]', el).forEach((b) => (b.onclick = () => C().memberDetail(b.dataset.mem)));
         } else if (tab === 'money') {
           const L = await Store.moneyLog('', 1000); let q = '';
           el.innerHTML = `<section class="panel"><div class="panel-h"><div class="search" style="flex:1;max-width:280px">${ICON.search}<input id="mlQ" placeholder="회원·구분 검색" style="width:100%"></div><button class="btn btn-sm" id="mlCsv">엑셀(CSV)</button></div><div id="mlL"></div></section>`;
@@ -328,6 +339,27 @@
     U.modal({ title: 'IP · 기기 차단', body: `<p class="muted" style="margin-bottom:10px">${esc(u.name)} (${esc(u.username)}) 회원의 최근 접속 정보로 차단합니다.</p><label class="check"><input type="checkbox" id="bkIp" ${last.ip ? 'checked' : 'disabled'}> IP ${esc(last.ip || '정보 없음')}</label><label class="check"><input type="checkbox" id="bkDv" ${u.device ? 'checked' : 'disabled'}> 기기 ${esc(u.device || '정보 없음 (다음 로그인부터 기록)')}</label><div class="field" style="margin-top:10px"><label>사유</label><input class="input" id="bkR" placeholder="예: 다중 계정"></div><p class="dim" style="font-size:12px">같은 IP를 쓰는 다른 회원도 막힐 수 있습니다. 계정만 막으려면 「정지」를 쓰세요.</p>`, foot: '<button class="btn" data-x>취소</button><button class="btn btn-danger" id="bkOk">차단</button>', onMount: (m, close) => { $('#bkOk', m).onclick = async () => { const r = $('#bkR', m).value || `${u.username} 관련`; try { if ($('#bkIp', m).checked && last.ip) await Store.blockSave('ip', last.ip, r); if ($('#bkDv', m).checked && u.device) await Store.blockSave('device', u.device, r); close(); U.toast('차단했습니다.'); } catch (e) { U.toast(e.message, true); } }; } });
   }
 
+
+  async function riskTab(uid, bundle, el, cur) {
+    el.innerHTML = '<div class="empty">불러오는 중…</div>'; let R = null; try { R = await Store.riskGet(uid); } catch {}
+    if (cur() !== 'risk') return; const B = Risk.behavior(bundle);
+    el.innerHTML = `<div class="grid g-2" style="padding:12px 20px"><div><h4 style="margin:0 0 10px">투자성향 진단 (설문)</h4>${Risk.surveyHTML(R)}</div><div><h4 style="margin:0 0 10px">실제 매매 성향</h4>${Risk.behaviorHTML(B)}</div></div>`;
+  }
+  async function accessDlg(u) {
+    let A = {}; try { A = await Store.memberAccess(u.id); } catch (e) { return U.toast(e.message, true); }
+    const on = A.suspendUntil && new Date(A.suspendUntil) > new Date();
+    U.modal({ title: `접속 제한 · ${u.name}`, body: `<dl class="kv" style="margin-bottom:14px"><dt>현재 상태</dt><dd>${on ? `<span class="tag tag-sell">${U.dt(A.suspendUntil)}까지 정지</span>` : u.status === 'suspended' ? '<span class="tag tag-sell">영구 정지</span>' : '<span class="tag tag-ok">정상</span>'}</dd><dt>사유</dt><dd>${esc(A.suspendReason || '-')}</dd><dt>접속 허용 시간</dt><dd>${esc(A.accessHours || '제한 없음')}</dd><dt>로그인 중인 세션</dt><dd>${n0(A.sessions || 0)}개</dd><dt>마지막 활동</dt><dd>${A.lastSeen ? U.ago(A.lastSeen) : '-'}</dd></dl>
+      <div class="field"><label>기간 정지</label><div class="pct-row" id="acP" style="grid-template-columns:repeat(5,1fr)"><button data-h="1">1시간</button><button data-h="24">1일</button><button data-h="168">7일</button><button data-h="720">30일</button><button data-h="0">해제</button></div></div>
+      <div class="grid g-2"><div class="field"><label>정지 종료 일시</label><input class="input" type="datetime-local" id="acU" value="${on ? localDT(A.suspendUntil) : ''}"></div><div class="field"><label>사유 (회원에게 표시)</label><input class="input" id="acR" value="${esc(A.suspendReason || '')}" placeholder="예: 운영 정책 위반"></div></div>
+      <div class="field"><label>접속 허용 시간 (KST, 비우면 제한 없음)</label><input class="input" id="acH" value="${esc(A.accessHours || '')}" placeholder="예: 09:00-18:00"></div>
+      <p class="dim" style="font-size:12px">정지하면 즉시 로그아웃되고 종료 일시까지 로그인할 수 없습니다. 접속 허용 시간 밖에는 로그인과 이용이 막힙니다. 영구 정지는 회원 상세의 「정지」 버튼을 쓰세요.</p>`,
+      foot: '<button class="btn" id="acK">강제 로그아웃</button><button class="btn" data-x>닫기</button><button class="btn btn-brand" id="acOk">저장</button>',
+      onMount: (m, close) => {
+        $$('#acP button', m).forEach((b) => (b.onclick = () => { const h = +b.dataset.h; $('#acU', m).value = h ? localDT(new Date(Date.now() + h * 3600000).toISOString()) : ''; }));
+        $('#acK', m).onclick = async () => { try { const n = await Store.kickUser(u.id); U.toast(`세션 ${n}개를 로그아웃시켰습니다.`); } catch (e) { U.toast(e.message, true); } };
+        $('#acOk', m).onclick = async () => { try { await Store.suspendUser(u.id, isoOf($('#acU', m).value), $('#acR', m).value); await Store.accessHours(u.id, $('#acH', m).value.trim()); close(); U.toast('접속 제한 설정을 저장했습니다.'); } catch (e) { U.toast(e.message, true); } };
+      } });
+  }
   window.ADM_PAGES = { coin: Coin, events: Events, partners: Partners, stats: Stats, ops: Ops, content: Content };
-  window.ADM = { tplFill, memberTab, assignDlg, blockDlg };
+  window.ADM = { tplFill, memberTab, assignDlg, blockDlg, riskTab, accessDlg };
 })();
