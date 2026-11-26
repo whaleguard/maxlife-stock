@@ -514,6 +514,35 @@ begin
       'charge', coalesce((select sum(c.amount) from mls_cashflows c join mls_users u on u.id = c.user_id where u.partner_id = any(tree) and c.type = 'deposit' and c.status = 'approved' and coalesce(c.method, '') <> 'admin' and (c.processed_at at time zone 'Asia/Seoul')::date = dd.d), 0)::float8,
       'comm', coalesce((select sum(amount) from mls_partner_comm where partner_id = pa.id and (at at time zone 'Asia/Seoul')::date = dd.d), 0)::float8) order by d desc)
       from (select generate_series((now() at time zone 'Asia/Seoul')::date - least(180, coalesce((b->>'days')::int, 30)) + 1, (now() at time zone 'Asia/Seoul')::date, interval '1 day')::date d) dd), '[]'::jsonb));
+  when 'p_summary' then
+    -- 통계 화면: 회원 분포(활성/비활성), 인기 거래 종목, 월별 요약
+    return jsonb_build_object('ok', true, 'data', jsonb_build_object(
+      'active', (select count(*) from mls_users where partner_id = any(tree) and coalesce(last_seen, last_login) > now() - interval '7 days'),
+      'inactive', (select count(*) from mls_users where partner_id = any(tree) and (coalesce(last_seen, last_login) is null or coalesce(last_seen, last_login) <= now() - interval '7 days')),
+      'popular', coalesce((select jsonb_agg(z) from (select jsonb_build_object('code', f.code, 'name', max(f.name), 'n', count(*), 'amount', sum(f.amount)::float8) z
+        from mls_fills f join mls_users u on u.id = f.user_id where u.partner_id = any(tree) and f.at > now() - interval '30 days' group by f.code order by count(*) desc limit 10) q), '[]'::jsonb),
+      'popularCoin', coalesce((select jsonb_agg(z) from (select jsonb_build_object('sym', f.sym, 'n', count(*), 'amount', sum(f.qty * f.price)::float8) z
+        from mls_cf_fills f join mls_users u on u.id = f.user_id where u.partner_id = any(tree) and f.at > now() - interval '30 days' group by f.sym order by count(*) desc limit 10) q), '[]'::jsonb),
+      'monthly', coalesce((select jsonb_agg(z order by z->>'m' desc) from (select jsonb_build_object('m', to_char(mm, 'YYYY-MM'),
+        'signups', (select count(*) from mls_users u where u.partner_id = any(tree) and date_trunc('month', u.created_at at time zone 'Asia/Seoul') = mm),
+        'traders', (select count(distinct f.user_id) from mls_fills f join mls_users u on u.id = f.user_id where u.partner_id = any(tree) and date_trunc('month', f.at at time zone 'Asia/Seoul') = mm),
+        'fills', (select count(*) from mls_fills f join mls_users u on u.id = f.user_id where u.partner_id = any(tree) and date_trunc('month', f.at at time zone 'Asia/Seoul') = mm),
+        'volume', coalesce((select sum(f.amount) from mls_fills f join mls_users u on u.id = f.user_id where u.partner_id = any(tree) and date_trunc('month', f.at at time zone 'Asia/Seoul') = mm), 0)::float8,
+        'charge', coalesce((select sum(c.amount) from mls_cashflows c join mls_users u on u.id = c.user_id where u.partner_id = any(tree) and c.type = 'deposit' and c.status = 'approved' and coalesce(c.method, '') <> 'admin' and date_trunc('month', c.processed_at at time zone 'Asia/Seoul') = mm), 0)::float8,
+        'comm', coalesce((select sum(amount) from mls_partner_comm where partner_id = pa.id and date_trunc('month', at at time zone 'Asia/Seoul') = mm), 0)::float8) z
+        from generate_series(date_trunc('month', now() at time zone 'Asia/Seoul') - interval '5 months', date_trunc('month', now() at time zone 'Asia/Seoul'), interval '1 month') mm) q), '[]'::jsonb)));
+  when 'p_fills' then
+    -- 소속 회원 체결 내역 (주식 + 코인 선물, 최근 500건)
+    return jsonb_build_object('ok', true, 'data', coalesce((select jsonb_agg(z order by z->>'at' desc) from (
+      (select jsonb_build_object('at', mls_iso(f.at), 'name', u.name, 'kind', 'stock', 'item', f.name, 'side', f.side, 'qty', f.qty::float8, 'price', f.price::float8, 'amount', f.amount::float8, 'pnl', f.pnl::float8, 'fee', (f.fee + f.tax)::float8) z
+        from mls_fills f join mls_users u on u.id = f.user_id where u.partner_id = any(tree) order by f.at desc limit 500)
+      union all
+      (select jsonb_build_object('at', mls_iso(f.at), 'name', u.name, 'kind', 'coin', 'item', f.sym || 'USDT', 'side', f.side, 'action', f.action, 'qty', f.qty::float8, 'price', f.price::float8, 'amount', (f.qty * f.price)::float8, 'pnl', f.pnl::float8, 'fee', f.fee::float8)
+        from mls_cf_fills f join mls_users u on u.id = f.user_id where u.partner_id = any(tree) order by f.at desc limit 500)) q), '[]'::jsonb));
+  when 'p_cash' then
+    -- 소속 회원 입출금 내역 (관리자 지급 제외)
+    return jsonb_build_object('ok', true, 'data', coalesce((select jsonb_agg(jsonb_build_object('at', mls_iso(c.at), 'name', u.name, 'type', c.type, 'amount', c.amount::float8, 'method', c.method, 'status', c.status, 'processedAt', mls_iso(c.processed_at)) order by c.at desc)
+      from (select c2.* from mls_cashflows c2 join mls_users u2 on u2.id = c2.user_id where u2.partner_id = any(tree) and coalesce(c2.method, '') <> 'admin' and (coalesce(b->>'type', '') = '' or c2.type = b->>'type') order by c2.at desc limit 500) c join mls_users u on u.id = c.user_id), '[]'::jsonb));
   when 'p_comm' then
     return jsonb_build_object('ok', true, 'data', coalesce((select jsonb_agg(jsonb_build_object('user', u.name, 'kind', c.kind, 'base', c.base::float8, 'rate', c.rate::float8, 'amount', c.amount::float8, 'at', mls_iso(c.at)) order by c.at desc) from (select * from mls_partner_comm where partner_id = pa.id order by at desc limit 500) c left join mls_users u on u.id = c.user_id), '[]'::jsonb));
   when 'p_subs' then

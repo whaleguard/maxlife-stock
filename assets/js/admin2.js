@@ -5,7 +5,7 @@
   const H = (...a) => C().head(...a);
   const tabs = (id, L, cur) => `<div class="tabs" id="${id}" style="margin-bottom:16px">${L.map(([k, n]) => `<button data-v="${k}" class="${k === cur ? 'on' : ''}">${n}</button>`).join('')}</div>`;
   const onTabs = (id, f) => { $('#' + id).onclick = (e) => { const b = e.target.closest('button[data-v]'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); f(b.dataset.v); }; };
-  const tbl = (head, rows, empty = '내역이 없습니다') => (rows.length ? `<div class="table-wrap"><table class="t"><thead><tr>${head.map((h) => `<th class="${h[1] || ''}">${h[0] || h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>` : `<div class="empty">${empty}</div>`);
+  const tbl = (head, rows, empty = '내역이 없습니다') => (rows.length ? `<div class="table-wrap"><table class="t"><thead><tr>${head.map((h) => `<th class="${Array.isArray(h) ? h[1] || '' : ''}">${Array.isArray(h) ? h[0] : h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>` : `<div class="empty">${empty}</div>`);
   const err = (el, e) => { el.innerHTML = `<div class="empty">${esc(e.message || e)}</div>`; };
   const fmtUsd = (v, d = 2) => (v == null ? '-' : (+v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }));
   const cp = (v) => (window.MLS_CF ? window.MLS_CF.cp(v) : fmtUsd(v, 4));

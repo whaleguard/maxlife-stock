@@ -12,7 +12,7 @@
   }
   const head = (t, sub, right = '') => `<div class="page-head"><div><h1>${t}</h1>${sub ? `<p>${sub}</p>` : ''}</div>${right}</div>`;
   const stat = (k, v, s = '') => `<div class="panel panel-b stat"><div class="k">${k}</div><div class="v">${v}</div>${s ? `<div class="s muted">${s}</div>` : ''}</div>`;
-  const tbl = (h, rows, empty = '내역이 없습니다') => (rows.length ? `<div class="table-wrap"><table class="t"><thead><tr>${h.map((x) => `<th class="${x[1] || ''}">${x[0] || x}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>` : `<div class="empty">${empty}</div>`);
+  const tbl = (h, rows, empty = '내역이 없습니다') => (rows.length ? `<div class="table-wrap"><table class="t"><thead><tr>${h.map((x) => `<th class="${Array.isArray(x) ? x[1] || '' : ''}">${Array.isArray(x) ? x[0] : x}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>` : `<div class="empty">${empty}</div>`);
   const signupLink = () => location.origin + location.pathname.replace(/partner\.html.*$/, '') + 'index.html?ref=' + ME.code;
 
   function login() {
@@ -21,7 +21,7 @@
       <div class="auth-switch"><a class="brand" href="index.html">MAX라이프 주식 바로가기</a></div></div></div>`;
     $('#lf').onsubmit = async (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); const b = e.target.querySelector('button'); b.disabled = true; try { const r = await call('p_login', { username: f.u, pw: f.p }); token = r.token; localStorage.setItem('mls.ptoken', token); boot(); } catch (er) { U.toast(er.message, true); b.disabled = false; } };
   }
-  const NAV = [['dash', '대시보드', ICON.chart], ['users', '내 회원', ICON.users], ['stats', '일별 통계', ICON.list], ['comm', '수수료 내역', ICON.coin], ['wd', '정산 신청', ICON.bank], ['subs', '하부 파트너', ICON.users], ['inq', '본사 문의', ICON.doc], ['acct', '내 계정', ICON.gear]];
+  const NAV = [['dash', '대시보드', ICON.chart], ['users', '내 회원', ICON.users], ['trades', '거래 내역', ICON.chart], ['cash', '입출금 내역', ICON.bank], ['stats', '통계', ICON.list], ['comm', '수수료 내역', ICON.coin], ['wd', '정산 신청', ICON.bank], ['subs', '하부 파트너', ICON.users], ['inq', '본사 문의', ICON.doc], ['acct', '내 계정', ICON.gear]];
   function shell() {
     root.innerHTML = `<div class="app admin"><header class="topbar"><a href="#/dash">${U.logo()}</a><span class="badge-mode">PARTNER</span><div style="flex:1"></div><div class="top-actions"><span class="dim hide-m" style="font-size:13px">${esc(ME.name)} · ${ME.level}단계</span><button class="icon-btn" id="th" title="다크·화이트 전환">${ICON.moon}</button><button class="btn btn-sm" id="out">로그아웃</button></div></header>
       <aside class="sidebar"><nav class="nav"><div class="cap">PARTNER PORTAL</div>${NAV.map(([r, l, i]) => `<a href="#/${r}" data-r="${r}">${i}<span>${l}</span></a>`).join('')}</nav><div class="side-foot">추천 코드 <b class="brand">${esc(ME.code)}</b></div></aside>
@@ -38,7 +38,7 @@
   function route() {
     const r = (location.hash.replace(/^#\/?/, '') || 'dash').split('/')[0];
     $$('.nav a, .tabbar a').forEach((a) => a.classList.toggle('active', a.dataset.r === r));
-    const P = { dash: Dash, users: Users, stats: Stats, comm: Comm, wd: Wd, subs: Subs, inq: Inq, acct: Acct }[r] || Dash;
+    const P = { dash: Dash, users: Users, trades: Trades, cash: Cash, stats: Stats, comm: Comm, wd: Wd, subs: Subs, inq: Inq, acct: Acct }[r] || Dash;
     const m = $('#main'); m.innerHTML = '<div class="empty">불러오는 중…</div>'; window.scrollTo(0, 0);
     P(m).catch((e) => { m.innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
   }
@@ -61,10 +61,47 @@
     const d = () => { const R = L.filter((u) => !q || [u.name, u.partner].join(' ').toLowerCase().includes(q)); $('#ul').innerHTML = tbl([['닉네임', 'l'], ['소속', 'l'], '가입일', '최근 접속', '체결', '충전', 'AI 구독', '상태'], R.map((u) => `<tr><td class="l">${esc(u.name)} <small class="dim">${esc(u.username)}</small></td><td class="l">${esc(u.partner)}${u.direct ? ' <span class="tag tag-brand">직접</span>' : ''}</td><td class="dim">${U.date(u.joined)}</td><td class="dim">${u.lastSeen ? U.ago(u.lastSeen) : '-'}</td><td>${n0(u.fills)}</td><td>${won(u.charge)}</td><td>${u.ai ? esc(u.ai) : '-'}</td><td><span class="tag ${u.status === 'active' ? 'tag-ok' : 'tag-sell'}">${u.status === 'active' ? '정상' : '정지'}</span></td></tr>`), '회원이 없습니다'); };
     $('#uq').oninput = (e) => { q = e.target.value.trim().toLowerCase(); d(); }; d();
   }
+  async function Trades(m) {
+    const L = await call('p_fills'); let f = 'all', q = '';
+    const A = { open: '진입', close: '청산', tp: '익절', sl: '손절', liq: '강제 청산' };
+    m.innerHTML = `${head('거래 내역', '소속 회원의 주식·코인 선물 체결 (최근 500건)')}<section class="panel"><div class="panel-h" style="gap:8px;flex-wrap:wrap"><div class="seg" id="tf"><button data-v="all" class="on">전체</button><button data-v="stock">주식</button><button data-v="coin">코인 선물</button></div><div class="search" style="flex:1;max-width:260px">${ICON.search}<input id="tq" placeholder="회원·종목 검색" style="width:100%"></div></div><div id="tl"></div></section>`;
+    const d = () => { const R = L.filter((x) => (f === 'all' || x.kind === f) && (!q || [x.name, x.item].join(' ').toLowerCase().includes(q)));
+      $('#tl').innerHTML = `<div class="panel-b" style="padding-bottom:0;font-size:13px">${n0(R.length)}건 · 거래대금 <b>${R.filter((x) => x.kind === 'stock').length ? won(R.filter((x) => x.kind === 'stock').reduce((s, x) => s + x.amount, 0)) : '-'}</b></div>` + tbl(['일시', ['회원', 'l'], ['종목', 'l'], '구분', '수량', '체결가', '금액', '실현손익'], R.map((x) => { const coin = x.kind === 'coin'; const sd = coin ? (x.side === 'long' ? '롱' : '숏') + ' ' + (A[x.action] || '') : x.side === 'buy' ? '매수' : '매도'; const up = coin ? x.side === 'long' : x.side === 'buy';
+        return `<tr><td class="dim">${U.dt(x.at)}</td><td class="l">${esc(x.name)}</td><td class="l">${esc(x.item)}${coin ? ' <span class="tag tag-no">선물</span>' : ''}</td><td><span class="tag ${up ? 'tag-buy' : 'tag-sell'}">${sd}</span></td><td>${coin ? (+x.qty.toPrecision(5)) : n0(x.qty)}</td><td>${coin ? x.price.toLocaleString('en-US') : n0(x.price)}</td><td>${coin ? x.amount.toFixed(2) + ' USDT' : won(x.amount)}</td><td class="${x.pnl > 0 ? 'up' : x.pnl < 0 ? 'down' : ''}">${(!coin && x.side === 'buy') || (coin && x.action === 'open') ? '-' : coin ? x.pnl.toFixed(2) + ' USDT' : won(x.pnl)}</td></tr>`; }), '체결 내역이 없습니다'); };
+    $('#tf').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; f = b.dataset.v; $$('#tf button').forEach((x) => x.classList.toggle('on', x === b)); d(); };
+    $('#tq').oninput = (e) => { q = e.target.value.trim().toLowerCase(); d(); }; d();
+  }
+  async function Cash(m) {
+    const L = await call('p_cash'); let f = 'all';
+    const PAY = { cash: '계좌이체', card: '카드', moa: 'MOA 토큰', usdt: 'USDT', usdc: 'USDC', usd1: 'USD1', maxp: 'MAX 포인트' }; const ST = { pending: ['대기', 'tag-wait'], approved: ['완료', 'tag-ok'], rejected: ['반려', 'tag-sell'], cancelled: ['취소', 'tag-no'] };
+    m.innerHTML = `${head('입출금 내역', '소속 회원의 충전·출금 신청 (최근 500건)')}<div class="grid g-3" style="margin-bottom:16px" id="ck"></div><section class="panel"><div class="panel-h"><div class="seg" id="cf"><button data-v="all" class="on">전체</button><button data-v="deposit">입금</button><button data-v="withdraw">출금</button></div></div><div id="cl"></div></section>`;
+    const ok = (t) => L.filter((c) => c.type === t && c.status === 'approved').reduce((s, c) => s + c.amount, 0);
+    $('#ck').innerHTML = stat('입금 완료', won(ok('deposit'))) + stat('출금 완료', won(ok('withdraw'))) + stat('처리 대기', n0(L.filter((c) => c.status === 'pending').length) + '건');
+    const d = () => { const R = L.filter((c) => f === 'all' || c.type === f); $('#cl').innerHTML = tbl(['신청일시', ['회원', 'l'], '구분', '금액', '수단', '상태', '처리일시'], R.map((c) => `<tr><td class="dim">${U.dt(c.at)}</td><td class="l">${esc(c.name)}</td><td><span class="tag ${c.type === 'deposit' ? 'tag-buy' : 'tag-sell'}">${c.type === 'deposit' ? '입금' : '출금'}</span></td><td><b>${won(c.amount)}</b></td><td>${PAY[c.method] || c.method || '-'}</td><td><span class="tag ${(ST[c.status] || ST.pending)[1]}">${(ST[c.status] || ST.pending)[0]}</span></td><td class="dim">${c.processedAt ? U.dt(c.processedAt) : '-'}</td></tr>`), '입출금 내역이 없습니다'); };
+    $('#cf').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; f = b.dataset.v; $$('#cf button').forEach((x) => x.classList.toggle('on', x === b)); d(); }; d();
+  }
   async function Stats(m) {
-    const L = await call('p_stats', { days: 30 }); const asc = L.slice().reverse();
-    m.innerHTML = `${head('일별 통계', '최근 30일 · 하부 파트너 회원 포함')}<section class="panel" style="margin-bottom:16px"><div class="panel-b"><canvas id="ps1" style="width:100%;height:220px"></canvas></div></section><section class="panel">${tbl(['일자', '가입', '접속 회원', '충전', '내 수수료'], L.map((r) => `<tr><td>${r.d}</td><td>${n0(r.signups)}</td><td>${n0(r.active)}</td><td>${won(r.charge)}</td><td class="brand">${won(r.comm)}</td></tr>`))}</section>`;
-    setTimeout(() => Chart.bars($('#ps1'), { labels: asc.map((r) => r.d.slice(5).replace('-', '.')), series: [{ values: asc.map((r) => r.signups), color: Chart.css('--brand') }, { values: asc.map((r) => r.active), color: Chart.css('--down') }] }), 30);
+    const [L, X] = await Promise.all([call('p_stats', { days: 30 }), call('p_summary')]); const asc = L.slice().reverse();
+    const tot = X.active + X.inactive; const pc = (v) => (tot ? ((v / tot) * 100).toFixed(1) : '0.0') + '%';
+    const mxP = Math.max(1, ...X.popular.map((p) => p.n)); const mxC = Math.max(1, ...X.popularCoin.map((p) => p.n));
+    const bar = (nm, sub, n, mx) => `<div class="pv-r"><span>${nm}${sub ? ` <small class="dim">${sub}</small>` : ''}</span><div><i style="width:${(n / mx) * 100}%"></i></div><b>${n0(n)}건</b></div>`;
+    m.innerHTML = `${head('통계', '하부 파트너 회원 포함')}
+      <div class="grid g-4" style="margin-bottom:16px">${stat('30일 가입', n0(L.reduce((s, r) => s + r.signups, 0)) + '명')}${stat('30일 충전', won(L.reduce((s, r) => s + r.charge, 0)))}${stat('30일 수수료', won(L.reduce((s, r) => s + r.comm, 0)))}${stat('전체 회원', n0(tot) + '명', `활성 ${n0(X.active)} · 비활성 ${n0(X.inactive)}`)}</div>
+      <section class="panel" style="margin-bottom:16px"><div class="panel-h"><h3>최근 30일 가입 · 접속</h3><span class="dim" style="font-size:12px"><span class="brand">■</span> 가입 <span style="color:var(--down)">■</span> 접속</span></div><div class="panel-b"><canvas id="ps1" style="width:100%;height:220px"></canvas></div></section>
+      <div class="grid g-3" style="margin-bottom:16px">
+        <section class="panel"><div class="panel-h"><h3>회원 분포</h3><span class="dim" style="font-size:12px">최근 7일 접속 기준</span></div><div class="panel-b"><div class="dist"><canvas id="psD" width="140" height="140"></canvas><div><div class="dist-r"><i style="background:var(--ok)"></i>활성<b>${n0(X.active)}</b><small>${pc(X.active)}</small></div><div class="dist-r"><i style="background:var(--text-3)"></i>비활성<b>${n0(X.inactive)}</b><small>${pc(X.inactive)}</small></div></div></div></div></section>
+        <section class="panel"><div class="panel-h"><h3>인기 거래 종목</h3><span class="dim" style="font-size:12px">최근 30일 체결</span></div><div class="panel-b">${X.popular.map((p) => bar(esc(p.name), p.code, p.n, mxP)).join('') || '<div class="empty">거래 내역이 없습니다</div>'}</div></section>
+        <section class="panel"><div class="panel-h"><h3>인기 코인 선물</h3><span class="dim" style="font-size:12px">최근 30일 체결</span></div><div class="panel-b">${X.popularCoin.map((p) => bar(p.sym + 'USDT', '', p.n, mxC)).join('') || '<div class="empty">거래 내역이 없습니다</div>'}</div></section>
+      </div>
+      <section class="panel" style="margin-bottom:16px"><div class="panel-h"><h3>월별 요약</h3><span class="dim" style="font-size:12px">최근 6개월</span></div>${tbl(['월', '가입', '거래 회원', '체결', '거래대금', '충전', '내 수수료'], X.monthly.map((r) => `<tr><td>${r.m}</td><td>${n0(r.signups)}</td><td>${n0(r.traders)}</td><td>${n0(r.fills)}</td><td>${won(r.volume)}</td><td>${won(r.charge)}</td><td class="brand">${won(r.comm)}</td></tr>`))}</section>
+      <section class="panel"><div class="panel-h"><h3>일별 상세</h3></div>${tbl(['일자', '가입', '접속 회원', '충전', '내 수수료'], L.map((r) => `<tr><td>${r.d}</td><td>${n0(r.signups)}</td><td>${n0(r.active)}</td><td>${won(r.charge)}</td><td class="brand">${won(r.comm)}</td></tr>`))}</section>`;
+    setTimeout(() => {
+      Chart.bars($('#ps1'), { labels: asc.map((r) => r.d.slice(5).replace('-', '.')), series: [{ values: asc.map((r) => r.signups), color: Chart.css('--brand') }, { values: asc.map((r) => r.active), color: Chart.css('--down') }] });
+      const cv = $('#psD'); const x = cv.getContext('2d'); const dpr = devicePixelRatio || 1; cv.width = 140 * dpr; cv.height = 140 * dpr; cv.style.width = cv.style.height = '140px'; x.scale(dpr, dpr);
+      const seg = (a0, a1, c) => { x.beginPath(); x.arc(70, 70, 56, a0, a1); x.strokeStyle = c; x.lineWidth = 16; x.stroke(); };
+      const st = -Math.PI / 2; if (!tot) seg(0, Math.PI * 2, Chart.css('--surface-2')); else { const a = (X.active / tot) * Math.PI * 2; seg(st, st + a, Chart.css('--ok')); seg(st + a, st + Math.PI * 2, Chart.css('--text-3')); }
+      x.fillStyle = Chart.css('--text'); x.font = "800 20px 'Pretendard Variable', sans-serif"; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(n0(tot), 70, 66); x.fillStyle = Chart.css('--text-3'); x.font = "500 11px 'Pretendard Variable', sans-serif"; x.fillText('전체 회원', 70, 88);
+    }, 30);
   }
   async function Comm(m) {
     const L = await call('p_comm'); const K = { sub: 'AI 구독', charge: '충전' };

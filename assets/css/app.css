@@ -671,3 +671,6 @@ tr.me-row td { background: var(--brand-soft); }
 .tpl-sel { margin-bottom: 8px; }
 @media (max-width: 1250px) { .adm-top { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .adm-top { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tone-grid { grid-template-columns: 1fr; } .tone-r { grid-template-columns: 1fr auto; } .tone-r b { grid-column: 1 / -1; } }
+.dist { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; } .dist > div { flex: 1; min-width: 140px; }
+.dist-r { display: grid; grid-template-columns: 12px 1fr auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.dist-r i { width: 10px; height: 10px; border-radius: 50%; } .dist-r small { color: var(--text-3); min-width: 46px; text-align: right; }
