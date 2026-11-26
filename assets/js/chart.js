@@ -90,6 +90,15 @@ const Chart = (() => {
         ctx.setLineDash([4, 4]); ctx.strokeStyle = L.color; ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(pw, yy); ctx.stroke(); ctx.setLineDash([]);
         ctx.fillStyle = L.color; ctx.fillRect(pw, yy - 9, padR, 18); ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = font(10, 700); ctx.fillText(L.label, pw + 4, yy);
       }
+      // 그리기 도구 (수평선·추세선) — 시각(t) 기준으로 저장되어 확대·이동해도 유지
+      const xOfT = (t) => { let lo2 = 0, hi2 = data.length - 1; if (!data.length) return -1; if (t <= data[0].t) return x(0) - (data[0].t - t) / ((data[1] ? data[1].t - data[0].t : 1) || 1) * cw; while (lo2 < hi2) { const m = (lo2 + hi2) >> 1; if (data[m].t < t) lo2 = m + 1; else hi2 = m; } return x(lo2); };
+      for (const D of st.draws || []) {
+        ctx.save(); ctx.strokeStyle = D.c || '#F5B94A'; ctx.lineWidth = 1.4;
+        if (D.k === 'h') { const yy = Math.round(y(D.p)) + 0.5; ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(pw, yy); ctx.stroke(); ctx.fillStyle = D.c || '#F5B94A'; ctx.fillRect(pw, yy - 9, padR, 18); ctx.fillStyle = '#101216'; ctx.font = font(10, 700); ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(nice(D.p, st.ccy), pw + 4, yy); }
+        else if (D.k === 't') { const x1 = xOfT(D.t1), x2 = xOfT(D.t2); const y1 = y(D.p1), y2 = y(D.p2); const sl = (y2 - y1) / ((x2 - x1) || 1); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(pw, y1 + sl * (pw - x1)); ctx.stroke(); ctx.fillStyle = D.c || '#F5B94A'; [[x1, y1], [x2, y2]].forEach(([a, b]) => { ctx.beginPath(); ctx.arc(a, b, 3, 0, Math.PI * 2); ctx.fill(); }); }
+        ctx.restore();
+      }
+      if (st._pend) { ctx.fillStyle = '#F5B94A'; const px1 = xOfT(st._pend.t), py1 = y(st._pend.p); ctx.beginPath(); ctx.arc(px1, py1, 4, 0, Math.PI * 2); ctx.fill(); }
       // 현재가 라벨
       const last = data[data.length - 1]; const ly = Math.round(y(last.c)) + 0.5; const lc = last.c >= (data[data.length - 2] || last).c ? up : down;
       ctx.setLineDash([2, 3]); ctx.strokeStyle = lc; ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(pw, ly); ctx.stroke(); ctx.setLineDash([]);
@@ -105,14 +114,22 @@ const Chart = (() => {
         const chg = hv.c - (data[hi_ - 1] || hv).c;
         st.tip.innerHTML = `<span>${fmtT(hv.t, st.tf === 'm' ? 'm' : 'D')}${st.tf === 'm' ? '' : ''}</span><span>시 <b>${nice(hv.o, st.ccy)}</b></span><span>고 <b class="up">${nice(hv.h, st.ccy)}</b></span><span>저 <b class="down">${nice(hv.l, st.ccy)}</b></span><span>종 <b class="${U.cls(chg)}">${nice(hv.c, st.ccy)}</b></span><span>량 <b>${U.compact(hv.v)}</b></span>${MAS.map((m) => `<span style="color:${mcol[m]}">MA${m}</span>`).join('')}${bb ? '<span style="color:#7FB3FF">BB(20,2)</span>' : ''}`;
       }
-      st._geom = { cw, n, pw };
+      st._geom = { cw, n, pw, hi, lo, ph, padT, data };
     }
     // 인터랙션
     const pos = (e) => { const r = canvas.getBoundingClientRect(); const p = e.touches ? e.touches[0] : e; return { x: p.clientX - r.left, y: p.clientY - r.top }; };
     let drag = null;
     canvas.addEventListener('mousemove', (e) => { const p = pos(e); if (drag) { const dx = p.x - drag.x; const sh = Math.round(dx / (st._geom ? st._geom.cw : 8)); if (sh) { st.offset = Math.max(0, Math.min(st.data.length - st.view, st.offset + sh)); drag.x = p.x; } } if (!st._geom) return; st.hover = p.x < st._geom.pw ? Math.floor(p.x / st._geom.cw) : -1; st.my = p.y; draw(); });
     canvas.addEventListener('mouseleave', () => { st.hover = -1; drag = null; draw(); });
-    canvas.addEventListener('mousedown', (e) => { drag = pos(e); });
+    canvas.addEventListener('mousedown', (e) => { drag = pos(e); drag.x0 = drag.x; drag.y0 = drag.y; });
+    // 그리기 모드: 클릭으로 수평선(1점)·추세선(2점) 추가
+    const pick = (p) => { const g = st._geom; if (!g || p.x > g.pw || !g.data.length) return null; const i = Math.max(0, Math.min(g.data.length - 1, Math.floor(p.x / g.cw))); return { t: g.data[i].t, p: g.hi - ((p.y - g.padT) / g.ph) * (g.hi - g.lo) }; };
+    canvas.addEventListener('click', (e) => {
+      if (!st.drawMode) return; const p = pos(e); const k = pick(p); if (!k) return;
+      if (st.drawMode === 'h') { st.draws = [...(st.draws || []), { k: 'h', p: k.p }]; st.onDraw && st.onDraw(st.draws); }
+      else if (st.drawMode === 't') { if (!st._pend) st._pend = k; else { st.draws = [...(st.draws || []), { k: 't', t1: st._pend.t, p1: st._pend.p, t2: k.t, p2: k.p }]; st._pend = null; st.onDraw && st.onDraw(st.draws); } }
+      draw();
+    });
     window.addEventListener('mouseup', () => { drag = null; });
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); st.view = Math.max(20, Math.min(st.data.length, Math.round(st.view * (e.deltaY > 0 ? 1.12 : 0.89)))); st.offset = Math.min(st.offset, Math.max(0, st.data.length - st.view)); draw(); }, { passive: false });
     let tx = null;

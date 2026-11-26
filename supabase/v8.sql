@@ -159,7 +159,7 @@ $$;
 create table if not exists mls_rt (code text primary key, d jsonb not null, at timestamptz not null default now());
 create or replace function mls_rt_num(t text) returns numeric language sql immutable as $$ select nullif(regexp_replace(coalesce(t, ''), '[^0-9.\-]', '', 'g'), '')::numeric $$;
 create or replace function mls_rt_get(p_codes text[]) returns jsonb language plpgsql security definer set search_path = public, extensions as $$
-declare need text[]; r extensions.http_response; j jsonb; x jsonb; px numeric;
+declare need text[]; r extensions.http_response; j jsonb; x jsonb; px numeric; lo numeric; hi numeric; old mls_rt; o record; t0 timestamptz := ((now() at time zone 'Asia/Seoul')::date + time '09:00') at time zone 'Asia/Seoul';
 begin
   p_codes := array(select distinct c from unnest(p_codes) c where c ~ '^[0-9A-Z]{6}$' limit 40);
   need := array(select c from unnest(p_codes) c where not exists (select 1 from mls_rt t where t.code = c and t.at > now() - interval '2 seconds'));
@@ -170,18 +170,48 @@ begin
       j := r.content::jsonb;
       for x in select * from jsonb_array_elements(coalesce(j->'datas', '[]'::jsonb)) loop
         px := mls_rt_num(x->>'closePrice'); if px is null or px <= 0 then continue; end if;
+        lo := mls_rt_num(x->>'lowPrice'); hi := mls_rt_num(x->>'highPrice');
+        select * into old from mls_rt where code = x->>'itemCode';
         insert into mls_rt (code, d, at) values (x->>'itemCode', jsonb_build_object('price', px, 'open', mls_rt_num(x->>'openPrice'), 'high', mls_rt_num(x->>'highPrice'), 'low', mls_rt_num(x->>'lowPrice'),
           'volume', mls_rt_num(x->>'accumulatedTradingVolume'), 'change', mls_rt_num(x->>'compareToPreviousClosePrice'),
           'changePct', mls_rt_num(x->>'fluctuationsRatio'), 'status', x->>'marketStatus', 'at', mls_iso(now())), now())
           on conflict (code) do update set d = excluded.d, at = excluded.at;
-        -- 주문 체결 기준가도 실시간으로
-        update mls_quotes set price = px, at = now() where code = x->>'itemCode' and price is distinct from px;
+        -- 주문 체결 기준가도 실시간으로 (호가 스냅샷은 지난 값이므로 비움 → 현재가 기준 매수·매도 호가)
+        update mls_quotes set price = px, ask = null, bid = null, at = now() where code = x->>'itemCode' and price is distinct from px;
+        -- 장중에 가격이 지정가에 닿았던 주문 체결 (전날 주문은 오늘 고가·저가, 오늘 주문은 주문 이후 새로 찍힌 고가·저가 기준)
+        if x->>'marketStatus' = 'OPEN' and lo > 0 and hi > 0 then
+          for o in select id, price from mls_orders where code = x->>'itemCode' and status = 'pending' and type = 'limit'
+              and ((side = 'buy' and price >= lo and (created_at < t0 or (old.code is not null and lo < mls_rt_num(old.d->>'low') and created_at < old.at)))
+                or (side = 'sell' and price <= hi and (created_at < t0 or (old.code is not null and hi > mls_rt_num(old.d->>'high') and created_at < old.at))))
+              order by created_at loop
+            begin perform mls_execute(o.id, o.price); exception when others then null; end;
+          end loop;
+        end if;
       end loop;
     exception when others then null; end;
   end if;
   return coalesce((select jsonb_object_agg(code, d) from mls_rt where code = any(p_codes)), '{}'::jsonb);
 end $$;
 revoke all on function mls_rt_get(text[]) from public;
+
+
+-- ───────── 종목 공시 (네이버 증권 공시, 10분 캐시) ─────────
+create table if not exists mls_disc (k text primary key, d jsonb not null, at timestamptz not null default now());
+create or replace function mls_disc_get(p_code text, p_id text default null) returns jsonb language plpgsql security definer set search_path = public, extensions as $$
+declare r extensions.http_response; k text; c mls_disc;
+begin
+  if coalesce(p_code, '') !~ '^[0-9A-Z]{6}$' or coalesce(p_id, '') !~ '^[0-9]{0,15}$' then return '[]'::jsonb; end if;
+  k := p_code || ':' || coalesce(nullif(p_id, ''), 'list');
+  select * into c from mls_disc where mls_disc.k = k and at > now() - case when p_id is null or p_id = '' then interval '10 minutes' else interval '7 days' end;
+  if found then return c.d; end if;
+  begin
+    perform extensions.http_set_curlopt('CURLOPT_TIMEOUT', '5');
+    select * into r from extensions.http_get('https://m.stock.naver.com/api/stock/' || p_code || '/disclosure' || case when coalesce(p_id, '') = '' then '?pageSize=30&page=1' else '/' || p_id end);
+    if r.status = 200 then insert into mls_disc (k, d, at) values (k, r.content::jsonb, now()) on conflict (k) do update set d = excluded.d, at = excluded.at; return r.content::jsonb; end if;
+  exception when others then null; end;
+  return coalesce((select d from mls_disc where mls_disc.k = k), '[]'::jsonb);
+end $$;
+revoke all on function mls_disc_get(text, text) from public;
 
 do $$ begin
   if (select prosrc from pg_proc where proname = 'mls_api' and pronamespace = 'public'::regnamespace) not like '%mls_api_v7(%' then
@@ -224,6 +254,8 @@ begin
   if p_action = 'rt' then
     return jsonb_build_object('ok', true, 'data', mls_rt_get(array(select jsonb_array_elements_text(case when jsonb_typeof(b->'codes') = 'array' then b->'codes' else '[]'::jsonb end))));
   end if;
+  if p_action = 'disclosures' then return jsonb_build_object('ok', true, 'data', mls_disc_get(upper(b->>'code'), null)); end if;
+  if p_action = 'disclosure' then return jsonb_build_object('ok', true, 'data', mls_disc_get(upper(b->>'code'), b->>'id')); end if;
   if p_action = 'pv' then
     insert into mls_pageviews (d, page, n) select (now() at time zone 'Asia/Seoul')::date, left(x2->>'p', 40), least(100, greatest(1, coalesce((x2->>'n')::int, 1))) from jsonb_array_elements(case when jsonb_typeof(b->'items') = 'array' then b->'items' else '[]'::jsonb end) x2
       on conflict (d, page) do update set n = mls_pageviews.n + excluded.n;
