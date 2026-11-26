@@ -203,7 +203,7 @@
     },
     route(name) {
       PV.add(name || 'home'); serviceBanner(true);
-      if (name === 'home') { const m = $('#main'); const g = m && $('.g-main', m); if (g && !$('.brd-card', m)) { const d = document.createElement('div'); d.innerHTML = breadthCard(); if (d.firstElementChild) g.before(d.firstElementChild); } }
+      if (name === 'home') { const m = $('#main'); const g = m && $('#hBrd', m); if (g && !$('.brd-card', m)) { g.innerHTML = breadthCard(); } }
       if (name === 'balance') { const ph = $('#main .page-head'); if (ph && !$('#shareBtn')) { const b = document.createElement('button'); b.className = 'btn btn-sm'; b.id = 'shareBtn'; b.textContent = '수익 인증 카드'; b.onclick = shareCard; ph.appendChild(b); } }
       if (name === 'cash') usdtCard();
     },

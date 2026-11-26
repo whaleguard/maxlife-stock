@@ -460,18 +460,16 @@
   function Home(main) {
     let mk = 'ALL', rk = 'value';
     main.innerHTML = `
-      <div id="hNotice"></div>${marketBanner()}
-      <div class="grid g-main" style="margin-bottom:16px">
-        <section class="panel"><div class="panel-b hero-asset" id="hAsset"></div><div id="hBuff"></div></section>
-        <section class="panel"><div class="panel-h"><h3>시장 지수</h3><span class="dim" style="font-size:12px" id="hTime"></span></div><div class="panel-b flush slist" id="hIdx"></div></section>
-      </div>
-      <div class="grid g-3" style="margin-bottom:16px">
-        <section class="panel"><div class="panel-h"><h3>관심종목</h3><a class="dim" href="#/stock/005930" style="font-size:12px">종목 검색</a></div><div class="panel-b flush slist" id="hWatch"></div></section>
-        <section class="panel span2"><div class="panel-h"><h3>실시간 랭킹</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><div class="seg" id="hMk"><button data-v="ALL" class="on">전체</button><button data-v="KR">국내</button><button data-v="US">미국</button></div><div class="seg" id="hRk"><button data-v="value" class="on">거래대금</button><button data-v="up">급등</button><button data-v="down">급락</button></div></div></div><div class="panel-b flush"><div class="table-wrap"><table class="t"><thead><tr><th>종목</th><th>현재가</th><th>등락률</th><th class="hide-m">거래량</th><th class="hide-m">거래대금</th></tr></thead><tbody id="hRank"></tbody></table></div></div></section>
-      </div>
-      <div class="grid g-2 stack">
-        <section class="panel"><div class="panel-h"><h3>내 보유종목</h3><a class="dim" href="#/balance" style="font-size:12px">잔고 전체</a></div><div class="panel-b flush slist" id="hHold"></div></section>
-        <section class="panel"><div class="panel-h"><h3>최신 리딩</h3><a class="dim" href="#/lead" style="font-size:12px">리딩룸</a></div><div class="panel-b flush" id="hLead"></div></section>
+      <div class="home-grid">
+      <div class="home-notice" id="hNotice"></div><div class="home-sessions">${marketBanner()}</div>
+        <section class="panel home-assets"><div class="panel-b hero-asset" id="hAsset"></div><div id="hBuff"></div></section>
+        <div class="home-market"><section class="panel"><div class="panel-h"><h3>시장 지수</h3><span class="dim" style="font-size:12px" id="hTime"></span></div><div class="panel-b flush slist" id="hIdx"></div></section><div id="hBrd"></div></div>
+        <section class="panel home-ranking"><div class="panel-h"><h3>실시간 랭킹</h3><div class="home-ranking-filters"><div class="seg" id="hMk"><button data-v="ALL" class="on">전체</button><button data-v="KR">국내</button><button data-v="US">미국</button></div><div class="seg" id="hRk"><button data-v="value" class="on">거래대금</button><button data-v="up">급등</button><button data-v="down">급락</button></div></div></div><div class="panel-b flush"><div class="table-wrap"><table class="t"><thead><tr><th>종목</th><th>현재가</th><th>등락률</th><th class="hide-m">거래량</th><th class="hide-m">거래대금</th></tr></thead><tbody id="hRank"></tbody></table></div></div></section>
+        <div class="home-rail">
+          <section class="panel home-watchlist"><div class="panel-h"><h3>관심종목</h3><a class="dim" href="#/stock/005930" style="font-size:12px">종목 검색</a></div><div class="panel-b flush slist" id="hWatch"></div></section>
+          <section class="panel home-holdings"><div class="panel-h"><h3>내 보유종목</h3><a class="dim" href="#/balance" style="font-size:12px">잔고 전체</a></div><div class="panel-b flush slist" id="hHold"></div></section>
+          <section class="panel home-reading"><div class="panel-h"><h3>최신 리딩</h3><a class="dim" href="#/lead" style="font-size:12px">리딩룸</a></div><div class="panel-b flush" id="hLead"></div></section>
+        </div>
       </div>`;
     $('#hMk').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; mk = b.dataset.v; $$('#hMk button').forEach((x) => x.classList.toggle('on', x === b)); tick(); };
     $('#hRk').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; rk = b.dataset.v; $$('#hRk button').forEach((x) => x.classList.toggle('on', x === b)); tick(); };
@@ -489,11 +487,11 @@
       const hb = $('#hBuff'); if (hb) hb.innerHTML = v.loan ? `<div class="panel-b" style="border-top:1px solid var(--border)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>MAX 버프 ${v.buff.mult}배 사용 중 · 지원금 ${won(v.loan)}</b><a class="btn btn-sm" href="#/buff">관리</a></div>${gauge(v)}</div>` : '';
       $('#hAsset').innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
-          <div><div class="stat"><div class="k">${v.loan ? '순자산 (버프 차감)' : '총 자산'}</div></div><div class="v num">${won(v.net)}</div><div class="${cls(v.netPnl)}" style="font-weight:600;margin-top:2px">${signedWon(v.netPnl)} (${pct(v.netPct)})<span class="dim" style="font-weight:500;margin-left:6px">누적 수익</span></div></div>
+          <div><div class="stat"><div class="k">${v.loan ? '순자산 (버프 차감)' : '총 자산'}</div></div><div class="v num home-total-v">${won(v.net)}</div><div class="${cls(v.netPnl)}" style="font-weight:600;margin-top:2px">${signedWon(v.netPnl)} (${pct(v.netPct)})<span class="dim" style="font-weight:500;margin-left:6px">누적 수익</span></div></div>
           <div style="display:flex;gap:8px"><a class="btn btn-sm" href="#/cash">입출금</a><a class="btn btn-sm btn-brand" href="#/stock/005930">주문하기</a></div>
         </div>
-        <div style="height:110px;margin:14px 0 6px"><canvas id="hSpark" style="width:100%;height:100%"></canvas></div>
-        <div class="grid g-4" style="gap:12px">
+        ${(S.d.snapshots || []).length >= 2 ? '<div class="home-performance"><canvas id="hSpark" style="width:100%;height:100%"></canvas></div>' : '<div class="home-performance is-empty">거래 기록이 이틀 이상 쌓이면 자산 추이 그래프가 표시됩니다</div>'}
+        <div class="home-assets-meta">
           <div class="stat"><div class="k">평가금액</div><div class="v" style="font-size:17px">${won(v.evalKrw)}</div></div>
           <div class="stat"><div class="k">평가손익</div><div class="v ${cls(v.pnl)}" style="font-size:17px">${signedWon(v.pnl)}</div><div class="s ${cls(v.pnl)}">${pct(v.pnlPct)}</div></div>
           <div class="stat"><div class="k">예수금</div><div class="v" style="font-size:17px">${won(v.cash)}</div></div>
@@ -501,7 +499,7 @@
         </div>`;
       const snaps = (S.d.snapshots || []).slice(-60).map((s) => [s[0], s[1]]);
       if (!snaps.length || snaps[snaps.length - 1][0] !== U.today()) snaps.push([U.today(), v.net]); else snaps[snaps.length - 1][1] = v.net;
-      Chart.line($('#hSpark'), { points: snaps, color: v.netPnl >= 0 ? Chart.css('--up') : Chart.css('--down'), labels: false, base: v.principal, fmt: compact });
+      if ($('#hSpark')) Chart.line($('#hSpark'), { points: snaps, color: v.netPnl >= 0 ? Chart.css('--up') : Chart.css('--down'), labels: false, base: v.principal, fmt: compact });
       const ix = Market.state.indices;
       $('#hIdx').innerHTML = ['KOSPI', 'KOSDAQ', 'NASDAQ', 'SPX', 'DJI'].filter((k) => ix[k]).map((k) => `<div class="row" data-ix="${k}"><div class="sname"><b>${k === 'SPX' ? 'S&P 500' : ix[k].name || k}</b><small>${k === 'KOSPI' || k === 'KOSDAQ' ? '국내 · ' + Market.session('KR').label : '미국 · ' + Market.session('US').label}</small></div><div class="p ${cls(ix[k].change)}"><b>${U.n2(ix[k].price)}</b><small>${signed(ix[k].change, 'USD').replace('$', '')} ${pct(ix[k].changePct)}</small></div></div>`).join('');
       $('#hTime').textContent = Market.state.updatedAt ? U.dt(Market.state.updatedAt) + ' 기준' : '';

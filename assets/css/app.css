@@ -701,3 +701,73 @@ tr.me-row td { background: var(--brand-soft); }
 .disc-r:hover { background: var(--hover); } .disc-r b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .disc-r small { color: var(--text-3); font-size: 11px; white-space: nowrap; }
 .disc-frame { width: 100%; height: 60vh; border: 0; border-radius: 8px; background: #fff; }
 @media (max-width: 760px) { .disc-r { grid-template-columns: auto minmax(0, 1fr); } .disc-r small { grid-column: 2; } .disc-r b { white-space: normal; } }
+
+/* ═══ 톤 정리 v2 (GPT 디자인 명세 반영) ═══ */
+:root, [data-theme="dark"] {
+  --bg: #101216; --surface: #171B21; --surface-2: #202630; --border: #2C3440; --border-strong: #465365;
+  --text: #F2F5F8; --text-2: #B4BECC; --text-3: #8D9BAD;
+  --brand: #B7E77A; --brand-ink: #18240F; --brand-soft: rgba(183,231,122,.13);
+  --up: #FF626B; --up-soft: rgba(255,98,107,.13); --down: #619AFF; --down-soft: rgba(97,154,255,.13);
+  --warn: #F3BD61; --ok: #53CBA0; --hover: #232B36; --chart-grid: rgba(255,255,255,.06); --shadow: 0 1px 2px rgba(0,0,0,.18);
+  --radius-panel: 10px; --radius-control: 6px;
+}
+[data-theme="light"] {
+  --bg: #F3F5F7; --surface: #FFFFFF; --surface-2: #EDF1F5; --border: #DCE2E9; --border-strong: #A8B4C2;
+  --text: #141B25; --text-2: #445368; --text-3: #6A788B;
+  --hover: #E8EDF3; --chart-grid: #E3E8EF; --shadow: 0 1px 2px rgba(20,27,37,.06);
+  --brand: #36751E; --brand-ink: #FFFFFF; --brand-soft: rgba(54,117,30,.10);
+  --up: #D62B43; --up-soft: rgba(214,43,67,.09); --down: #205ACB; --down-soft: rgba(32,90,203,.09);
+  --warn: #9A6200; --warn-soft: rgba(183,121,31,.10); --ok: #146D51; --ok-soft: rgba(19,138,87,.10); --overlay: rgba(15,23,42,.45);
+}
+body { font-variant-numeric: tabular-nums lining-nums; line-height: 1.45; }
+.panel { border-radius: var(--radius-panel); box-shadow: var(--shadow); }
+.panel-h { min-height: 48px; padding: 10px 16px; gap: 8px 12px; }
+.panel-h h3 { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+.stat .k, .stat .s { font-size: 12px; font-weight: 500; }
+.stat .k { color: var(--text-3); }
+.stat .v { font-weight: 700; }
+.page-head h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.025em; }
+.nav a { border-left: 2px solid transparent; font-weight: 500; }
+.nav a.active { background: var(--brand-soft); color: var(--text); border-left-color: var(--brand); font-weight: 700; }
+.nav a.active svg { color: var(--brand); }
+[data-theme="light"] .nav a.active { border-left-color: var(--brand); }
+.t th { color: var(--text-3); font-size: 12px; font-weight: 600; }
+.t td { font-weight: 500; }
+.tag { font-weight: 600; border-radius: 4px; }
+.btn-brand { font-weight: 700; }
+.tabs button.on { font-weight: 700; }
+.seg button.on { font-weight: 700; }
+
+/* 홈 배치: 왼쪽 자산·랭킹 / 오른쪽 시장·관심·보유·리딩 */
+.home-grid { display: grid; grid-template-columns: minmax(0, 2.05fr) minmax(0, 1fr); grid-template-areas: "notice notice" "sessions sessions" "assets market" "ranking rail"; align-items: start; gap: 16px; }
+.home-grid > *, .home-market > *, .home-rail > * { min-width: 0; }
+.home-notice { grid-area: notice; } .home-notice:empty { display: none; }
+.home-sessions { grid-area: sessions; } .home-sessions > * { margin-bottom: 0 !important; }
+.home-assets { grid-area: assets; align-self: stretch; }
+.home-market { grid-area: market; display: grid; gap: 12px; align-content: start; } .home-market .brd-card { margin-bottom: 0; }
+.home-market .brd-row { flex-wrap: wrap; gap: 12px; } .home-market .brd-v { font-size: 26px; min-width: 70px; }
+.home-ranking { grid-area: ranking; }
+.home-ranking-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-rail { grid-area: rail; display: grid; gap: 12px; align-content: start; }
+.home-total-v { font-size: 42px !important; font-weight: 800 !important; line-height: 1.14; letter-spacing: -0.035em; }
+.home-performance { height: 124px; margin: 12px 0 4px; }
+.home-performance.is-empty { height: auto; min-height: 44px; display: grid; place-items: center; color: var(--text-3); font-size: 12px; border: 1px dashed var(--border); border-radius: 8px; padding: 10px; }
+.home-assets-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.home-assets-meta .v { font-size: 18px !important; font-weight: 700; }
+.home-market .slist .row { min-height: 52px; }
+@media (max-width: 1023px) {
+  .home-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "notice" "sessions" "assets" "watchlist" "ranking" "market" "holdings" "reading"; gap: 12px; }
+  .home-rail { display: contents; } .home-watchlist { grid-area: watchlist; } .home-holdings { grid-area: holdings; } .home-reading { grid-area: reading; }
+  .home-assets-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 599px) {
+  .home-total-v { font-size: 34px !important; }
+  .home-grid .panel-h, .home-grid .panel-b:not(.flush) { padding-left: 12px; padding-right: 12px; }
+  .home-ranking .panel-h { flex-direction: column; align-items: flex-start; }
+  .home-ranking-filters { width: 100%; } .home-ranking-filters .seg { flex: 1; } .home-ranking-filters .seg button { flex: 1; min-height: 34px; }
+}
+@media (max-width: 599px) {
+  .home-ranking-filters .seg { flex: 1 1 100%; } .home-ranking-filters .seg button { white-space: nowrap; padding: 0 6px; }
+  .ses-card .sc-t { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; overflow: visible; }
+  .ses-card .sc-t span { min-width: 0; }
+}
