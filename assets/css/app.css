@@ -819,3 +819,9 @@ body { font-variant-numeric: tabular-nums lining-nums; line-height: 1.45; }
 .ai-note { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--warn, #f5b94a) 10%, transparent); border: 1px solid color-mix(in srgb, var(--warn, #f5b94a) 35%, transparent); font-size: 12px; }
 .ai-note p { margin: 4px 0 0; line-height: 1.6; color: var(--text-2); }
 @media (max-width: 760px) { .ai-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ai-sec { padding: 12px 10px; } .ai-ev li { flex-wrap: wrap; } .ai-ev li .dim { flex-basis: auto; } }
+
+/* 관리자 언어 선택 */
+.adm-lang { position: fixed; right: 12px; bottom: 12px; z-index: 9000; display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.adm-lang button { border: 0; background: transparent; color: var(--text-2); font: 600 12px/1 inherit; padding: 7px 10px; border-radius: 999px; cursor: pointer; }
+.adm-lang button.on { background: var(--brand); color: #111; }
+@media (max-width: 760px) { .adm-lang { bottom: 70px; right: 8px; } }
