@@ -33,6 +33,12 @@
       <form id="lf"><div class="field"><label>아이디</label><input class="input" name="u" required></div><div class="field"><label>비밀번호</label><input class="input" type="password" name="p" required></div><button class="btn btn-brand btn-block btn-lg">로그인</button></form>
       ${Store.mode === 'local' ? '<div class="demo-box">데모: <code>admin</code> / <code>admin1234</code></div>' : ''}
       <div class="auth-switch"><a class="brand" href="index.html">사용자 화면으로</a></div></div></div>`;
+    // 로그인 화면: 체험용 관리자 계정 안내 (누르면 입력)
+    if (Store.publicInfo) Store.publicInfo().then((d) => { const L = ((d && d.demoAccounts) || []).filter((a) => a.admin); const f = $('#lf'); if (!L.length || !f) return;
+      f.insertAdjacentHTML('afterend', `<div class="demo-box" style="margin-top:16px"><b style="color:var(--text)">체험용 관리자 계정</b> <span class="dim">· 누르면 바로 입력됩니다 · 조회만 가능</span>${L.map((a, i) => `<button type="button" class="demo-acc" data-adm="${i}"><span>${esc(a.label)}</span><code>${esc(a.id)}</code> / <code>${esc(a.pw)}</code></button>`).join('')}</div>`);
+      $$('[data-adm]').forEach((b) => (b.onclick = () => { const a = L[+b.dataset.adm]; f.u.value = a.id; f.p.value = a.pw; f.querySelector('.btn-brand').focus(); }));
+      if (/demo=1/.test(location.search) && L[0]) { f.u.value = L[0].id; f.p.value = L[0].pw; }
+    }).catch(() => {});
     $('#lf').onsubmit = async (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); try { await Store.login(f.u, f.p); location.reload(); } catch (er) { U.toast(er.message, true); } };
   }
   const val = (b) => Engine.valuate(b, A.st);
@@ -46,7 +52,7 @@
       <header class="topbar"><a href="#/${nav[0][0]}">${U.logo()}</a><span class="badge-mode">${A.me.role === 'admin' ? 'ADMIN' : 'MAX 리딩'}</span><div class="ticker" id="tk"></div>
         ${A.me.role === 'admin' ? `<div class="search adm-q">${ICON.search}<input id="admQ" placeholder="회원 검색 (닉네임·아이디·연락처)  /" autocomplete="off"><div class="search-results hidden" id="admQr"></div></div>` : ''}<div class="top-actions"><a class="btn btn-sm hide-m" href="index.html">사용자 화면</a>${A.me.role === 'admin' ? `<button class="icon-btn bell" id="aBell" title="알림">${ICON.bell}<span class="bdg" id="aBellN" hidden></span></button><div class="notif-pop hidden" id="aPop"></div><button class="icon-btn" id="aSnd" title="알림 소리"></button>` : ''}<button class="icon-btn" id="th">${ICON.sun}</button><button class="user-chip" id="out" title="로그아웃"><span class="avatar">${esc(A.me.name.slice(0, 1))}</span><span class="nm">${esc(A.me.name)}</span></button></div></header>
       <aside class="sidebar"><nav class="nav"><div class="cap">${A.me.role === 'admin' ? 'ADMIN CONSOLE' : 'MAX 리딩'}</div>${nav.map(([r, l, i]) => `<a href="#/${r}" data-r="${r}">${i}<span>${l}</span>${['cash', 'buffs', 'inq', 'members', 'subs', 'partners', 'ops'].includes(r) ? `<span class="nbdg" id="nb-${r}" hidden></span>` : ''}</a>`).join('')}<div class="sep"></div><a href="index.html">${ICON.home}<span>사용자 화면</span></a></nav><div class="side-foot" id="sf"></div></aside>
-      <main class="main" id="main"></main>
+      ${A.me.demo ? '<div class="demo-adm-bar">체험용 관리자 계정입니다 · 모든 화면을 볼 수 있지만 승인·수정·삭제는 되지 않습니다</div>' : ''}<main class="main" id="main"></main>
       <nav class="tabbar" style="grid-template-columns:repeat(${Math.min(5, nav.length + 1)},1fr)">${nav.slice(0, 4).map(([r, l, i]) => `<a href="#/${r}" data-r="${r}">${i}${l.split('·')[0]}</a>`).join('')}<a href="index.html">${ICON.home}사용자</a></nav>
     </div>`;
     $('#th').onclick = () => { const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; localStorage.setItem('mls.theme', t); document.documentElement.dataset.theme = t; A.page && A.page.data && A.page.data(); };

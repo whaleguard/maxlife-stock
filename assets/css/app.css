@@ -888,3 +888,7 @@ html:not([lang="ko"]) .side a, html:not([lang="ko"]) .side-nav a { line-height: 
 .notice-bar.warn { border-color: color-mix(in srgb, var(--warn, #f5b94a) 50%, transparent); background: color-mix(in srgb, var(--warn, #f5b94a) 10%, transparent); }
 
 @media (max-width: 760px) { .buff-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; } .buff-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); } .buff-opt { padding: 10px 8px; } .buff-opt b { font-size: 18px; } .buff-opt span { font-size: 12px; } .buff-opt small { font-size: 10px; line-height: 1.35; } }
+
+.demo-adm-bar { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 8500; padding: 8px 16px; border-radius: 999px; background: color-mix(in srgb, var(--warn, #f5b94a) 22%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn, #f5b94a) 55%, transparent); color: var(--text); font-size: 12px; font-weight: 600; text-align: center; max-width: calc(100vw - 32px); box-shadow: 0 6px 18px rgba(0,0,0,.25); pointer-events: none; }
+@media (max-width: 760px) { .demo-adm-bar { bottom: 72px; font-size: 11px; } }
+a.demo-acc { display: flex; text-decoration: none; }

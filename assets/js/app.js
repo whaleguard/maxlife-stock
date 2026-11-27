@@ -253,7 +253,7 @@
   }, true);
   if (IS_APP) document.documentElement.classList.add('is-app');
 
-  function demoBoxHtml() { const L = window.MLS_CONFIG.DEMO_ACCOUNTS || []; return L.length ? `<div class="demo-box"><b style="color:var(--text)">테스트 계정</b> <span class="dim">· 누르면 바로 입력됩니다</span>${L.map((a, i) => `<button type="button" class="demo-acc" data-demo="${i}"><span>${esc(a.label)}</span><code>${esc(a.id)}</code> / <code>${esc(a.pw)}</code></button>`).join('')}</div>` : ''; }
+  function demoBoxHtml() { const L = window.MLS_CONFIG.DEMO_ACCOUNTS || []; return L.length ? `<div class="demo-box"><b style="color:var(--text)">테스트 계정</b> <span class="dim">· 누르면 바로 입력됩니다</span>${L.map((a, i) => a.admin ? `<a class="demo-acc" href="admin.html?demo=1"><span>${esc(a.label)}</span><code>${esc(a.id)}</code> / <code>${esc(a.pw)}</code><em class="dim" style="font-style:normal;margin-left:auto">관리자 화면 →</em></a>` : `<button type="button" class="demo-acc" data-demo="${i}"><span>${esc(a.label)}</span><code>${esc(a.id)}</code> / <code>${esc(a.pw)}</code></button>`).join('')}</div>` : ''; }
   // ═════════ PC 프로그램 다운로드 ═════════
   const REL = 'https://github.com/whaleguard/maxlife-stock/releases/latest/download/';
   function Download(main) {
