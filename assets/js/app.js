@@ -345,6 +345,15 @@
   // ── 셸 ──
   // 코인: 관리자가 거래를 끄면 '코인 시세' 보기 전용, 스테이킹 메뉴 숨김
   const coinNav = (L) => L.filter(([r]) => !(r.startsWith('staking') && S.st && S.st.stakeEnabled === false)).map((x) => (x[0].startsWith('futures') && S.st && S.st.cfEnabled === false ? [x[0], '코인 시세', x[2]] : x));
+  // ── 시장 구분 (국내·미국·유럽·일본·중국) · 지사별 노출 시장 · 회원 주력 시장 ──
+  const MKN = { KR: '국내', US: '미국', EU: '유럽', JP: '일본', CN: '중국' };
+  const EU_C = new Set(['Netherlands', 'Germany', 'United Kingdom', 'France', 'Switzerland', 'Denmark', 'Ireland', 'Sweden', 'Spain', 'Italy', 'Norway', 'Finland', 'Belgium', 'Luxembourg', 'Austria', 'Portugal', 'Greece', 'Jersey', 'Guernsey', 'Isle of Man', 'Cyprus', 'Monaco', 'Poland', 'Czech Republic', 'Hungary', 'Iceland']);
+  const mkOf = (q) => (q.currency === 'KRW' ? 'KR' : EU_C.has(q.country || '') ? 'EU' : q.country === 'Japan' ? 'JP' : q.country === 'China' || q.country === 'Hong Kong' ? 'CN' : 'US');
+  const inMk = (q, m) => (m === 'KR' ? q.currency === 'KRW' : m === 'US' ? q.currency === 'USD' : mkOf(q) === m);
+  const allowedMk = () => { const m = (S.user && S.user.markets) || []; return m.length ? ['KR', 'US', 'EU', 'JP', 'CN'].filter((x) => m.includes(x)) : ['KR', 'US', 'EU', 'JP', 'CN']; };
+  const okMk = (q) => { const a = allowedMk(); return a.length === 5 || a.some((m) => inMk(q, m)); };
+  const mainMk = () => { const a = allowedMk(); const m = S.user && S.user.mainMarket; return a.includes(m) ? m : a[0]; };
+  const hasGlobal = () => allowedMk().some((m) => m !== 'KR');
   const NAV = [
     ['home', '홈', ICON.home], ['market', '시세·순위', ICON.grid], ['market/us', '해외주식', ICON.grid], ['screen', '조건검색', ICON.search], ['watch', '관심종목', ICON.star], ['stock/005930', '종목·주문', ICON.chart], ['balance', '잔고', ICON.wallet], ['history', '거래내역', ICON.list],
     ['cash', '입출금', ICON.bank], ['futures/BTC', '코인 선물', ICON.bolt], ['staking', '스테이킹', ICON.coin], ['lead', 'MAX 리딩', ICON.lead], ['buff', 'MAX 버프', ICON.shield], ['ai', 'MAX AI 분석', ICON.spark], ['rank', '투자 수익 랭킹', ICON.trophy], ['events', '이벤트·투자 대회', ICON.coin], ['guide', '이용 가이드', ICON.list], ['help', '고객센터', ICON.doc], ['my', '마이페이지', ICON.user],
@@ -367,7 +376,7 @@
       <aside class="sidebar">
         <nav class="nav">
           <div class="cap">TRADING</div>
-          ${NAV.slice(0, 9).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
+          ${NAV.slice(0, 9).filter(([r]) => r !== 'market/us' || hasGlobal()).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
           <div class="sep"></div><div class="cap">COIN</div>
           ${coinNav(NAV.slice(9, 11)).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
           <div class="sep"></div><div class="cap">MAX SERVICE</div>
@@ -418,7 +427,7 @@
         box.innerHTML = `<div class="sr-h">최근 본 종목</div>` + R.map((c) => { const q = Market.quote(c); return `<button data-c="${q.code}"><span><b>${esc(q.name)}</b> <small class="dim">${q.code} · ${q.market}</small></span><span class="${cls(q.change)}">${px(q.price, q.currency)} <small>${pct(q.changePct)}</small></span></button>`; }).join('');
         box.classList.remove('hidden'); return;
       }
-      const res = Market.list((q) => q.name.toLowerCase().includes(k) || q.code.toLowerCase().includes(k)).slice(0, 12);
+      const res = Market.list((q) => okMk(q) && (q.name.toLowerCase().includes(k) || q.code.toLowerCase().includes(k))).slice(0, 12);
       box.innerHTML = res.length ? res.map((q) => `<button data-c="${q.code}"><span><b>${esc(q.name)}</b> <small class="dim">${q.code} · ${q.market}</small></span><span class="${cls(q.change)}">${px(q.price, q.currency)} <small>${pct(q.changePct)}</small></span></button>`).join('') : '<div class="empty">검색 결과가 없습니다</div>';
       box.classList.remove('hidden');
     };
@@ -477,13 +486,13 @@
 
   // ═════════ 홈 ═════════
   function Home(main) {
-    let mk = 'ALL', rk = 'value';
+    let mk = (S.user && S.user.mainMarket && allowedMk().includes(S.user.mainMarket)) ? S.user.mainMarket : allowedMk().length > 1 ? 'ALL' : allowedMk()[0], rk = 'value';
     main.innerHTML = `
       <div class="home-grid">
       <div class="home-notice" id="hNotice"></div>${todoStrip()}<div class="home-sessions">${marketBanner()}</div>
         <section class="panel home-assets"><div class="panel-b hero-asset" id="hAsset"></div><div id="hBuff"></div></section>
         <div class="home-market"><section class="panel"><div class="panel-h"><h3>시장 지수</h3><span class="dim" style="font-size:12px" id="hTime"></span></div><div class="panel-b flush slist" id="hIdx"></div></section><div id="hBrd"></div></div>
-        <section class="panel home-ranking"><div class="panel-h"><h3>실시간 랭킹</h3><div class="home-ranking-filters"><div class="seg" id="hMk"><button data-v="ALL" class="on">전체</button><button data-v="KR">국내</button><button data-v="US">미국</button></div><div class="seg" id="hRk"><button data-v="value" class="on">거래대금</button><button data-v="up">급등</button><button data-v="down">급락</button></div></div></div><div class="panel-b flush"><div class="table-wrap"><table class="t"><thead><tr><th>종목</th><th>현재가</th><th>등락률</th><th class="hide-m">거래량</th><th class="hide-m">거래대금</th></tr></thead><tbody id="hRank"></tbody></table></div></div></section>
+        <section class="panel home-ranking"><div class="panel-h"><h3>실시간 랭킹</h3><div class="home-ranking-filters"><div class="seg" id="hMk">${allowedMk().length > 1 ? `<button data-v="ALL" class="${mk === 'ALL' ? 'on' : ''}">전체</button>` : ''}${allowedMk().map((m) => `<button data-v="${m}" class="${mk === m ? 'on' : ''}">${MKN[m]}</button>`).join('')}</div><div class="seg" id="hRk"><button data-v="value" class="on">거래대금</button><button data-v="up">급등</button><button data-v="down">급락</button></div></div></div><div class="panel-b flush"><div class="table-wrap"><table class="t"><thead><tr><th>종목</th><th>현재가</th><th>등락률</th><th class="hide-m">거래량</th><th class="hide-m">거래대금</th></tr></thead><tbody id="hRank"></tbody></table></div></div></section>
         <div class="home-rail">
           <section class="panel home-watchlist"><div class="panel-h"><h3>관심종목</h3><a class="dim" href="#/stock/005930" style="font-size:12px">종목 검색</a></div><div class="panel-b flush slist" id="hWatch"></div></section>
           <section class="panel home-holdings"><div class="panel-h"><h3>내 보유종목</h3><a class="dim" href="#/balance" style="font-size:12px">잔고 전체</a></div><div class="panel-b flush slist" id="hHold"></div></section>
@@ -520,11 +529,12 @@
       if (!snaps.length || snaps[snaps.length - 1][0] !== U.today()) snaps.push([U.today(), v.net]); else snaps[snaps.length - 1][1] = v.net;
       if ($('#hSpark')) Chart.line($('#hSpark'), { points: snaps, color: v.netPnl >= 0 ? Chart.css('--up') : Chart.css('--down'), labels: false, base: v.principal, fmt: compact });
       const ix = Market.state.indices;
-      $('#hIdx').innerHTML = ['KOSPI', 'KOSDAQ', 'NASDAQ', 'SPX', 'DJI'].filter((k) => ix[k]).map((k) => `<div class="row" data-ix="${k}"><div class="sname"><b>${k === 'SPX' ? 'S&P 500' : ix[k].name || k}</b><small>${k === 'KOSPI' || k === 'KOSDAQ' ? '국내 · ' + Market.session('KR').label : '미국 · ' + Market.session('US').label}</small></div><div class="p ${cls(ix[k].change)}"><b>${U.n2(ix[k].price)}</b><small>${signed(ix[k].change, 'USD').replace('$', '')} ${pct(ix[k].changePct)}</small></div></div>`).join('');
+      const IXM = { KOSPI: 'KR', KOSDAQ: 'KR', NASDAQ: 'US', SPX: 'US', DJI: 'US', DAX: 'EU', FTSE: 'EU', CAC: 'EU', STOXX: 'EU', N225: 'JP', HSI: 'CN' }; const am = allowedMk();
+      $('#hIdx').innerHTML = Object.keys(IXM).filter((k) => ix[k] && am.includes(IXM[k])).sort((a, b) => (IXM[a] === mainMk() ? 0 : 1) - (IXM[b] === mainMk() ? 0 : 1)).map((k) => `<div class="row" ${['KOSPI', 'KOSDAQ', 'NASDAQ', 'SPX', 'DJI'].includes(k) ? `data-ix="${k}"` : ''}><div class="sname"><b>${k === 'SPX' ? 'S&P 500' : ix[k].name || k}</b><small>${IXM[k] === 'KR' ? '국내 · ' + Market.session('KR').label : IXM[k] === 'US' ? '미국 · ' + Market.session('US').label : MKN[IXM[k]]}</small></div><div class="p ${cls(ix[k].change)}"><b>${U.n2(ix[k].price)}</b><small>${signed(ix[k].change, 'USD').replace('$', '')} ${pct(ix[k].changePct)}</small></div></div>`).join('');
       $('#hTime').textContent = Market.state.updatedAt ? U.dt(Market.state.updatedAt) + ' 기준' : '';
       const w = (S.user.watch || []).map(Market.quote).filter(Boolean);
       $('#hWatch').innerHTML = w.length ? w.map((q) => stockRow(q, `<button class="star on" data-star="${q.code}" data-stop title="관심 해제" style="float:left;margin:4px 6px 0 -6px">${ICON.star}</button>`)).join('') : '<div class="empty">종목 화면에서 ☆를 눌러 관심종목을 추가하세요</div>';
-      let list = Market.list((q) => mk === 'ALL' || (mk === 'KR' ? q.currency === 'KRW' : q.currency === 'USD'));
+      let list = Market.list((q) => (mk === 'ALL' ? okMk(q) : inMk(q, mk)));
       const val = (q) => Market.toKrw(q.value || q.price * q.volume, q.currency);
       list.sort(rk === 'value' ? (a, b) => val(b) - val(a) : rk === 'up' ? (a, b) => b.changePct - a.changePct : (a, b) => a.changePct - b.changePct);
       $('#hRank').innerHTML = list.slice(0, 10).map((q, i) => `<tr class="click" data-go="${q.code}"><td><div class="sname" style="display:flex;align-items:center;gap:8px"><span class="rank-n">${i + 1}</span><div><b>${esc(q.name)}</b><small>${q.code}</small></div></div></td><td class="${cls(q.change)}"><b>${px(q.price, q.currency)}</b></td><td class="${cls(q.change)}">${pct(q.changePct)}</td><td class="hide-m">${compact(q.volume)}</td><td class="hide-m">${compact(val(q))}</td></tr>`).join('');
@@ -929,13 +939,19 @@
   // ═════════ 시세·순위 (전 종목) ═════════
   function MarketPage(main, arg) {
     const F = (() => { try { return { mk: 'KR', sub: 'all', sort: 'value', page: 0, kw: '', ...JSON.parse(sessionStorage.getItem('mls.mkt') || '{}') }; } catch { return { mk: 'KR', sub: 'all', sort: 'value', page: 0, kw: '' }; } })();
-    if (arg === 'us' || arg === 'kr') { const m = arg.toUpperCase(); if (F.mk !== m) { F.mk = m; F.sub = 'all'; F.page = 0; } }
-    const SUBS = { KR: [['all', '전체'], ['KOSPI', '코스피'], ['KOSDAQ', '코스닥'], ['ETF', 'ETF']], US: [['all', '전체'], ['NASDAQ', '나스닥'], ['NYSE', '뉴욕'], ['AMEX', '아멕스']] };
+    const glob = arg === 'us' || arg === 'global';
+    const AM = allowedMk(); const tabsMk = glob ? AM.filter((m) => m !== 'KR') : AM;
+    if (arg === 'kr' && F.mk !== 'KR') { F.mk = 'KR'; F.sub = 'all'; F.page = 0; }
+    if (glob && (F.mk === 'KR' || !tabsMk.includes(F.mk))) { const mm = mainMk(); F.mk = mm !== 'KR' && tabsMk.includes(mm) ? mm : tabsMk[0] || 'US'; F.sub = 'all'; F.page = 0; }
+    if (!glob && !tabsMk.includes(F.mk)) { F.mk = tabsMk.includes(mainMk()) ? mainMk() : tabsMk[0]; F.sub = 'all'; F.page = 0; }
+    const XS = [['all', '전체'], ['NASDAQ', '나스닥'], ['NYSE', '뉴욕']];
+    const SUBS = { KR: [['all', '전체'], ['KOSPI', '코스피'], ['KOSDAQ', '코스닥'], ['ETF', 'ETF']], US: [['all', '전체'], ['NASDAQ', '나스닥'], ['NYSE', '뉴욕'], ['AMEX', '아멕스']], EU: XS, JP: XS, CN: XS };
+    const MDESC = { US: '나스닥·뉴욕·아멕스 상장 미국 주식', EU: '미국 증시에 상장된 유럽 대표 기업(ASML·SAP·노보 노디스크 등)', JP: '미국 증시에 상장된 일본 대표 기업(토요타·소니·미쓰비시UFJ 등)', CN: '미국 증시에 상장된 중국·홍콩 기업(알리바바·핀둬둬·JD 등)' };
     const SORTS = [['value', '거래대금'], ['volume', '거래량'], ['up', '상승률'], ['down', '하락률'], ['cap', '시가총액'], ['high', '52주 신고가 근접'], ['name', '종목명']];
     const PER = 50;
-    main.innerHTML = `${head(arg === 'us' ? '해외주식' : '시세·순위', arg === 'us' ? '나스닥·뉴욕·아멕스 상장 미국 주식 시세를 원화 환산과 함께 봅니다. 국내 주식처럼 바로 가상 주문할 수 있습니다.' : '국내·미국 전 종목 시세를 시장·조건별로 조회합니다.', `<span class="dim" style="font-size:12px" id="mkT"></span>`)}
+    main.innerHTML = `${head(glob ? '해외주식' : '시세·순위', glob ? '미국·유럽·일본·중국 기업 시세를 원화 환산과 함께 봅니다. 모두 미국 증시 상장 종목이라 미국 장 시간에 국내 주식처럼 바로 가상 주문할 수 있습니다.' : '국내·해외 전 종목 시세를 시장·조건별로 조회합니다.', `<span class="dim" style="font-size:12px" id="mkT"></span>`)}
       ${sesStrip()}
-      <section class="panel"><div class="panel-h" style="flex-wrap:wrap;gap:8px"><div class="seg" id="mkM"><button data-v="KR">국내</button><button data-v="US">미국</button></div><div class="seg" id="mkS"></div><div class="seg" id="mkO" style="flex-wrap:wrap">${SORTS.map(([v, l]) => `<button data-v="${v}">${l}</button>`).join('')}</div><input class="input" id="mkQ" placeholder="종목명·코드" style="max-width:180px;height:34px"></div>
+      <section class="panel"><div class="panel-h" style="flex-wrap:wrap;gap:8px"><div class="seg" id="mkM">${tabsMk.map((m) => `<button data-v="${m}">${MKN[m]}</button>`).join('')}</div><div class="seg" id="mkS"></div><div class="seg" id="mkO" style="flex-wrap:wrap">${SORTS.map(([v, l]) => `<button data-v="${v}">${l}</button>`).join('')}</div><input class="input" id="mkQ" placeholder="종목명·코드" style="max-width:180px;height:34px"></div>
       <div id="mkL"></div></section>`;
     const save = () => { try { sessionStorage.setItem('mls.mkt', JSON.stringify(F)); } catch {} };
     const segOn = (id, v) => $$(id + ' button').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
@@ -947,7 +963,7 @@
     $('#mkL').addEventListener('click', async (e) => { const st = e.target.closest('[data-star]'); if (st) { e.stopPropagation(); await Store.toggleWatch(st.dataset.star); } const pg = e.target.closest('[data-pg]'); if (pg) { F.page = +pg.dataset.pg; draw(); window.scrollTo(0, 0); } });
     function rows() {
       const k = F.kw.toLowerCase();
-      let L = Market.list((q) => (F.mk === 'KR' ? q.currency === 'KRW' : q.currency === 'USD') && (F.sub === 'all' || (F.sub === 'ETF' ? q.type === 'etf' : q.market === F.sub && q.type !== 'etf')) && (!k || q.name.toLowerCase().includes(k) || q.code.toLowerCase().includes(k)));
+      let L = Market.list((q) => inMk(q, F.mk) && (F.sub === 'all' || (F.sub === 'ETF' ? q.type === 'etf' : q.market === F.sub && q.type !== 'etf')) && (!k || q.name.toLowerCase().includes(k) || q.code.toLowerCase().includes(k)));
       const val = (q) => q.value || q.price * q.volume;
       const near = (q) => (q.high52 ? q.price / q.high52 : 0);
       const S_ = { value: (a, b) => val(b) - val(a), volume: (a, b) => b.volume - a.volume, up: (a, b) => b.changePct - a.changePct, down: (a, b) => a.changePct - b.changePct, cap: (a, b) => (b.marketCap || 0) - (a.marketCap || 0), high: (a, b) => near(b) - near(a), name: (a, b) => a.name.localeCompare(b.name, 'ko') };
@@ -955,11 +971,11 @@
       return L.sort(S_[F.sort]);
     }
     function draw() {
-      save(); segOn('#mkM', F.mk); $('#mkS').innerHTML = SUBS[F.mk].map(([v, l]) => `<button data-v="${v}">${l}</button>`).join(''); segOn('#mkS', F.sub); segOn('#mkO', F.sort);
+      save(); segOn('#mkM', F.mk); $('#mkS').innerHTML = (SUBS[F.mk] || XS).map(([v, l]) => `<button data-v="${v}">${l}</button>`).join(''); segOn('#mkS', F.sub); segOn('#mkO', F.sort);
       const L = rows(); const pages = Math.max(1, Math.ceil(L.length / PER)); F.page = Math.min(F.page, pages - 1);
       const w = S.user.watch || [];
       const cap = (q) => (q.marketCap ? compact(Market.toKrw(q.marketCap, q.currency)) + '원' : '-');
-      $('#mkT').textContent = Market.state.updatedAt ? U.dt(Market.state.updatedAt) + ' 기준' : '';
+      $('#mkT').textContent = (MDESC[F.mk] && glob ? MDESC[F.mk] + ' · ' : '') + (Market.state.updatedAt ? U.dt(Market.state.updatedAt) + ' 기준' : '');
       $('#mkL').innerHTML = `<div class="table-wrap"><table class="t"><thead><tr><th>#</th><th class="l">종목</th><th>현재가</th><th>전일비</th><th>등락률</th><th class="hide-m">거래량</th><th class="hide-m">거래대금</th><th class="hide-m">시가총액</th><th></th></tr></thead><tbody>${L.slice(F.page * PER, F.page * PER + PER).map((q, i) => `<tr class="click" data-go="${q.code}"><td class="dim">${F.page * PER + i + 1}</td><td class="l"><div class="sname"><b>${esc(q.name)}</b><small>${q.code} · ${q.type === 'etf' ? 'ETF' : q.market}</small></div></td><td class="${cls(q.change)}"><b>${px(q.price, q.currency)}</b></td><td class="${cls(q.change)}">${q.change > 0 ? '▲' : q.change < 0 ? '▼' : ''} ${pxu(Math.abs(q.change), q.currency)}</td><td class="${cls(q.change)}">${pct(q.changePct)}</td><td class="hide-m">${n0(q.volume)}</td><td class="hide-m">${compact(Market.toKrw(q.value || q.price * q.volume, q.currency))}원</td><td class="hide-m">${cap(q)}</td><td><button class="star ${w.includes(q.code) ? 'on' : ''}" data-star="${q.code}" data-stop title="관심종목">${ICON.star}</button></td></tr>`).join('') || '<tr><td colspan="9"><div class="empty">조건에 맞는 종목이 없습니다.</div></td></tr>'}</tbody></table></div>
         <div style="display:flex;gap:6px;justify-content:center;align-items:center;padding:14px;flex-wrap:wrap"><span class="dim" style="font-size:12px;margin-right:8px">${n0(L.length)}종목</span>${F.page > 0 ? `<button class="btn btn-sm" data-pg="0">처음</button><button class="btn btn-sm" data-pg="${F.page - 1}">이전</button>` : ''}<span style="font-size:13px">${F.page + 1} / ${pages}</span>${F.page < pages - 1 ? `<button class="btn btn-sm" data-pg="${F.page + 1}">다음</button><button class="btn btn-sm" data-pg="${pages - 1}">끝</button>` : ''}</div>`;
     }
@@ -1002,7 +1018,7 @@
     }, true);
     $('#wgL').addEventListener('change', async (e) => { const s = e.target.closest('[data-mvg]'); if (!s) return; const to = +s.value; if (to === cur) return; const c = s.dataset.mvg; G[cur].codes = G[cur].codes.filter((x) => x !== c); if (!G[to].codes.includes(c)) G[to].codes.push(c); await persist(); norm(); draw(); });
     const qi = $('#wgQ'), qr = $('#wgR');
-    qi.oninput = () => { const k = qi.value.trim().toLowerCase(); if (!k) { qr.classList.add('hidden'); return; } const res = Market.list((q) => q.name.toLowerCase().includes(k) || q.code.toLowerCase().includes(k)).slice(0, 12); qr.innerHTML = res.map((q) => `<button data-add="${q.code}"><span><b>${esc(q.name)}</b> <small class="dim">${q.code} · ${q.market}</small></span><span class="${cls(q.change)}">${px(q.price, q.currency)} <small>+ 추가</small></span></button>`).join('') || '<div class="empty">검색 결과가 없습니다</div>'; qr.classList.remove('hidden'); };
+    qi.oninput = () => { const k = qi.value.trim().toLowerCase(); if (!k) { qr.classList.add('hidden'); return; } const res = Market.list((q) => okMk(q) && (q.name.toLowerCase().includes(k) || q.code.toLowerCase().includes(k))).slice(0, 12); qr.innerHTML = res.map((q) => `<button data-add="${q.code}"><span><b>${esc(q.name)}</b> <small class="dim">${q.code} · ${q.market}</small></span><span class="${cls(q.change)}">${px(q.price, q.currency)} <small>+ 추가</small></span></button>`).join('') || '<div class="empty">검색 결과가 없습니다</div>'; qr.classList.remove('hidden'); };
     qr.onclick = async (e) => { const a = e.target.closest('[data-add]'); if (!a) return; const c = a.dataset.add; if (!G[cur].codes.includes(c)) { if (G[cur].codes.length >= 100) return U.toast('그룹당 100종목까지 담을 수 있습니다.', true); G[cur].codes.push(c); await persist(); norm(); draw(); U.toast('관심종목에 추가되었습니다.'); } qi.value = ''; qr.classList.add('hidden'); };
     document.addEventListener('click', (e) => { if (!e.target.closest('#wgQ, #wgR')) qr.classList.add('hidden'); });
     load();
@@ -1708,12 +1724,13 @@
         const np = $('#nPerm'); if (np) np.onclick = () => Notification.requestPermission().then(draw);
       } else {
         el.innerHTML = `<div class="grid g-2 stack">
-          <section class="panel"><div class="panel-h"><h3>화면 테마</h3></div><div class="panel-b"><div class="theme-pick"><button data-th="dark" class="${theme.get() === 'dark' ? 'on' : ''}"><span class="tp tp-dark"></span><b>다크</b></button><button data-th="light" class="${theme.get() === 'light' ? 'on' : ''}"><span class="tp tp-light"></span><b>화이트</b></button></div><div class="setting-row" style="margin-top:12px"><div><b>시세 상태</b><small>${statusLine()}</small></div><span></span></div><div class="setting-row"><div><b>음성 안내</b><small>주문 접수·체결·취소, 입출금 처리, 버프, 문의 답변을 음성으로 알려줍니다</small></div><label class="sw"><input type="checkbox" id="myVoice" ${Voice.on() ? 'checked' : ''}><span></span></label></div><div class="setting-row"><div><b>알림 소리</b><small>체결·입출금 처리·버프·문의 답변 시 알림음</small></div><label class="sw"><input type="checkbox" id="mySnd" ${(() => { try { return localStorage.getItem('mls.snd') !== '0'; } catch { return true; } })() ? 'checked' : ''}><span></span></label></div><div class="setting-row"><div><b>주문 확인창 생략</b><small>켜면 매수·매도 버튼을 누르는 즉시 주문됩니다</small></div><label class="sw"><input type="checkbox" id="myNoConf" ${(() => { try { return localStorage.getItem('mls.noconf') === '1'; } catch { return false; } })() ? 'checked' : ''}><span></span></label></div></div></section>
+          <section class="panel"><div class="panel-h"><h3>화면 테마</h3></div><div class="panel-b"><div class="theme-pick"><button data-th="dark" class="${theme.get() === 'dark' ? 'on' : ''}"><span class="tp tp-dark"></span><b>다크</b></button><button data-th="light" class="${theme.get() === 'light' ? 'on' : ''}"><span class="tp tp-light"></span><b>화이트</b></button></div><div class="setting-row" style="margin-top:12px"><div><b>주력 시장</b><small>고른 시장이 홈 랭킹·지수와 시세 화면에 먼저 나옵니다</small></div><select class="input sm" id="myMain" style="width:auto">${allowedMk().map((m) => `<option value="${m}" ${mainMk() === m ? 'selected' : ''}>${MKN[m]}</option>`).join('')}</select></div><div class="setting-row"><div><b>시세 상태</b><small>${statusLine()}</small></div><span></span></div><div class="setting-row"><div><b>음성 안내</b><small>주문 접수·체결·취소, 입출금 처리, 버프, 문의 답변을 음성으로 알려줍니다</small></div><label class="sw"><input type="checkbox" id="myVoice" ${Voice.on() ? 'checked' : ''}><span></span></label></div><div class="setting-row"><div><b>알림 소리</b><small>체결·입출금 처리·버프·문의 답변 시 알림음</small></div><label class="sw"><input type="checkbox" id="mySnd" ${(() => { try { return localStorage.getItem('mls.snd') !== '0'; } catch { return true; } })() ? 'checked' : ''}><span></span></label></div><div class="setting-row"><div><b>주문 확인창 생략</b><small>켜면 매수·매도 버튼을 누르는 즉시 주문됩니다</small></div><label class="sw"><input type="checkbox" id="myNoConf" ${(() => { try { return localStorage.getItem('mls.noconf') === '1'; } catch { return false; } })() ? 'checked' : ''}><span></span></label></div></div></section>
           <section class="panel"><div class="panel-h"><h3>비밀번호 변경</h3></div><div class="panel-b"><form id="pwF"><div class="field"><label>현재 비밀번호</label><input class="input" type="password" name="o" autocomplete="current-password"></div><div class="field"><label>새 비밀번호 (6자 이상)</label><input class="input" type="password" name="n" autocomplete="new-password"></div><div class="field"><label>새 비밀번호 확인</label><input class="input" type="password" name="n2" autocomplete="new-password"></div><button class="btn btn-brand">변경</button></form></div></section>
           <section class="panel"><div class="panel-h"><h3>거래 조건</h3></div><div class="panel-b"><dl class="kv"><dt>국내 수수료</dt><dd>${S.st.feeKr}%</dd><dt>국내 매도 세금</dt><dd>${S.st.taxKr}%</dd><dt>미국 수수료</dt><dd>${S.st.feeUs}%</dd><dt>적용 환율</dt><dd>${U.n2(Market.fx())}원</dd><dt>장외시간 체결</dt><dd>${S.st.enforceHours ? '불가 (실제 장시간만)' : '허용'}</dd></dl></div></section>
           <section class="panel"><div class="panel-h"><h3>계좌</h3></div><div class="panel-b"><p class="muted" style="font-size:13px;margin-bottom:10px">계좌를 초기화하면 보유종목·주문·거래내역이 모두 삭제되고 예수금이 ${won(S.st.initialCash)}으로 다시 지급됩니다.${v.loan ? ' (버프 사용 중에는 먼저 상환해 주세요)' : ''}</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-danger" id="rstBtn" ${v.loan ? 'disabled' : ''}>계좌 초기화</button><button class="btn" id="outBtn">로그아웃</button>${u.role !== 'user' ? '<a class="btn" href="admin.html">관리자 페이지</a>' : ''}</div></div></section>
           ${u.role !== 'admin' ? `<section class="panel"><div class="panel-h"><h3>회원 탈퇴</h3></div><div class="panel-b"><p class="muted" style="font-size:13px;margin-bottom:10px">탈퇴하면 계좌·보유종목·주문·거래·입출금·문의·AI 구독 기록이 모두 삭제되고 되돌릴 수 없습니다.${v.loan ? ' MAX 버프를 먼저 상환해 주세요.' : ''}</p><button class="btn btn-danger" id="wdBtn" ${v.loan ? 'disabled' : ''}>회원 탈퇴</button></div></section>` : ''}</div>`;
         { const mv = $('#myVoice', el); if (mv) mv.onchange = () => { Voice.set(mv.checked); if (mv.checked) Voice.say('음성 안내를 켰습니다.'); }; }
+        { const mm = $('#myMain', el); if (mm) mm.onchange = async () => { try { const u = await Store.setMainMarket(mm.value); if (u) Object.assign(S.user, u); else S.user.mainMarket = mm.value; try { sessionStorage.removeItem('mls.mkt'); } catch {} U.toast('주력 시장을 ' + MKN[mm.value] + '(으)로 바꿨습니다.'); } catch (e) { U.toast(e.message, true); } }; }
         { const nc = $('#myNoConf', el); if (nc) nc.onchange = () => { try { localStorage.setItem('mls.noconf', nc.checked ? '1' : '0'); } catch {} U.toast(nc.checked ? '이제 확인창 없이 바로 주문됩니다.' : '주문 전에 확인창을 띄웁니다.'); }; }
         { const ms = $('#mySnd', el); if (ms) ms.onchange = () => { try { localStorage.setItem('mls.snd', ms.checked ? '1' : '0'); } catch {} if (ms.checked) chime(); }; }
         $$('[data-th]', el).forEach((b) => (b.onclick = () => { theme.set(b.dataset.th); const tb = $('#themeBtn'); if (tb) tb.innerHTML = theme.get() === 'dark' ? ICON.sun : ICON.moon; draw(); }));

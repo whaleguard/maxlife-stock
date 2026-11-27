@@ -121,10 +121,10 @@ async function usList(exchange) {
   const rows = (j.data && j.data.rows) || [];
   const mk = exchange === 'nasdaq' ? 'NASDAQ' : exchange === 'nyse' ? 'NYSE' : 'AMEX';
   return rows
-    .filter((r) => /^[A-Z]{1,5}$/.test(r.symbol) && num(r.lastsale) > 0 && num(r.marketCap) > 0 && !/ Warrant| Right| Unit|Preferred|Depositary Shares/i.test(r.name))
+    .filter((r) => /^[A-Z]{1,5}$/.test(r.symbol) && num(r.lastsale) > 0 && num(r.marketCap) > 0 && !/ Warrant| Right| Unit|Preferred|Series [A-Z]\b|%|Notes|Debenture/i.test(r.name))
     .map((r) => {
       const price = num(r.lastsale), change = num(r.netchange);
-      return { code: r.symbol, name: r.name.replace(/ (Common Stock|Class [A-C] Common Stock|Ordinary Shares|Common Shares|American Depositary Shares).*$/i, '').trim(), market: mk, sector: r.sector || '', price, change, changePct: num(r.pctchange), prevClose: +(price - change).toFixed(4), volume: num(r.volume), cap: num(r.marketCap) };
+      return { code: r.symbol, name: r.name.replace(/ (Common Stock|Class [A-C] Common Stock|Ordinary Shares|Common Shares|American Depositary Shares).*$/i, '').trim(), market: mk, sector: r.sector || '', country: r.country || '', price, change, changePct: num(r.pctchange), prevClose: +(price - change).toFixed(4), volume: num(r.volume), cap: num(r.marketCap) };
     });
 }
 async function yahoo(symbol, range = '1d', interval = '5m') {
@@ -141,7 +141,7 @@ async function quotes() {
 
   // 지수 · 환율
   for (const [k, n] of [['KOSPI', '코스피'], ['KOSDAQ', '코스닥']]) { try { out.indices[k] = { name: n, ...(await krIndex(k)) }; } catch (e) { errors.push(k + ' ' + e.message); } }
-  for (const [k, sym, n] of [['NASDAQ', '^IXIC', '나스닥'], ['SPX', '^GSPC', 'S&P 500'], ['DJI', '^DJI', '다우존스']]) {
+  for (const [k, sym, n] of [['NASDAQ', '^IXIC', '나스닥'], ['SPX', '^GSPC', 'S&P 500'], ['DJI', '^DJI', '다우존스'], ['DAX', '^GDAXI', '독일 DAX'], ['FTSE', '^FTSE', '영국 FTSE 100'], ['CAC', '^FCHI', '프랑스 CAC 40'], ['STOXX', '^STOXX50E', '유로 스톡스 50'], ['N225', '^N225', '일본 닛케이 225'], ['HSI', '^HSI', '홍콩 항셍']]) {
     try { const m = (await yahoo(sym)).meta; const p = m.regularMarketPrice, pc = m.chartPreviousClose || m.previousClose; out.indices[k] = { name: n, price: p, change: +(p - pc).toFixed(2), changePct: +(((p - pc) / pc) * 100).toFixed(2) }; } catch (e) { errors.push(k + ' ' + e.message); }
   }
   try { const m = (await yahoo('KRW=X')).meta; if (m.regularMarketPrice > 500) out.fx = +m.regularMarketPrice.toFixed(2); } catch (e) { errors.push('FX ' + e.message); }
@@ -182,7 +182,7 @@ async function quotes() {
     const seen = new Set();
     for (const s of us) {
       if (seen.has(s.code) || out.items[s.code]) continue; seen.add(s.code);
-      out.items[s.code] = { name: s.name, market: s.market, currency: 'USD', sector: s.sector, price: s.price, change: s.change, changePct: s.changePct, prevClose: s.prevClose, open: s.price, high: s.price, low: s.price, volume: s.volume, value: Math.round(s.volume * s.price), marketCap: s.cap };
+      out.items[s.code] = { name: s.name, market: s.market, currency: 'USD', sector: s.sector, country: s.country || '', price: s.price, change: s.change, changePct: s.changePct, prevClose: s.prevClose, open: s.price, high: s.price, low: s.price, volume: s.volume, value: Math.round(s.volume * s.price), marketCap: s.cap };
     }
     // 시가총액 상위 300 은 당일 시가·고가·저가까지
     const topUs = us.sort((a, b) => b.cap - a.cap).slice(0, 300).map((s) => s.code);
