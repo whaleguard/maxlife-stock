@@ -12,7 +12,7 @@ const Market = (() => {
   const RT = { last: {}, ticks: {}, timer: 0, provider: null, busy: false, ok: 0 };
   function setLiveProvider(fn) { RT.provider = fn; if (!RT.timer) { RT.timer = setInterval(rtPoll, 2500); rtPoll(); } }
   function rtApply(code, d) {
-    const q = state.items[code]; if (!q || q.currency !== 'KRW' || !d || !(d.price > 0)) return false;
+    const q = state.items[code]; if (!q || !d || !(d.price > 0)) return false;
     const pv = q._rv != null ? q._rv : null; const dv = pv != null ? d.volume - pv : 0; const dir = Math.sign(d.price - q.price);
     if (dv > 0) { const L = (RT.ticks[code] = RT.ticks[code] || []); L.unshift({ t: U.time(Date.now()), p: d.price, v: dv, side: dir || (L[0] ? L[0].side : 0) }); L.length = Math.min(L.length, 60); }
     q.dir = dir || q.dir; q.price = d.price; if (d.open) q.open = d.open; if (d.high) q.high = d.high; if (d.low) q.low = d.low;
@@ -23,7 +23,7 @@ const Market = (() => {
   }
   async function rtPoll() {
     if (RT.busy || document.hidden || state.status !== 'LIVE' || !RT.provider || typeof Store === 'undefined' || !Store.rt) return;
-    const codes = [...new Set((RT.provider() || []).filter((c) => state.items[c] && state.items[c].currency === 'KRW'))].slice(0, 40); if (!codes.length) return;
+    const codes = [...new Set((RT.provider() || []).filter((c) => state.items[c]))].slice(0, 40); if (!codes.length) return;
     RT.busy = true;
     try { const D = await Store.rt(codes); let n = 0; for (const c in D || {}) { RT.last[c] = D[c]; if (rtApply(c, D[c])) n++; } if (n) { RT.ok = Date.now(); state.updatedAt = new Date().toISOString(); ev.emit('update', state); } } catch {} finally { RT.busy = false; }
   }
