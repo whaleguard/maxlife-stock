@@ -346,7 +346,7 @@
   // 코인: 관리자가 거래를 끄면 '코인 시세' 보기 전용, 스테이킹 메뉴 숨김
   const coinNav = (L) => L.filter(([r]) => !(r.startsWith('staking') && S.st && S.st.stakeEnabled === false)).map((x) => (x[0].startsWith('futures') && S.st && S.st.cfEnabled === false ? [x[0], '코인 시세', x[2]] : x));
   const NAV = [
-    ['home', '홈', ICON.home], ['market', '시세·순위', ICON.grid], ['screen', '조건검색', ICON.search], ['watch', '관심종목', ICON.star], ['stock/005930', '종목·주문', ICON.chart], ['balance', '잔고', ICON.wallet], ['history', '거래내역', ICON.list],
+    ['home', '홈', ICON.home], ['market', '시세·순위', ICON.grid], ['market/us', '해외주식', ICON.grid], ['screen', '조건검색', ICON.search], ['watch', '관심종목', ICON.star], ['stock/005930', '종목·주문', ICON.chart], ['balance', '잔고', ICON.wallet], ['history', '거래내역', ICON.list],
     ['cash', '입출금', ICON.bank], ['futures/BTC', '코인 선물', ICON.bolt], ['staking', '스테이킹', ICON.coin], ['lead', 'MAX 리딩', ICON.lead], ['buff', 'MAX 버프', ICON.shield], ['ai', 'MAX AI 분석', ICON.spark], ['rank', '투자 수익 랭킹', ICON.trophy], ['events', '이벤트·투자 대회', ICON.coin], ['guide', '이용 가이드', ICON.list], ['help', '고객센터', ICON.doc], ['my', '마이페이지', ICON.user],
   ];
   const NAV_TIP = { lead: '운영진 실전 매매 리딩·공지', buff: '신용처럼 가상 투자금을 지원받는 기능', ai: '차트·수급·뉴스·공시 점수 분석', rank: '이용자 수익률 순위', events: '미션 보상·수익률 대회', guide: '기능 안내·용어 사전', help: '1:1 문의·자주 묻는 질문', my: '내 정보·정산·투자성향·설정' };
@@ -367,11 +367,11 @@
       <aside class="sidebar">
         <nav class="nav">
           <div class="cap">TRADING</div>
-          ${NAV.slice(0, 8).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
+          ${NAV.slice(0, 9).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
           <div class="sep"></div><div class="cap">COIN</div>
-          ${coinNav(NAV.slice(8, 10)).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
+          ${coinNav(NAV.slice(9, 11)).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
           <div class="sep"></div><div class="cap">MAX SERVICE</div>
-          ${NAV.slice(10).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}" title="${NAV_TIP[r.split('/')[0]] || ''}">${i}<span>${l}</span></a>`).join('')}
+          ${NAV.slice(11).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}" title="${NAV_TIP[r.split('/')[0]] || ''}">${i}<span>${l}</span></a>`).join('')}
           ${staff ? `<div class="sep"></div><a href="admin.html" id="admLink">${ICON.shield}<span>${S.user.role === 'admin' ? '관리자' : 'MAX 리딩 관리'}</span><span class="nbdg" hidden></span></a>` : ''}
         </nav>
         ${IS_APP ? '' : `<a class="side-dl" href="#/download">${ICON.monitor || ICON.chart}<span><b>PC 프로그램</b><small>Windows · Mac 내려받기</small></span></a>`}
@@ -927,12 +927,13 @@
   }
 
   // ═════════ 시세·순위 (전 종목) ═════════
-  function MarketPage(main) {
+  function MarketPage(main, arg) {
     const F = (() => { try { return { mk: 'KR', sub: 'all', sort: 'value', page: 0, kw: '', ...JSON.parse(sessionStorage.getItem('mls.mkt') || '{}') }; } catch { return { mk: 'KR', sub: 'all', sort: 'value', page: 0, kw: '' }; } })();
+    if (arg === 'us' || arg === 'kr') { const m = arg.toUpperCase(); if (F.mk !== m) { F.mk = m; F.sub = 'all'; F.page = 0; } }
     const SUBS = { KR: [['all', '전체'], ['KOSPI', '코스피'], ['KOSDAQ', '코스닥'], ['ETF', 'ETF']], US: [['all', '전체'], ['NASDAQ', '나스닥'], ['NYSE', '뉴욕'], ['AMEX', '아멕스']] };
     const SORTS = [['value', '거래대금'], ['volume', '거래량'], ['up', '상승률'], ['down', '하락률'], ['cap', '시가총액'], ['high', '52주 신고가 근접'], ['name', '종목명']];
     const PER = 50;
-    main.innerHTML = `${head('시세·순위', '국내·미국 전 종목 시세를 시장·조건별로 조회합니다.', `<span class="dim" style="font-size:12px" id="mkT"></span>`)}
+    main.innerHTML = `${head(arg === 'us' ? '해외주식' : '시세·순위', arg === 'us' ? '나스닥·뉴욕·아멕스 상장 미국 주식 시세를 원화 환산과 함께 봅니다. 국내 주식처럼 바로 가상 주문할 수 있습니다.' : '국내·미국 전 종목 시세를 시장·조건별로 조회합니다.', `<span class="dim" style="font-size:12px" id="mkT"></span>`)}
       ${sesStrip()}
       <section class="panel"><div class="panel-h" style="flex-wrap:wrap;gap:8px"><div class="seg" id="mkM"><button data-v="KR">국내</button><button data-v="US">미국</button></div><div class="seg" id="mkS"></div><div class="seg" id="mkO" style="flex-wrap:wrap">${SORTS.map(([v, l]) => `<button data-v="${v}">${l}</button>`).join('')}</div><input class="input" id="mkQ" placeholder="종목명·코드" style="max-width:180px;height:34px"></div>
       <div id="mkL"></div></section>`;
