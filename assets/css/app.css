@@ -892,3 +892,8 @@ html:not([lang="ko"]) .side a, html:not([lang="ko"]) .side-nav a { line-height: 
 .demo-adm-bar { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 8500; padding: 8px 16px; border-radius: 999px; background: color-mix(in srgb, var(--warn, #f5b94a) 22%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn, #f5b94a) 55%, transparent); color: var(--text); font-size: 12px; font-weight: 600; text-align: center; max-width: calc(100vw - 32px); box-shadow: 0 6px 18px rgba(0,0,0,.25); pointer-events: none; }
 @media (max-width: 760px) { .demo-adm-bar { bottom: 72px; font-size: 11px; } }
 a.demo-acc { display: flex; text-decoration: none; }
+
+/* 코인 보기 전용 */
+.cf-view #cfTop, .cf-view #cfOrder, .cf-view #cfTab, .cf-view #cfBottom, .cf-view label:has(#cfOC) { display: none !important; }
+.cf-view .cf-center > .panel:has(#cfTab) { display: none; }
+.cf-view-note p { font-size: 13px; line-height: 1.6; margin: 6px 0 12px; }

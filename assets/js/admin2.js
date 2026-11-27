@@ -45,7 +45,7 @@
         const st = await Store.settings();
         const f = (k, l, v, ex = '') => `<div class="field"><label>${l}</label><input class="input" id="cs_${k}" value="${esc(v)}" ${ex}></div>`;
         el.innerHTML = `<section class="panel"><div class="panel-b"><div class="grid g-2">
-          <label class="check"><input type="checkbox" id="cs_cfEnabled" ${st.cfEnabled !== false ? 'checked' : ''}> 코인 선물 거래 열기</label><label class="check"><input type="checkbox" id="cs_stakeEnabled" ${st.stakeEnabled !== false ? 'checked' : ''}> 스테이킹 신규 예치 열기</label>
+          <label class="check"><input type="checkbox" id="cs_cfEnabled" ${st.cfEnabled !== false ? 'checked' : ''}> 코인 선물 가상 거래 열기 <small class="dim">(끄면 이용자 화면은 '코인 시세' 보기 전용)</small></label><label class="check"><input type="checkbox" id="cs_stakeEnabled" ${st.stakeEnabled !== false ? 'checked' : ''}> 스테이킹 신규 예치 열기</label>
           ${f('cfMaxLev', '최대 레버리지 (배)', st.cfMaxLev ?? 100, 'inputmode="numeric"')}${f('cfMinNotional', '최소 주문 규모 (USDT)', st.cfMinNotional ?? 5, 'inputmode="decimal"')}
           ${f('cfMakerFee', '지정가 수수료 (%)', st.cfMakerFee ?? 0.02, 'inputmode="decimal"')}${f('cfTakerFee', '시장가 수수료 (%)', st.cfTakerFee ?? 0.05, 'inputmode="decimal"')}
           ${f('cfMaint', '유지 증거금률 (%)', st.cfMaint ?? 0.5, 'inputmode="decimal"')}${f('liqWarn', '청산 경고 거리 (%) — 청산가까지 남은 거리가 이 비율 이하면 이용자에게 경고', st.liqWarn ?? 20, 'inputmode="decimal"')}

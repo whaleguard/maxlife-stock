@@ -205,7 +205,7 @@
 
   // 입출금 화면: USDT 지갑 카드
   async function usdtCard() {
-    const main = $('#main'); if (!main || $('#usdtCard')) return; const ph = $('.page-head', main); if (!ph) return;
+    const main = $('#main'); if (!main || $('#usdtCard')) return; const ph = $('.page-head', main); if (!ph) return; try { if (window.MLS && MLS.S && MLS.S.st && MLS.S.st.cfEnabled === false) return; } catch {}
     const box = document.createElement('section'); box.className = 'panel'; box.id = 'usdtCard'; box.style.marginBottom = '16px';
     box.innerHTML = '<div class="panel-b usdt-card"><div><small class="dim">USDT 지갑 (코인 선물·스테이킹용 가상 USDT)</small><br><b id="ucV">-</b> <span class="dim" id="ucK"></span></div><div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap"><button class="btn btn-sm btn-brand" id="ucCv">원화 ↔ USDT 전환</button><a class="btn btn-sm" href="#/futures/BTC">코인 선물</a><a class="btn btn-sm" href="#/staking">스테이킹</a></div></div>';
     ph.after(box);

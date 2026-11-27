@@ -343,6 +343,8 @@
   }
 
   // ── 셸 ──
+  // 코인: 관리자가 거래를 끄면 '코인 시세' 보기 전용, 스테이킹 메뉴 숨김
+  const coinNav = (L) => L.filter(([r]) => !(r.startsWith('staking') && S.st && S.st.stakeEnabled === false)).map((x) => (x[0].startsWith('futures') && S.st && S.st.cfEnabled === false ? [x[0], '코인 시세', x[2]] : x));
   const NAV = [
     ['home', '홈', ICON.home], ['market', '시세·순위', ICON.grid], ['screen', '조건검색', ICON.search], ['watch', '관심종목', ICON.star], ['stock/005930', '종목·주문', ICON.chart], ['balance', '잔고', ICON.wallet], ['history', '거래내역', ICON.list],
     ['cash', '입출금', ICON.bank], ['futures/BTC', '코인 선물', ICON.bolt], ['staking', '스테이킹', ICON.coin], ['lead', 'MAX 리딩', ICON.lead], ['buff', 'MAX 버프', ICON.shield], ['ai', 'MAX AI 분석', ICON.spark], ['rank', '투자 수익 랭킹', ICON.trophy], ['events', '이벤트·투자 대회', ICON.coin], ['guide', '이용 가이드', ICON.list], ['help', '고객센터', ICON.doc], ['my', '마이페이지', ICON.user],
@@ -367,7 +369,7 @@
           <div class="cap">TRADING</div>
           ${NAV.slice(0, 8).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
           <div class="sep"></div><div class="cap">COIN</div>
-          ${NAV.slice(8, 10).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
+          ${coinNav(NAV.slice(8, 10)).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}">${i}<span>${l}</span></a>`).join('')}
           <div class="sep"></div><div class="cap">MAX SERVICE</div>
           ${NAV.slice(10).map(([r, l, i]) => `<a href="#/${r}" data-r="${r.split('/')[0]}" title="${NAV_TIP[r.split('/')[0]] || ''}">${i}<span>${l}</span></a>`).join('')}
           ${staff ? `<div class="sep"></div><a href="admin.html" id="admLink">${ICON.shield}<span>${S.user.role === 'admin' ? '관리자' : 'MAX 리딩 관리'}</span><span class="nbdg" hidden></span></a>` : ''}
@@ -1727,7 +1729,7 @@
   }
   // 모바일 전체 메뉴
   function Menu(main) {
-    main.innerHTML = `${head('전체 메뉴')}<section class="panel"><nav class="nav" style="padding:8px">${NAV.map(([r, l, i]) => `<a href="#/${r}">${i}<span>${l}</span></a>`).join('')}${S.user.role !== 'user' ? `<a href="admin.html">${ICON.shield}<span>관리자</span></a>` : ''}</nav></section>
+    main.innerHTML = `${head('전체 메뉴')}<section class="panel"><nav class="nav" style="padding:8px">${coinNav(NAV).map(([r, l, i]) => `<a href="#/${r}">${i}<span>${l}</span></a>`).join('')}${S.user.role !== 'user' ? `<a href="admin.html">${ICON.shield}<span>관리자</span></a>` : ''}</nav></section>
       <section class="panel panel-b" style="margin-top:12px;font-size:12px" class="muted">${statusLine()}</section>`;
     return {};
   }

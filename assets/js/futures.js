@@ -109,6 +109,13 @@
           <div class="panel cf-order" id="cfOrder"></div>
         </aside>
       </div>`;
+    // 보기 전용 (관리자가 코인 선물 거래를 끈 경우): 시세·차트·호가·체결만
+    const viewOnly = S.st.cfEnabled === false;
+    if (viewOnly) {
+      main.classList.add('cf-view');
+      $('.cf-right', main).insertAdjacentHTML('beforeend', `<div class="panel cf-view-note"><div class="panel-b"><b>코인 시세 보기</b><p class="muted">주식 화면을 떠나지 않고 비트코인·이더리움 등 주요 코인 시세를 바로 확인하세요. 실시간 시세·차트·호가·체결이 OKX 기준으로 표시됩니다.</p><a class="btn btn-brand btn-block" href="#/stock/005930">주식 주문으로</a><a class="btn btn-block" style="margin-top:6px" href="#/market">주식 시세·순위</a></div></div>`);
+      main.addEventListener('click', (e) => { if (e.target.closest('.cf-book [data-p], .cf-br')) e.stopPropagation(); }, true);
+    }
     const chart = Chart.candle($('#cfChart'), { ccy: 'COIN', tip: $('#cfTip'), view: window.innerWidth < 760 ? 60 : 110, ma: [7, 25, 99], tf: bar === '1D' ? 'D' : 'm' });
     CF.subBook(sym);
     async function loadChart() { try { const d = await CF.candles(sym, bar); chart.set({ data: d, tf: bar === '1D' ? 'D' : 'm', offset: 0, lines: posLines() }); } catch { } }
@@ -128,7 +135,7 @@
     }
     function head() {
       const t = CF.t[sym] || {}; const st = W.st;
-      $('#cfHead').innerHTML = `<div class="cf-hl"><span class="cf-ic lg">${sym.slice(0, 1)}</span><div><b>${sym}USDT <span class="tag tag-no">무기한</span></b><small>${SYMN[sym] || ''} · 가상 USDT</small></div></div>
+      $('#cfHead').innerHTML = `<div class="cf-hl"><span class="cf-ic lg">${sym.slice(0, 1)}</span><div><b>${sym}USDT ${viewOnly ? '' : '<span class="tag tag-no">무기한</span>'}</b><small>${SYMN[sym] || ''} · ${viewOnly ? 'OKX 실시간 시세' : '가상 USDT'}</small></div></div>
         <div class="cf-hp"><b class="${cls(t.chg)}">${cp(t.last)}</b><small class="${cls(t.chg)}">${t.chg > 0 ? '+' : ''}${(t.chg || 0).toFixed(2)}%</small></div>
         <dl class="cf-hs"><div><dt>24시간 고가</dt><dd>${cp(t.high)}</dd></div><div><dt>24시간 저가</dt><dd>${cp(t.low)}</dd></div><div><dt>24시간 거래대금</dt><dd>${t.vol ? (t.vol / 1e6).toFixed(1) + 'M' : '-'}</dd></div><div><dt>원화 환산</dt><dd>${t.last && st ? won(Math.round(t.last * st.fx)) : '-'}</dd></div></dl>`;
       $('#cfWs').innerHTML = CF.ok ? '<span class="brand">●</span> 실시간 연결' : CF.books[sym] && CF.books[sym].rest ? '<span class="brand">●</span> 실시간 (2초 갱신)' : '<span style="color:var(--warn)">●</span> 연결 중…';
