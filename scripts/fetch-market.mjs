@@ -124,7 +124,7 @@ async function usList(exchange) {
     .filter((r) => /^[A-Z]{1,5}$/.test(r.symbol) && num(r.lastsale) > 0 && num(r.marketCap) > 0 && !/ Warrant| Right| Unit|Preferred|Series [A-Z]\b|%|Notes|Debenture/i.test(r.name))
     .map((r) => {
       const price = num(r.lastsale), change = num(r.netchange);
-      return { code: r.symbol, name: r.name.replace(/ (Common Stock|Class [A-C] Common Stock|Ordinary Shares|Common Shares|American Depositary Shares).*$/i, '').trim(), market: mk, sector: r.sector || '', country: r.country || '', price, change, changePct: num(r.pctchange), prevClose: +(price - change).toFixed(4), volume: num(r.volume), cap: num(r.marketCap) };
+      return { code: r.symbol, name: r.name.replace(/ (Common Stock|Class [A-C] Common Stock|Class [A-C] Ordinary Shares|Ordinary Shares|Common Shares|American Depositary Shares|American Depository Shares|New York Registry Shares|Sponsored ADR|ADR|ADS|Depositary Shares).*$/i, '').trim(), market: mk, sector: r.sector || '', country: r.country || '', price, change, changePct: num(r.pctchange), prevClose: +(price - change).toFixed(4), volume: num(r.volume), cap: num(r.marketCap) };
     });
 }
 async function yahoo(symbol, range = '1d', interval = '5m') {

@@ -910,3 +910,23 @@ a.demo-acc { display: flex; text-decoration: none; }
 .usr-lang.in-top .ul-btn { height: 30px; border-color: transparent; background: transparent; }
 @media (max-width: 760px) { .usr-lang.in-top .ul-btn { padding: 0 5px; } .usr-lang.in-top .ul-btn b { font-size: 11px; } }
 @media (max-width: 420px) { .topbar:has(.usr-lang) .lat-b { display: none; } .usr-lang.in-top .ul-btn b { display: none; } .usr-lang.in-top .ul-btn { padding: 0 6px; } }
+/* 보유 현황 대시보드 */
+.bd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.bd-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface-2); min-width: 0; }
+.bd-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.bd-h b { font-size: 14px; }
+.bd-ses { font-size: 11px; color: var(--text-3); display: inline-flex; align-items: center; gap: 5px; }
+.bd-ses i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); flex: none; }
+.bd-ses.on i { background: #3ecf6e; box-shadow: 0 0 0 3px rgba(62,207,110,.18); }
+.bd-ses.ext i { background: var(--brand); }
+.bd-v { font-size: 20px; font-weight: 800; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.bd-s { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; margin-top: 2px; }
+.bd-n { font-size: 12px; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bd-alerts { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.bd-al { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); }
+.bd-al[data-go] { cursor: pointer; }
+.bd-al i { width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--text-3); }
+.bd-al.up i { background: var(--up); } .bd-al.down i { background: var(--down); } .bd-al.brand i { background: var(--brand); } .bd-al.ok i { background: #3ecf6e; }
+@media (max-width: 760px) { .bd-grid { grid-template-columns: 1fr; } .bd-v { font-size: 18px; } }
+@media (max-width: 760px) { .adm-top { max-width: calc(100vw - 24px); min-width: 0; } #main { min-width: 0; } }
+.t .sname b, .slist .sname b { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } @media (max-width: 760px) { .t .sname b, .slist .sname b { max-width: 150px; } }

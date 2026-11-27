@@ -1029,10 +1029,53 @@
   }
 
   // ═════════ 잔고 ═════════
+
+  // ═════════ 보유 현황 대시보드 (시장별 손익 · 장 시간 · 알림) ═════════
+  const sesOf = (m) => Market.session(m === 'KR' ? 'KR' : 'US');
+  function sesLine(m) {
+    const ss = sesOf(m);
+    if (ss.open) return { cls: 'on', t: `정규장 진행 중 · 마감까지 ${leftTxt(ss.left || 0)}` };
+    const I = Market.sesInfo(m === 'KR' ? 'KR' : 'US', 'regular');
+    return { cls: ss.ext ? 'ext' : 'off', t: `${ss.label} · ${I ? leftTxt(I.inMin) + ' 뒤 정규장 (' + I.from + ')' : ''}` };
+  }
+  function holdDash(el) {
+    if (!el) return; const v = S.v; const H = v.holdings || [];
+    const mks = [...new Set([...H.map((h) => { const q = Market.quote(h.code); return q ? mkOf(q) : h.currency === 'KRW' ? 'KR' : 'US'; }), mainMk()])].filter((m) => allowedMk().includes(m) || H.some((h) => (Market.quote(h.code) ? mkOf(Market.quote(h.code)) : '') === m));
+    const order = ['KR', 'US', 'EU', 'JP', 'CN']; mks.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    const grp = (m) => H.filter((h) => { const q = Market.quote(h.code); return (q ? mkOf(q) : h.currency === 'KRW' ? 'KR' : 'US') === m; });
+    const cards = mks.map((m) => {
+      const L = grp(m); const ev = L.reduce((a, h) => a + h.evalKrw, 0), cost = L.reduce((a, h) => a + h.costKrw, 0), pnl = ev - cost;
+      const day = L.reduce((a, h) => a + (h.changePct ? h.evalKrw - h.evalKrw / (1 + h.changePct / 100) : 0), 0);
+      const sl = sesLine(m);
+      return `<div class="bd-card"><div class="bd-h"><b>${MKN[m]}</b><span class="bd-ses ${sl.cls}"><i></i>${sl.t}</span></div>
+        ${L.length ? `<div class="bd-v">${won(ev)}</div><div class="bd-s"><span class="${cls(pnl)}">평가손익 ${signedWon(pnl)} (${pct(cost ? (pnl / cost) * 100 : 0)})</span><span class="${cls(day)}">오늘 ${signedWon(Math.round(day))}</span></div><div class="bd-n dim">${L.length}종목 · <span data-noi18n>${L.slice(0, 3).map((h) => esc(h.name)).join(', ')}</span>${L.length > 3 ? ' …' : ''}</div>` : `<div class="bd-n dim" style="margin-top:8px">보유 종목이 없습니다</div>`}</div>`;
+    }).join('');
+    // 알림
+    const A = [];
+    for (const h of H) {
+      if (Math.abs(h.changePct || 0) >= 5) A.push([h.changePct > 0 ? 'up' : 'down', `${h.name} 오늘 ${pct(h.changePct)} — 변동이 큽니다`, h.code]);
+      if (h.pnlPct <= -10) A.push(['down', `${h.name} 매입가 대비 ${pct(h.pnlPct)} — 손절 기준을 확인하세요`, h.code]);
+      else if (h.pnlPct >= 20) A.push(['up', `${h.name} 매입가 대비 ${pct(h.pnlPct)} — 일부 익절을 검토하세요`, h.code]);
+    }
+    for (const m of mks) { if (!grp(m).length) continue; const ss = sesOf(m); if (ss.left != null && ss.left <= 30) A.push(['brand', `${MKN[m]} ${ss.nextLabel}까지 ${leftTxt(ss.left)} 남았습니다`, '']); }
+    const po = (S.d.orders || []).filter((o) => o.status === 'pending').length; if (po) A.push(['brand', `미체결 주문 ${po}건이 있습니다`, '']);
+    if (v.loan) A.push(['brand', 'MAX 버프 사용 중 — 담보비율을 수시로 확인하세요', '']);
+    el.innerHTML = `<div class="bd-grid">${cards}</div>${A.length ? `<div class="bd-alerts">${A.slice(0, 8).map(([c, t, code]) => `<div class="bd-al ${c}" ${code ? `data-go="${code}"` : ''}><i></i><span>${t}</span></div>`).join('')}</div>` : `<div class="bd-alerts"><div class="bd-al ok"><i></i><span>지금은 확인할 알림이 없습니다</span></div></div>`}`;
+    bindGo(el);
+  }
+  // 보유 종목이 있는 시장의 정규장 시작·마감을 화면·음성·알림음으로 안내 (선택한 언어로 번역됨)
+  { const last = {}; setInterval(() => { try { if (!S.user || !S.v) return; const H = S.v.holdings || [];
+      for (const m of ['KR', 'US']) { const ss = Market.session(m); const prev = last[m]; last[m] = ss.code; if (!prev || prev === ss.code) continue;
+        const n = H.filter((h) => (m === 'KR' ? h.currency === 'KRW' : h.currency === 'USD')).length; if (!n) continue;
+        const where = m === 'KR' ? '국내' : '미국';
+        if (ss.code === 'regular') { const t = `${where} 정규장이 시작되었습니다. 보유 ${n}종목`; U.toast(t); Voice.say(t); appNotify('장 시작', t); chime(m); }
+        else if (prev === 'regular') { const t = `${where} 정규장이 마감되었습니다. 보유 ${n}종목`; U.toast(t); Voice.say(t); appNotify('장 마감', t); chime(m); }
+      } } catch {} }, 30000); }
   function Balance(main) {
     let range = 30; const SPK = {};
     main.innerHTML = `${head('잔고', '보유종목과 계좌 수익률을 확인합니다.')}
       <div class="grid g-4" style="margin-bottom:16px" id="bStats"></div>
+      <section class="panel bdash" style="margin-bottom:16px"><div class="panel-h"><h3>보유 현황 대시보드</h3><span class="dim" style="font-size:12px">시장별 손익 · 장 시간 · 알림</span></div><div class="panel-b" id="bDash"></div></section>
       <div class="grid g-main" style="margin-bottom:16px">
         <section class="panel"><div class="panel-h"><h3>계좌 수익률 추이</h3><div class="seg" id="bRange"><button data-v="7">1주</button><button data-v="30" class="on">1개월</button><button data-v="90">3개월</button><button data-v="9999">전체</button></div></div><div class="panel-b"><div style="height:240px"><canvas id="bLine" style="width:100%;height:100%"></canvas></div></div></section>
         <section class="panel"><div class="panel-h"><h3>자산 구성</h3></div><div class="panel-b" id="bAlloc"></div></section>
@@ -1054,6 +1097,7 @@
         <div class="panel panel-b stat"><div class="k">평가손익</div><div class="v ${cls(v.pnl)}">${signedWon(v.pnl)}</div><div class="s ${cls(v.pnl)}">${pct(v.pnlPct)}</div></div>
         <div class="panel panel-b stat"><div class="k">예수금 · 주문가능</div><div class="v">${won(v.cash)}</div><div class="s muted">주문가능 ${won(v.orderable)}</div></div>
         <div class="panel panel-b stat"><div class="k">실현손익 (누적)</div><div class="v ${cls(v.realized)}">${signedWon(v.realized)}</div><div class="s muted">투자원금 ${won(v.principal)}</div></div>`;
+      holdDash($('#bDash'));
       $('#bCnt').textContent = v.holdings.length + '종목';
       $('#bHold').innerHTML = v.holdings.length ? v.holdings.map((h) => `<tr class="click" data-go="${h.code}"><td><div class="sname"><b>${esc(h.name)}</b><small>${h.code} · ${h.market}</small></div></td><td>${n0(h.qty)}</td><td>${px(h.avg, h.currency)}</td><td class="${cls(h.changePct)}">${px(h.price, h.currency)}</td><td>${won(h.evalKrw)}</td><td class="${cls(h.pnl)}">${signedWon(h.pnl)}</td><td class="${cls(h.pnl)}"><b>${pct(h.pnlPct)}</b></td><td class="hide-m"><canvas class="h-spark" data-sp="${h.code}" width="90" height="28"></canvas></td><td class="hide-m"><button class="btn btn-sm btn-sell" data-stop data-sell="${h.code}">매도</button></td></tr>`).join('') : '<tr><td colspan="9"><div class="empty">보유종목이 없습니다</div></td></tr>';
       $$('#bHold [data-sp]').forEach((c) => { const code = c.dataset.sp; const hit = SPK[code]; const draw = (vals) => { if (vals && vals.length > 1) Chart.spark(c, vals, vals[vals.length - 1] >= vals[0] ? Chart.css('--up') : Chart.css('--down')); }; if (hit) draw(hit); else Market.candles(code, 'D').then((r) => { SPK[code] = r.data.slice(-30).map((k) => k.c); draw(SPK[code]); }).catch(() => {}); });
